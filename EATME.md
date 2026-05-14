@@ -95,4 +95,42 @@ src/
   cli.ts              — CLI entry point (alice-web serve ...)
   a3p-parser.ts       — .a3p ZIP/XML parser (existing)
   scene-builder.ts    — Three.js scene builder (existing)
+  hooks/
+    place-object.ts   — CLI hook: object placement proof
+    edit-procedure.ts — CLI hook: procedure edit proof
+    run-world.ts      — CLI hook: world run proof
+    save-project.ts   — CLI hook: project save proof
+tools/
+  eatme-place-object    — Shell wrapper for place-object hook
+  eatme-edit-procedure  — Shell wrapper for edit-procedure hook
+  eatme-run-world       — Shell wrapper for run-world hook
+  eatme-save-project    — Shell wrapper for save-project hook
 ```
+
+## CLI Hooks (eatme-compatible)
+
+The `tools/` directory contains shell scripts matching the exact interface
+of Java Alice's `tools/eatme-*` hooks. These allow the eatme harness to
+validate the TypeScript prototype using the same mechanism as Java Alice.
+
+### Usage
+
+```bash
+# Build first
+npm run build:server
+
+# Place an object in the scene
+tools/eatme-place-object --project starter.a3p --evidence-dir ./evidence --json
+
+# Edit a procedure
+tools/eatme-edit-procedure --project starter.a3p --evidence-dir ./evidence --json
+
+# Run the world
+tools/eatme-run-world --project starter.a3p --evidence-dir ./evidence --json
+
+# Save the project
+tools/eatme-save-project --project starter.a3p --save-selector scene.eatmeFirstLessonStep --evidence-dir ./evidence --json
+```
+
+Each hook outputs a single JSON line to stdout and writes evidence artifacts
+to the `--evidence-dir` directory.
