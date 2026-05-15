@@ -144,15 +144,9 @@ function execMethodCall(stmt: AliceStatement, state: ExecutionState): void {
       break;
 
     case "turn":
-      state.eventLog.push({ action: "turn", object: objectName });
-      break;
-
     case "say":
-      state.eventLog.push({ action: "say", object: objectName });
-      break;
-
     case "roll":
-      state.eventLog.push({ action: "roll", object: objectName });
+      state.eventLog.push({ action: method, object: objectName });
       break;
 
     default:

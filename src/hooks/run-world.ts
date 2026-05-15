@@ -51,9 +51,11 @@ async function main(): Promise<void> {
   const selector = "scene.eatmeFirstLessonStep";
 
   // Execute all parsed statements
+  const runStart = Date.now();
   const execState = createExecutionState(parsed.sceneObjects);
   const allStatements = parsed.methods.flatMap(m => m.statements);
   const execResult = executeStatements(allStatements, execState);
+  const runDuration = Date.now() - runStart;
 
   fs.mkdirSync(args.evidenceDir, { recursive: true });
 
@@ -67,7 +69,7 @@ async function main(): Promise<void> {
     scene_object_count: parsed.sceneObjects.length,
     statements_executed: execResult.statementsExecuted,
     event_log: execResult.eventLog,
-    run_duration_ms: 50,
+    run_duration_ms: runDuration,
     errors: [],
     doesNotClaim: [
       "visible rendering correctness",

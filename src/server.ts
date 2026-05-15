@@ -293,8 +293,8 @@ export function createServer(options: ServerOptions): express.Express {
     const screenshotPath = path.join(options.evidenceDir, "screenshot.png");
 
     try {
-      // Build a project representation from current state for rendering
-      const currentProject: AliceProject = {
+      // Use cached parse if available, otherwise build from server state
+      const currentProject: AliceProject = state.parsedProject ?? {
         version: "3.10",
         projectName: state.projectName,
         sceneObjects: state.sceneObjects.map((o) => ({
@@ -307,17 +307,6 @@ export function createServer(options: ServerOptions): express.Express {
         })),
         methods: [],
       };
-
-      // If we loaded a real .a3p, parse it for full scene data
-      if (state.projectPath && fs.existsSync(state.projectPath)) {
-        try {
-          const data = fs.readFileSync(state.projectPath);
-          const parsed = await parseA3P(data);
-          currentProject.sceneObjects = parsed.sceneObjects;
-          currentProject.methods = parsed.methods;
-          currentProject.projectName = parsed.projectName;
-        } catch { /* fall back to state-based rendering */ }
-      }
 
       const result = await renderSceneToPng(currentProject, { width: 640, height: 480 });
       fs.writeFileSync(screenshotPath, result.png);
