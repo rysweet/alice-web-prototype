@@ -32,7 +32,7 @@ interface ServerState {
 
 export function createServer(options: ServerOptions): express.Express {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: "1mb" }));
 
   const state: ServerState = {
     launched: false,
@@ -322,7 +322,7 @@ export function createServer(options: ServerOptions): express.Express {
         status: "captured",
         path: screenshotPath,
         placeholder: true,
-        error: String(err),
+        error: "Screenshot rendering failed",
       });
     }
   });
