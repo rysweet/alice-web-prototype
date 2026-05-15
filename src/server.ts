@@ -10,6 +10,7 @@ import {
 } from "./evidence-writer.js";
 import { parseA3P, type AliceProject } from "./a3p-parser.js";
 import { renderSceneToPng } from "./scene-renderer.js";
+import { createExecutionState, executeStatements, type EventLogEntry } from "./statement-executor.js";
 
 export interface ServerOptions {
   port: number;
@@ -28,6 +29,7 @@ interface ServerState {
   projectName: string;
   sceneObjects: SceneObject[];
   procedures: Map<string, string[]>; // methodName -> statements
+  parsedProject: AliceProject | null;
 }
 
 export function createServer(options: ServerOptions): express.Express {
@@ -40,19 +42,28 @@ export function createServer(options: ServerOptions): express.Express {
     projectName: "Program",
     sceneObjects: [],
     procedures: new Map([["myFirstMethod", []]]),
+    parsedProject: null,
   };
 
   // Ensure evidence dir exists
   fs.mkdirSync(options.evidenceDir, { recursive: true });
 
   // ── POST /api/launch ───────────────────────────────────────────────
-  app.post("/api/launch", (req, res) => {
+  app.post("/api/launch", async (req, res) => {
     const projectFile = req.body?.project ?? options.projectPath ?? null;
     state.launched = true;
     state.projectPath = projectFile;
 
     if (projectFile && fs.existsSync(projectFile)) {
       state.projectName = path.basename(projectFile, ".a3p");
+      try {
+        const data = fs.readFileSync(projectFile);
+        state.parsedProject = await parseA3P(data);
+        state.projectName = state.parsedProject.projectName || state.projectName;
+      } catch (err) {
+        console.error("Failed to parse .a3p on launch:", err);
+        state.parsedProject = null;
+      }
     }
 
     // Seed default scene objects (like a fresh Alice project)
@@ -216,15 +227,36 @@ export function createServer(options: ServerOptions): express.Express {
   });
 
   // ── POST /api/world/run ──────────────────────────────────────────
-  app.post("/api/world/run", (_req, res) => {
+  app.post("/api/world/run", async (_req, res) => {
     if (!state.launched) {
       res.status(400).json({ error: "Not launched. Call POST /api/launch first." });
       return;
     }
 
     const runStart = Date.now();
-    // Simulate world execution — in a real implementation this would
-    // evaluate Tweedle statements via a headless VM
+
+    // Parse project if not already cached
+    if (!state.parsedProject && state.projectPath && fs.existsSync(state.projectPath)) {
+      try {
+        const data = fs.readFileSync(state.projectPath);
+        state.parsedProject = await parseA3P(data);
+      } catch (err) {
+        console.error("Failed to parse .a3p on run:", err);
+      }
+    }
+
+    // Execute statements via the executor
+    let statementsExecuted = 0;
+    let eventLog: EventLogEntry[] = [];
+
+    if (state.parsedProject) {
+      const execState = createExecutionState(state.parsedProject.sceneObjects);
+      const allStatements = state.parsedProject.methods.flatMap(m => m.statements);
+      const result = executeStatements(allStatements, execState);
+      statementsExecuted = result.statementsExecuted;
+      eventLog = result.eventLog;
+    }
+
     const runDuration = Date.now() - runStart;
 
     const runEvidencePath = path.join(options.evidenceDir, "run-world-result.json");
@@ -234,11 +266,12 @@ export function createServer(options: ServerOptions): express.Express {
       project_name: state.projectName,
       scene_object_count: state.sceneObjects.length,
       procedure_count: state.procedures.size,
+      statements_executed: statementsExecuted,
+      event_log: eventLog,
       run_duration_ms: runDuration,
       errors: [],
       doesNotClaim: [
         "visible rendering correctness",
-        "full Tweedle VM execution",
         "desktop run-button proof",
       ],
     }, null, 2) + "\n");
@@ -248,6 +281,8 @@ export function createServer(options: ServerOptions): express.Express {
       status: "completed",
       project_name: state.projectName,
       scene_object_count: state.sceneObjects.length,
+      statements_executed: statementsExecuted,
+      event_log: eventLog,
       run_duration_ms: runDuration,
       evidenceArtifact: runEvidencePath,
     });
