@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.9.10",
+    "canvas": "^3.2.3",
     "express": "^5.2.1",
     "jszip": "^3.10.1",
     "three": "^0.170.0"

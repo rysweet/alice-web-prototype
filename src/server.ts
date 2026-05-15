@@ -8,6 +8,8 @@ import {
   writeSaveProof,
   saveProjectResultJson,
 } from "./evidence-writer.js";
+import { parseA3P, type AliceProject } from "./a3p-parser.js";
+import { renderSceneToPng } from "./scene-renderer.js";
 
 export interface ServerOptions {
   port: number;
@@ -252,21 +254,56 @@ export function createServer(options: ServerOptions): express.Express {
   });
 
   // ── GET /api/screenshot ────────────────────────────────────────────
-  app.get("/api/screenshot", (_req, res) => {
-    // In a headless Node environment, produce a 1x1 PNG placeholder.
-    // A real implementation would use headless-gl or puppeteer.
+  app.get("/api/screenshot", async (_req, res) => {
     const screenshotPath = path.join(options.evidenceDir, "screenshot.png");
 
-    // Minimal valid 8x8 PNG (solid sky-blue)
-    const pngBuffer = createPlaceholderPng();
-    fs.writeFileSync(screenshotPath, pngBuffer);
+    try {
+      // Build a project representation from current state for rendering
+      const currentProject: AliceProject = {
+        version: "3.10",
+        projectName: state.projectName,
+        sceneObjects: state.sceneObjects.map((o) => ({
+          name: o.name,
+          typeName: o.className,
+          resourceType: null,
+          position: null,
+          orientation: null,
+          size: null,
+        })),
+        methods: [],
+      };
 
-    res.json({
-      status: "captured",
-      path: screenshotPath,
-      placeholder: true,
-      note: "Headless Three.js screenshot; use a browser-based capture for real rendering",
-    });
+      // If we loaded a real .a3p, parse it for full scene data
+      if (state.projectPath && fs.existsSync(state.projectPath)) {
+        try {
+          const data = fs.readFileSync(state.projectPath);
+          const parsed = await parseA3P(data);
+          currentProject.sceneObjects = parsed.sceneObjects;
+          currentProject.methods = parsed.methods;
+          currentProject.projectName = parsed.projectName;
+        } catch { /* fall back to state-based rendering */ }
+      }
+
+      const result = await renderSceneToPng(currentProject, { width: 640, height: 480 });
+      fs.writeFileSync(screenshotPath, result.png);
+
+      res.json({
+        status: "captured",
+        path: screenshotPath,
+        objectCount: result.objectCount,
+        sceneDescription: result.sceneDescription,
+        rendered: true,
+      });
+    } catch (err) {
+      // Fallback to placeholder
+      fs.writeFileSync(screenshotPath, createPlaceholderPng());
+      res.json({
+        status: "captured",
+        path: screenshotPath,
+        placeholder: true,
+        error: String(err),
+      });
+    }
   });
 
   return app;
