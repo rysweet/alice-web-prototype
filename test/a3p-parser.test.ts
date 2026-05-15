@@ -189,4 +189,48 @@ describe("a3p-parser", () => {
       expect(project.version).toMatch(/^3\./);
     });
   });
+
+  describe("method extraction from built starter project", () => {
+    const BUILT_A3P = path.resolve(
+      __dirname,
+      "../../alice/core/resources/target/distribution/application/starter-projects/amazonMinimum.a3p",
+    );
+    let project: AliceProject;
+    const fileExists = fs.existsSync(BUILT_A3P);
+
+    beforeAll(async () => {
+      if (!fileExists) return;
+      const data = fs.readFileSync(BUILT_A3P);
+      project = await parseA3P(data);
+    });
+
+    it.skipIf(!fileExists)("extracts methods from scene type", () => {
+      expect(project.methods.length).toBeGreaterThan(0);
+    });
+
+    it.skipIf(!fileExists)("finds performCustomSetup method", () => {
+      const setup = project.methods.find((m) => m.name === "performCustomSetup");
+      expect(setup).toBeDefined();
+    });
+
+    it.skipIf(!fileExists)("methods have statement arrays", () => {
+      for (const m of project.methods) {
+        expect(Array.isArray(m.statements)).toBe(true);
+      }
+    });
+
+    it.skipIf(!fileExists)("performGeneratedSetUp has method call statements", () => {
+      const gen = project.methods.find((m) => m.name === "performGeneratedSetUp");
+      if (gen) {
+        expect(gen.statements.length).toBeGreaterThan(0);
+      }
+    });
+
+    it.skipIf(!fileExists)("methods are typed as procedure or function", () => {
+      for (const m of project.methods) {
+        expect(typeof m.isFunction).toBe("boolean");
+        expect(typeof m.returnType).toBe("string");
+      }
+    });
+  });
 });

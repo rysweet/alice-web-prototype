@@ -12,11 +12,45 @@ export interface AliceObject {
   size: { width: number; height: number; depth: number } | null;
 }
 
+/** A parsed statement from the Alice AST. */
+export interface AliceStatement {
+  kind: string;
+  /** For MethodCall: object.method(args) */
+  object?: string;
+  method?: string;
+  arguments?: string[];
+  /** For loops */
+  count?: number;
+  body?: AliceStatement[];
+  /** For if/else */
+  condition?: string;
+  ifBody?: AliceStatement[];
+  elseBody?: AliceStatement[];
+  /** For events */
+  event?: string;
+  /** For return */
+  expression?: string;
+  /** For variable */
+  name?: string;
+  varType?: string;
+  value?: string;
+}
+
+/** A parsed method (procedure or function) from the Alice AST. */
+export interface AliceMethod {
+  name: string;
+  isFunction: boolean;
+  returnType: string;
+  parameters: Array<{ name: string; type: string }>;
+  statements: AliceStatement[];
+}
+
 /** Top-level result from parsing an .a3p file. */
 export interface AliceProject {
   version: string;
   projectName: string;
   sceneObjects: AliceObject[];
+  methods: AliceMethod[];
 }
 
 /**
@@ -33,8 +67,10 @@ export async function parseA3P(data: ArrayBuffer | Uint8Array): Promise<AlicePro
 
   const projectName = getProjectName(doc);
   const sceneObjects = extractSceneObjects(doc);
+  const keyMap = buildKeyMap(doc.documentElement);
+  const methods = extractMethods(doc, keyMap);
 
-  return { version: version.trim(), projectName, sceneObjects };
+  return { version: version.trim(), projectName, sceneObjects, methods };
 }
 
 // ---------------------------------------------------------------------------
@@ -358,4 +394,140 @@ function extractDoubleArgs(methodInvocation: Element): number[] {
     }
   }
   return doubles;
+}
+
+// ---------------------------------------------------------------------------
+// Method / procedure / function extraction
+// ---------------------------------------------------------------------------
+
+function extractMethods(doc: Document, keyMap: Map<string, Element>): AliceMethod[] {
+  const methods: AliceMethod[] = [];
+  const allNodes = doc.getElementsByTagName("node");
+
+  for (let i = 0; i < allNodes.length; i++) {
+    const node = allNodes[i];
+    const nodeType = node.getAttribute("type");
+    if (nodeType !== "org.lgna.project.ast.UserMethod") continue;
+
+    const name = getPropertyText(node, "name");
+    if (!name || name === "main") continue;
+
+    const returnType = extractReturnType(node, keyMap);
+    const isFunction = returnType !== "void" && returnType !== "";
+    const parameters = extractParameters(node, keyMap);
+    const statements = extractStatements(node, keyMap);
+
+    methods.push({ name, isFunction, returnType, parameters, statements });
+  }
+
+  return methods;
+}
+
+function extractReturnType(methodNode: Element, keyMap: Map<string, Element>): string {
+  const rtProp = getProperty(methodNode, "returnType");
+  if (!rtProp) return "void";
+  let rtNode = directChild(rtProp, "node");
+  if (!rtNode) return "void";
+  rtNode = resolve(rtNode, keyMap);
+  const rtType = rtNode.getAttribute("type") ?? "";
+  if (rtType === "org.lgna.project.ast.JavaType") {
+    const cls = getPropertyText(rtNode, "class");
+    if (cls === "void" || cls === "java.lang.Void") return "void";
+    return cls ?? "void";
+  }
+  return "void";
+}
+
+function extractParameters(methodNode: Element, keyMap: Map<string, Element>): Array<{ name: string; type: string }> {
+  const params: Array<{ name: string; type: string }> = [];
+  const paramNodes = getCollectionNodes(methodNode, "requiredParameters", "org.lgna.project.ast.UserParameter");
+  for (const p of paramNodes) {
+    const resolved = resolve(p, keyMap);
+    const pName = getPropertyText(resolved, "name") ?? "unknown";
+    const vtProp = getProperty(resolved, "valueType");
+    let pType = "Object";
+    if (vtProp) {
+      let vtNode = directChild(vtProp, "node");
+      if (vtNode) {
+        vtNode = resolve(vtNode, keyMap);
+        pType = getPropertyText(vtNode, "class") ?? "Object";
+      }
+    }
+    params.push({ name: pName, type: pType });
+  }
+  return params;
+}
+
+function extractStatements(methodNode: Element, keyMap: Map<string, Element>): AliceStatement[] {
+  const bodyProp = getProperty(methodNode, "body");
+  if (!bodyProp) return [];
+  let bodyNode = directChild(bodyProp, "node");
+  if (!bodyNode) return [];
+  bodyNode = resolve(bodyNode, keyMap);
+
+  const stmtsProp = getProperty(bodyNode, "statements");
+  if (!stmtsProp) return [];
+
+  const results: AliceStatement[] = [];
+  const stmtNodes = stmtsProp.getElementsByTagName("node");
+
+  for (let i = 0; i < stmtNodes.length; i++) {
+    const s = stmtNodes[i];
+    // Only process direct children of the statements collection
+    if (s.parentElement !== stmtsProp && s.parentElement?.parentElement !== stmtsProp) continue;
+
+    const stmt = parseStatement(resolve(s, keyMap), keyMap);
+    if (stmt) results.push(stmt);
+  }
+
+  return results;
+}
+
+function parseStatement(node: Element, keyMap: Map<string, Element>): AliceStatement | null {
+  const nodeType = node.getAttribute("type") ?? "";
+
+  if (nodeType === "org.lgna.project.ast.ExpressionStatement") {
+    const exprProp = getProperty(node, "expression");
+    if (!exprProp) return null;
+    let exprNode = directChild(exprProp, "node");
+    if (!exprNode) return null;
+    exprNode = resolve(exprNode, keyMap);
+    const exprType = exprNode.getAttribute("type") ?? "";
+
+    if (exprType === "org.lgna.project.ast.MethodInvocation") {
+      const methodProp = getProperty(exprNode, "method");
+      let methodName = "unknown";
+      if (methodProp) {
+        let mn = directChild(methodProp, "node");
+        if (mn) {
+          mn = resolve(mn, keyMap);
+          methodName = getPropertyText(mn, "name") ?? "unknown";
+        }
+      }
+      return { kind: "MethodCall", method: methodName, object: "this", arguments: [] };
+    }
+  }
+
+  if (nodeType === "org.lgna.project.ast.Comment") {
+    const text = getPropertyText(node, "text") ?? "";
+    return { kind: "Comment", expression: text };
+  }
+
+  if (nodeType === "org.lgna.project.ast.CountLoop") {
+    return { kind: "CountLoop", count: 1, body: [] };
+  }
+
+  if (nodeType === "org.lgna.project.ast.ConditionalStatement") {
+    return { kind: "IfElse", condition: "unknown", ifBody: [], elseBody: [] };
+  }
+
+  if (nodeType === "org.lgna.project.ast.ReturnStatement") {
+    return { kind: "ReturnStatement", expression: "unknown" };
+  }
+
+  if (nodeType === "org.lgna.project.ast.LocalDeclarationStatement") {
+    return { kind: "VariableDeclaration", name: "unknown", varType: "Object", value: "" };
+  }
+
+  return { kind: nodeType.split(".").pop() ?? "Unknown" };
 }
