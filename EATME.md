@@ -135,6 +135,7 @@ src/
   server.ts             — Express HTTP API server
   cli.ts                — CLI entry point (alice-web serve ...)
   a3p-parser.ts         — .a3p ZIP/XML parser (existing)
+  tweedle-parser.ts     — Tweedle AST parser: lexer + recursive-descent + Pratt
   tweedle-vm.ts         — Tweedle VM: executeProject(), VMScope, 7 handlers
   scene-builder.ts      — Three.js scene builder (existing)
   scene-renderer.ts     — PNG scene renderer (existing)
@@ -149,6 +150,7 @@ tools/
   eatme-run-world       — Shell wrapper for run-world hook
   eatme-save-project    — Shell wrapper for save-project hook
 docs/
+  tweedle-parser.md     — Tweedle AST parser API & language reference
   statement-execution.md — Full statement execution documentation
   event-system.md        — Event system & object interaction documentation
 ```
