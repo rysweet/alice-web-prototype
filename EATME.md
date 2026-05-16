@@ -56,16 +56,22 @@ Simulate editing a procedure. Writes `first-lesson-code-editor-action-proof.json
 ```
 
 ### `POST /api/world/run`
-Execute Tweedle statements from the launched project. Returns execution trace
-including object position mutations and an ordered event log.
+Execute all methods through the Tweedle VM. Returns a structured `execution_log`
+with `{step, kind, detail}` entries tracing every statement dispatched.
+Supports MethodCall, CountLoop, IfElse (with variable condition lookup),
+ReturnStatement (halts method), VariableDeclaration (scoped), and EventListener.
 See [docs/statement-execution.md](docs/statement-execution.md) for full details.
 ```jsonc
-// Response (new fields alongside existing ones)
+// Response
 {
   "schema_version": "eatme.alice-run-world-result/v1",
   "status": "completed",
-  "statements_executed": 5,
-  "event_log": [{ "action": "move", "object": "bunny", "detail": "z+1 → {x:0,y:0,z:1}" }]
+  "statements_executed": 8,
+  "execution_log": [
+    { "step": 1, "kind": "MethodCall", "detail": "this.move()" },
+    { "step": 2, "kind": "CountLoop", "detail": "repeat 3 times (3 body statements)" },
+    { "step": 3, "kind": "IfElse", "detail": "condition 'true' → ifBody" }
+  ]
 }
 ```
 
@@ -109,7 +115,7 @@ src/
   server.ts             — Express HTTP API server
   cli.ts                — CLI entry point (alice-web serve ...)
   a3p-parser.ts         — .a3p ZIP/XML parser (existing)
-  statement-executor.ts — Tweedle statement interpreter (pure, zero I/O)
+  tweedle-vm.ts         — Tweedle VM: executeProject(), VMScope, 7 handlers
   scene-builder.ts      — Three.js scene builder (existing)
   scene-renderer.ts     — PNG scene renderer (existing)
   hooks/
