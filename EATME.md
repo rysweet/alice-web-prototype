@@ -46,6 +46,20 @@ Add an object to the scene. Writes `scene-object-added.json` to evidence dir.
 { "className": "org.lgna.story.SBiped", "name": "bunny" }
 ```
 
+### `POST /api/code/create-procedure`
+Create a new void procedure on the Scene with optional parameters.
+See [docs/procedure-function-creation.md](docs/procedure-function-creation.md).
+```json
+{ "name": "walkForward", "parameters": [{ "name": "distance" }] }
+```
+
+### `POST /api/code/create-function`
+Create a new typed function on the Scene with optional parameters and return type.
+See [docs/procedure-function-creation.md](docs/procedure-function-creation.md).
+```json
+{ "name": "getSpeed", "returnType": "java.lang.Double", "parameters": [{ "name": "gear" }] }
+```
+
 ### `POST /api/code/edit-procedure`
 Simulate editing a procedure. Writes `first-lesson-code-editor-action-proof.json`.
 ```json
@@ -115,6 +129,7 @@ src/
   server.ts             — Express HTTP API server
   cli.ts                — CLI entry point (alice-web serve ...)
   a3p-parser.ts         — .a3p ZIP/XML parser (existing)
+  a3p-writer.ts         — .a3p ZIP/XML writer (modifications, method injection)
   tweedle-vm.ts         — Tweedle VM: executeProject(), VMScope, 7 handlers
   scene-builder.ts      — Three.js scene builder (existing)
   scene-renderer.ts     — PNG scene renderer (existing)
@@ -130,6 +145,7 @@ tools/
   eatme-save-project    — Shell wrapper for save-project hook
 docs/
   statement-execution.md — Full statement execution documentation
+  procedure-function-creation.md — Procedure & function creation API docs
 ```
 
 ## CLI Hooks (eatme-compatible)
