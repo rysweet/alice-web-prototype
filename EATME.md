@@ -115,7 +115,6 @@ src/
   server.ts             — Express HTTP API server
   cli.ts                — CLI entry point (alice-web serve ...)
   a3p-parser.ts         — .a3p ZIP/XML parser (existing)
-  statement-executor.ts — Legacy executor (retained, unused by live paths)
   tweedle-vm.ts         — Tweedle VM: executeProject(), VMScope, 7 handlers
   scene-builder.ts      — Three.js scene builder (existing)
   scene-renderer.ts     — PNG scene renderer (existing)

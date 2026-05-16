@@ -438,7 +438,6 @@ src/
   tweedle-vm.ts           ← VM module: executeProject(), VMScope, 7 handlers
   a3p-parser.ts           ← Parses .a3p → AliceProject
   server.ts               ← Wires VM into POST /api/world/run
-  statement-executor.ts   ← Legacy executor (unused by live code paths)
   hooks/
     run-world.ts          ← Wires VM into CLI hook
 ```
@@ -631,10 +630,6 @@ describe("tweedle-vm", () => {
    where full AST extraction is not yet implemented. The VM defaults gracefully
    (executes once, defaults condition to true, uses "unknown" as the variable
    name).
-
-5. **`statement-executor.ts` is retained but unused.** The legacy executor
-   remains in the source tree for reference. All live code paths
-   (`server.ts`, `run-world.ts`) import from `tweedle-vm.ts`.
 
 ## Backward Compatibility
 

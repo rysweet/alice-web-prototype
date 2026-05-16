@@ -27,10 +27,6 @@ function obj(name: string, typeName = "org.lgna.story.SBiped"): AliceObject {
   return { name, typeName, resourceType: null, position: null, orientation: null, size: null };
 }
 
-function objAt(name: string, pos: { x: number; y: number; z: number }): AliceObject {
-  return { name, typeName: "org.lgna.story.SBiped", resourceType: null, position: pos, orientation: null, size: null };
-}
-
 function methodCall(objectName: string, method: string, args: string[] = []): AliceStatement {
   return { kind: "MethodCall", object: objectName, method, arguments: args };
 }
