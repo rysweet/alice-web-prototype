@@ -74,7 +74,7 @@ export async function modifyAndWriteA3P(
   // Write back
   zip.file("programType.xml", xml);
   const output = await zip.generateAsync({ type: "nodebuffer" });
-  fs.mkdirSync(require("path").dirname(outputPath), { recursive: true });
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, output);
 
   return { bytesWritten: output.length, modificationsApplied: applied };
