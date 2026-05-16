@@ -49,24 +49,24 @@ interface Token {
 
 // ── AST Types ────────────────────────────────────────────────────────────
 
-type TypeRef =
+export type TypeRef =
   | { type: "SimpleTypeRef"; name: string; isArray: boolean }
   | { type: "VoidTypeRef" }
   | { type: "LambdaTypeRef"; raw: string };
 
-type Parameter = {
+export type Parameter = {
   name: string;
   paramType: TypeRef;
   isVarArgs: boolean;
   defaultValue: Expression | null;
 };
 
-type Argument = {
+export type Argument = {
   name: string | null;
   value: Expression;
 };
 
-type Statement =
+export type Statement =
   | { type: "DoInOrder"; body: Statement[] }
   | { type: "DoTogether"; body: Statement[] }
   | { type: "IfElse"; condition: Expression; ifBody: Statement[]; elseBody: Statement[] | null }
@@ -78,7 +78,7 @@ type Statement =
   | { type: "Block"; body: Statement[] }
   | { type: "DisabledBlock"; raw: string };
 
-type Expression =
+export type Expression =
   | { type: "Literal"; value: number | string | boolean | null; literalType: "number" | "string" | "boolean" | "null" }
   | { type: "This" }
   | { type: "Super" }
@@ -95,7 +95,7 @@ type Expression =
   | { type: "InstanceOf"; expression: Expression; testType: TypeRef }
   | { type: "Parenthesized"; expression: Expression };
 
-type ConstructorDecl = {
+export type ConstructorDecl = {
   type: "ConstructorDeclaration";
   name: string;
   parameters: Parameter[];
@@ -103,7 +103,7 @@ type ConstructorDecl = {
   visibility: string | null;
 };
 
-type MethodDecl = {
+export type MethodDecl = {
   type: "MethodDeclaration";
   name: string;
   returnType: TypeRef;
@@ -113,7 +113,7 @@ type MethodDecl = {
   visibility: string | null;
 };
 
-type FieldDecl = {
+export type FieldDecl = {
   type: "FieldDeclaration";
   name: string;
   fieldType: TypeRef;
@@ -123,7 +123,7 @@ type FieldDecl = {
   visibility: string | null;
 };
 
-type ClassDecl = {
+export type ClassDecl = {
   type: "ClassDeclaration";
   name: string;
   superClass: string | null;
@@ -252,27 +252,30 @@ function tokenize(source: string): Token[] {
       continue;
     }
 
-    // Number literal
+    // Number literal — use slice to avoid O(n²) string concatenation
     if (isDigit(c0)) {
-      let num = "";
-      while (pos < len && isDigit(ch())) num += advance();
-      if (ch() === "." && ch(1) !== ".") {
-        num += advance();
-        while (pos < len && isDigit(ch())) num += advance();
+      const numStart = pos;
+      pos++;
+      while (pos < len && isDigit(source[pos])) pos++;
+      if (pos < len && source[pos] === "." && (pos + 1 >= len || source[pos + 1] !== ".")) {
+        pos++;
+        while (pos < len && isDigit(source[pos])) pos++;
       }
-      if (ch() === "E" || ch() === "e") {
-        num += advance();
-        if (ch() === "+" || ch() === "-") num += advance();
-        while (pos < len && isDigit(ch())) num += advance();
+      if (pos < len && (source[pos] === "E" || source[pos] === "e")) {
+        pos++;
+        if (pos < len && (source[pos] === "+" || source[pos] === "-")) pos++;
+        while (pos < len && isDigit(source[pos])) pos++;
       }
-      emit(TT.NUMBER, num, sLine, sCol);
+      emit(TT.NUMBER, source.slice(numStart, pos), sLine, sCol);
       continue;
     }
 
-    // Identifier / keyword
+    // Identifier / keyword — use slice to avoid O(n²) string concatenation
     if (isIdentStart(c0)) {
-      let id = "";
-      while (pos < len && isIdentPart(ch())) id += advance();
+      const idStart = pos;
+      pos++;
+      while (pos < len && isIdentPart(source[pos])) pos++;
+      const id = source.slice(idStart, pos);
       const kw = KEYWORDS.get(id);
       emit(kw !== undefined ? kw : TT.IDENTIFIER, id, sLine, sCol);
       continue;
@@ -528,7 +531,7 @@ class Parser {
   }
 
   private parseLambdaTypeRef(): TypeRef {
-    this.advance(); // consume <
+    this.advance();
     const parts: string[] = [];
     let depth = 1;
     while (!this.check(TT.EOF)) {
@@ -570,12 +573,17 @@ class Parser {
   // ── Block & Statements ─────────────────────────────────────────────────
 
   private parseBlock(): Statement[] {
+    this.depth++;
+    if (this.depth > MAX_PARSE_DEPTH) {
+      this.fail("Maximum nesting depth exceeded");
+    }
     this.expect(TT.LBRACE, "'{'");
     const stmts: Statement[] = [];
     while (!this.check(TT.RBRACE) && !this.check(TT.EOF)) {
       stmts.push(this.parseStatement());
     }
     this.expect(TT.RBRACE, "'}'");
+    this.depth--;
     return stmts;
   }
 
@@ -760,18 +768,11 @@ class Parser {
   private parsePrefix(): Expression {
     const tok = this.peek();
 
-    // Unary !
-    if (tok.type === TT.NOT) {
+    // Unary operators
+    if (tok.type === TT.NOT || tok.type === TT.MINUS) {
       this.advance();
       const operand = this.parseExpression(18);
-      return { type: "UnaryOp", operator: "!", operand };
-    }
-
-    // Unary -
-    if (tok.type === TT.MINUS) {
-      this.advance();
-      const operand = this.parseExpression(18);
-      return { type: "UnaryOp", operator: "-", operand };
+      return { type: "UnaryOp", operator: tok.text, operand };
     }
 
     // Parenthesized expression or lambda detection
@@ -803,13 +804,9 @@ class Parser {
     }
 
     // Boolean literals
-    if (tok.type === TT.TRUE) {
+    if (tok.type === TT.TRUE || tok.type === TT.FALSE) {
       this.advance();
-      return { type: "Literal", value: true, literalType: "boolean" };
-    }
-    if (tok.type === TT.FALSE) {
-      this.advance();
-      return { type: "Literal", value: false, literalType: "boolean" };
+      return { type: "Literal", value: tok.type === TT.TRUE, literalType: "boolean" };
     }
 
     // null literal
@@ -859,13 +856,13 @@ class Parser {
   }
 
   private parseNewExpression(): Expression {
-    this.advance(); // consume 'new'
+    this.advance();
     const className = this.expect(TT.IDENTIFIER, "class name").text;
 
     // new Type[]{elements} or new Type[size]
     if (this.check(TT.LBRACKET)) {
-      this.advance(); // [
-      this.expect(TT.RBRACKET, "']'"); // ]
+      this.advance();
+      this.expect(TT.RBRACKET, "']'");
       this.expect(TT.LBRACE, "'{'");
       const elements: Expression[] = [];
       while (!this.check(TT.RBRACE) && !this.check(TT.EOF)) {
@@ -901,7 +898,7 @@ class Parser {
     // Named argument: identifier: expression
     if (this.check(TT.IDENTIFIER) && this.peekAt(1).type === TT.COLON) {
       const name = this.advance().text;
-      this.advance(); // consume :
+      this.advance();
       const value = this.parseExpression();
       return { name, value };
     }
@@ -935,46 +932,49 @@ class Parser {
         arguments: args,
       };
     }
-    return {
-      type: "MethodInvocation",
-      target: left,
-      methodName: "",
-      arguments: args,
-    };
+    this.fail(`Cannot invoke '${left.type}' as a method`);
   }
 }
 
 // ── Binding Power Tables ─────────────────────────────────────────────────
 
+// Pre-allocated binding power objects — avoids per-expression GC pressure
+const BP_ASSIGN = { left: 2, right: 1 };
+const BP_OR     = { left: 4, right: 5 };
+const BP_AND    = { left: 6, right: 7 };
+const BP_EQ     = { left: 8, right: 9 };
+const BP_CMP    = { left: 10, right: 11 };
+const BP_CONCAT = { left: 12, right: 13 };
+const BP_ADD    = { left: 14, right: 15 };
+const BP_MUL    = { left: 16, right: 17 };
+
 function binaryBp(type: TT): { left: number; right: number } | null {
   switch (type) {
-    case TT.ASSIGN:  return { left: 2, right: 1 };   // right-assoc
-    case TT.OR_OR:   return { left: 4, right: 5 };
-    case TT.AND_AND: return { left: 6, right: 7 };
-    case TT.EQ_EQ: case TT.NOT_EQ: return { left: 8, right: 9 };
-    case TT.LT: case TT.GT: case TT.LT_EQ: case TT.GT_EQ:
-      return { left: 10, right: 11 };
-    case TT.DOT_DOT: return { left: 12, right: 13 };
-    case TT.PLUS: case TT.MINUS: return { left: 14, right: 15 };
-    case TT.STAR: case TT.SLASH: case TT.PERCENT: return { left: 16, right: 17 };
+    case TT.ASSIGN:  return BP_ASSIGN;
+    case TT.OR_OR:   return BP_OR;
+    case TT.AND_AND: return BP_AND;
+    case TT.EQ_EQ: case TT.NOT_EQ: return BP_EQ;
+    case TT.LT: case TT.GT: case TT.LT_EQ: case TT.GT_EQ: return BP_CMP;
+    case TT.DOT_DOT: return BP_CONCAT;
+    case TT.PLUS: case TT.MINUS: return BP_ADD;
+    case TT.STAR: case TT.SLASH: case TT.PERCENT: return BP_MUL;
     default: return null;
   }
 }
 
+// Pre-built reverse map — O(1) lookup instead of iterating KEYWORDS
+const TOKEN_NAMES = new Map<TT, string>();
+for (const [k, v] of KEYWORDS) TOKEN_NAMES.set(v, `'${k}'`);
+TOKEN_NAMES.set(TT.IDENTIFIER, "identifier");
+TOKEN_NAMES.set(TT.LPAREN, "'('");
+TOKEN_NAMES.set(TT.RPAREN, "')'");
+TOKEN_NAMES.set(TT.LBRACE, "'{'");
+TOKEN_NAMES.set(TT.RBRACE, "'}'");
+TOKEN_NAMES.set(TT.SEMI, "';'");
+TOKEN_NAMES.set(TT.ASSIGN, "'<-'");
+
 function tokenName(type: TT): string {
-  for (const [k, v] of KEYWORDS) {
-    if (v === type) return `'${k}'`;
-  }
-  switch (type) {
-    case TT.IDENTIFIER: return "identifier";
-    case TT.LPAREN: return "'('";
-    case TT.RPAREN: return "')'";
-    case TT.LBRACE: return "'{'";
-    case TT.RBRACE: return "'}'";
-    case TT.SEMI: return "';'";
-    case TT.ASSIGN: return "'<-'";
-    default: return String(type);
-  }
+  return TOKEN_NAMES.get(type) ?? String(type);
 }
 
 // ── Public API ───────────────────────────────────────────────────────────
