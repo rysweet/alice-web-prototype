@@ -145,8 +145,18 @@ export async function injectUserMethods(
 
   let xml = await xmlFile.async("string");
 
-  const collectionTag = 'type="org.lgna.project.ast.UserMethod[]"';
-  const collIdx = xml.indexOf(collectionTag);
+  // Find the Scene type's methods collection.
+  // Alice 3 projects use SScene as the scene supertype.
+  const sceneIdx = xml.indexOf("SScene");
+  const methodsProperty = '<property name="methods">';
+  const methodsIdx = sceneIdx >= 0 ? xml.indexOf(methodsProperty, sceneIdx) : -1;
+  // Find the <collection ...> tag that follows the methods property
+  const collStart = methodsIdx >= 0 ? xml.indexOf("<collection", methodsIdx) : -1;
+  // Fallback: try the legacy UserMethod[] collection tag anywhere
+  const legacyTag = 'type="org.lgna.project.ast.UserMethod[]"';
+  const legacyIdx = xml.indexOf(legacyTag);
+  const collIdx = collStart >= 0 ? collStart : legacyIdx;
+
   if (collIdx >= 0) {
     const closeTag = "</collection>";
     const closeIdx = xml.indexOf(closeTag, collIdx);
