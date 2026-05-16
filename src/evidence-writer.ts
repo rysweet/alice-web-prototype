@@ -231,10 +231,80 @@ function writeAtomically(filePath: string, content: string): void {
   }
 }
 
+// ── Event Register Evidence ───────────────────────────────────────────
+
+export interface EventRegisterEvidence {
+  registrationId: string;
+  eventType: string;
+  handlerName: string;
+  totalRegistrations: number;
+}
+
+const EVENT_REGISTER_ARTIFACT = "event-register.json";
+const EVENT_REGISTER_SCHEMA = "eatme.alice-event-register/v1";
+
+export function writeEventRegister(
+  evidenceDir: string,
+  evidence: EventRegisterEvidence,
+): string {
+  validateEvidenceDir(evidenceDir);
+  const content = JSON.stringify(
+    {
+      schema_version: EVENT_REGISTER_SCHEMA,
+      timestamp: Date.now(),
+      registration_id: evidence.registrationId,
+      event_type: evidence.eventType,
+      handler_name: evidence.handlerName,
+      total_registrations: evidence.totalRegistrations,
+    },
+    null,
+    2,
+  ) + "\n";
+  const artifact = path.join(evidenceDir, EVENT_REGISTER_ARTIFACT);
+  writeAtomically(artifact, content);
+  return artifact;
+}
+
+// ── Event Fire Evidence ──────────────────────────────────────────────
+
+export interface EventFireEvidence {
+  eventType: string;
+  registrationsEvaluated: number;
+  triggeredCount: number;
+  triggered: string[];
+}
+
+const EVENT_FIRE_ARTIFACT = "event-fire.json";
+const EVENT_FIRE_SCHEMA = "eatme.alice-event-fire/v1";
+
+export function writeEventFire(
+  evidenceDir: string,
+  evidence: EventFireEvidence,
+): string {
+  validateEvidenceDir(evidenceDir);
+  const content = JSON.stringify(
+    {
+      schema_version: EVENT_FIRE_SCHEMA,
+      timestamp: Date.now(),
+      event_type: evidence.eventType,
+      registrations_evaluated: evidence.registrationsEvaluated,
+      triggered_count: evidence.triggeredCount,
+      triggered: evidence.triggered,
+    },
+    null,
+    2,
+  ) + "\n";
+  const artifact = path.join(evidenceDir, EVENT_FIRE_ARTIFACT);
+  writeAtomically(artifact, content);
+  return artifact;
+}
+
 // Re-export artifact filenames for tests
 export const ARTIFACT_NAMES = {
   sceneObjectAdded: SCENE_OBJECT_ADDED_ARTIFACT,
   editProcedureProof: EDIT_PROCEDURE_PROOF_ARTIFACT,
   editedProject: EDITED_PROJECT_FILENAME,
   saveResult: SAVE_RESULT_ARTIFACT,
+  eventRegister: EVENT_REGISTER_ARTIFACT,
+  eventFire: EVENT_FIRE_ARTIFACT,
 } as const;
