@@ -6,7 +6,8 @@ import {
   writeEditProcedureProof,
   writeSaveProof,
 } from "./evidence-writer.js";
-import { parseA3P, type AliceProject } from "./a3p-parser.js";
+import { parseA3P, type AliceProject, type AliceMethod } from "./a3p-parser.js";
+import { injectUserMethods } from "./a3p-writer.js";
 import { renderSceneToPng } from "./scene-renderer.js";
 import { executeProject, type LogEntry } from "./tweedle-vm.js";
 
@@ -28,6 +29,7 @@ interface ServerState {
   sceneObjects: SceneObject[];
   procedures: Map<string, string[]>; // methodName -> statements
   parsedProject: AliceProject | null;
+  methods: AliceMethod[];
 }
 
 export function createServer(options: ServerOptions): express.Express {
@@ -41,6 +43,7 @@ export function createServer(options: ServerOptions): express.Express {
     sceneObjects: [],
     procedures: new Map([["myFirstMethod", []]]),
     parsedProject: null,
+    methods: [],
   };
 
   // Ensure evidence dir exists
@@ -189,8 +192,121 @@ export function createServer(options: ServerOptions): express.Express {
     });
   });
 
+  // ── Method creation helpers ─────────────────────────────────────────
+  const METHOD_NAME_RE = /^[a-zA-Z_][a-zA-Z0-9_]{0,127}$/;
+
+  function validateAndCreateMethod(input: {
+    name: string;
+    isFunction: boolean;
+    returnType: string;
+    parameters: Array<{ name?: string; type?: string }>;
+  }): { error: string; status: number } | { method: AliceMethod } {
+    const { name, isFunction, returnType, parameters } = input;
+
+    if (!name) {
+      return { error: "name is required", status: 400 };
+    }
+    if (!METHOD_NAME_RE.test(name)) {
+      return { error: "invalid method name", status: 400 };
+    }
+    if (parameters.length > 50) {
+      return { error: "too many parameters (max 50)", status: 400 };
+    }
+
+    const paramNames = new Set<string>();
+    for (const p of parameters) {
+      const pName = p.name ?? "";
+      if (!METHOD_NAME_RE.test(pName)) {
+        return { error: `invalid parameter name: ${pName}`, status: 400 };
+      }
+      if (paramNames.has(pName)) {
+        return { error: `duplicate parameter name: ${pName}`, status: 400 };
+      }
+      paramNames.add(pName);
+    }
+
+    if (state.procedures.has(name) || state.methods.some((m) => m.name === name)) {
+      return { error: `method already exists: ${name}`, status: 409 };
+    }
+
+    const method: AliceMethod = {
+      name,
+      isFunction,
+      returnType,
+      parameters: parameters.map((p) => ({
+        name: p.name ?? "",
+        type: p.type ?? "java.lang.Double",
+      })),
+      statements: [],
+    };
+
+    state.methods.push(method);
+    return { method };
+  }
+
+  // ── POST /api/code/create-procedure ──────────────────────────────────
+  app.post("/api/code/create-procedure", (req, res) => {
+    const { name, parameters = [] } = req.body ?? {};
+
+    const result = validateAndCreateMethod({
+      name: name ?? "",
+      isFunction: false,
+      returnType: "void",
+      parameters,
+    });
+
+    if ("error" in result) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+
+    const { method } = result;
+    res.status(201).json({
+      status: "created",
+      method: {
+        name: method.name,
+        isFunction: method.isFunction,
+        returnType: method.returnType,
+        parameters: method.parameters,
+      },
+    });
+  });
+
+  // ── POST /api/code/create-function ──────────────────────────────────
+  app.post("/api/code/create-function", (req, res) => {
+    const { name, returnType, parameters = [] } = req.body ?? {};
+
+    if (returnType === "") {
+      res.status(400).json({ error: "returnType must be non-empty" });
+      return;
+    }
+
+    const result = validateAndCreateMethod({
+      name: name ?? "",
+      isFunction: true,
+      returnType: returnType ?? "java.lang.Double",
+      parameters,
+    });
+
+    if ("error" in result) {
+      res.status(result.status).json({ error: result.error });
+      return;
+    }
+
+    const { method } = result;
+    res.status(201).json({
+      status: "created",
+      method: {
+        name: method.name,
+        isFunction: method.isFunction,
+        returnType: method.returnType,
+        parameters: method.parameters,
+      },
+    });
+  });
+
   // ── POST /api/project/save ─────────────────────────────────────────
-  app.post("/api/project/save", (req, res) => {
+  app.post("/api/project/save", async (req, res) => {
     const {
       saveSelector = "scene.myFirstMethod",
       targetPath,
@@ -204,7 +320,16 @@ export function createServer(options: ServerOptions): express.Express {
     const savedProjectPath = path.join(saveDir, savedProjectFilename);
 
     if (state.projectPath && fs.existsSync(state.projectPath)) {
-      fs.copyFileSync(state.projectPath, savedProjectPath);
+      if (state.methods.length > 0) {
+        try {
+          await injectUserMethods(state.projectPath, savedProjectPath, state.methods);
+        } catch (err) {
+          console.error("Failed to inject user methods on save:", err);
+          fs.copyFileSync(state.projectPath, savedProjectPath);
+        }
+      } else {
+        fs.copyFileSync(state.projectPath, savedProjectPath);
+      }
     } else {
       fs.writeFileSync(savedProjectPath, createMinimalA3pBuffer());
     }
@@ -302,7 +427,7 @@ export function createServer(options: ServerOptions): express.Express {
           orientation: null,
           size: null,
         })),
-        methods: [],
+        methods: state.methods,
       };
 
       const result = await renderSceneToPng(currentProject, { width: 640, height: 480 });

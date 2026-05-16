@@ -4,6 +4,7 @@
  */
 import JSZip from "jszip";
 import * as fs from "fs";
+import * as path from "path";
 import type { AliceProject } from "./a3p-parser.js";
 
 export interface ProjectModification {
@@ -77,6 +78,88 @@ export async function modifyAndWriteA3P(
   fs.writeFileSync(outputPath, output);
 
   return { bytesWritten: output.length, modificationsApplied: applied };
+}
+
+/**
+ * Generate Alice 3.x XML for a UserMethod AST node.
+ * Used to inject user-created methods into programType.xml on save.
+ */
+export function generateUserMethodXml(method: {
+  name: string;
+  isFunction: boolean;
+  returnType: string;
+  parameters: Array<{ name: string; type: string }>;
+}): string {
+  const methodUuid = generateUuid();
+  const returnTypeXml =
+    `<node type="org.lgna.project.ast.JavaType">` +
+    `<property name="class"><value type="java.lang.String">${escapeXml(method.returnType)}</value></property>` +
+    `</node>`;
+
+  const paramsXml = method.parameters
+    .map((p) => {
+      const paramUuid = generateUuid();
+      return (
+        `<node key="${paramUuid}" type="org.lgna.project.ast.UserParameter" uuid="${paramUuid}">` +
+        `<property name="name"><value type="java.lang.String">${escapeXml(p.name)}</value></property>` +
+        `<property name="valueType">` +
+        `<node type="org.lgna.project.ast.JavaType">` +
+        `<property name="class"><value type="java.lang.String">${escapeXml(p.type)}</value></property>` +
+        `</node>` +
+        `</property>` +
+        `</node>`
+      );
+    })
+    .join("");
+
+  return (
+    `<node key="${methodUuid}" type="org.lgna.project.ast.UserMethod" uuid="${methodUuid}">` +
+    `<property name="name"><value type="java.lang.String">${escapeXml(method.name)}</value></property>` +
+    `<property name="isFunction"><value type="java.lang.Boolean">${method.isFunction}</value></property>` +
+    `<property name="returnType">${returnTypeXml}</property>` +
+    `<property name="requiredParameters"><collection type="org.lgna.project.ast.UserParameter[]">${paramsXml}</collection></property>` +
+    `<property name="body">` +
+    `<node type="org.lgna.project.ast.BlockStatement">` +
+    `<property name="statements"><collection type="org.lgna.project.ast.Statement[]" /></property>` +
+    `</node>` +
+    `</property>` +
+    `</node>`
+  );
+}
+
+/**
+ * Inject user-created methods into an existing .a3p ZIP file.
+ * Methods are added to the Scene type's UserMethod[] collection.
+ */
+export async function injectUserMethods(
+  inputPath: string,
+  outputPath: string,
+  methods: Array<{ name: string; isFunction: boolean; returnType: string; parameters: Array<{ name: string; type: string }> }>,
+): Promise<void> {
+  if (methods.length === 0) return;
+
+  const data = fs.readFileSync(inputPath);
+  const zip = await JSZip.loadAsync(data);
+  const xmlFile = zip.file("programType.xml");
+  if (!xmlFile) throw new Error("programType.xml not found in .a3p");
+
+  let xml = await xmlFile.async("string");
+
+  const collectionTag = 'type="org.lgna.project.ast.UserMethod[]"';
+  const collIdx = xml.indexOf(collectionTag);
+  if (collIdx >= 0) {
+    const closeTag = "</collection>";
+    const closeIdx = xml.indexOf(closeTag, collIdx);
+    if (closeIdx >= 0) {
+      const injectedXml = methods.map((m) => generateUserMethodXml(m)).join("");
+      xml = xml.substring(0, closeIdx) + injectedXml + xml.substring(closeIdx);
+    }
+  }
+
+  zip.file("programType.xml", xml);
+  const output = await zip.generateAsync({ type: "nodebuffer" });
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, output);
 }
 
 function escapeRegex(s: string): string {
