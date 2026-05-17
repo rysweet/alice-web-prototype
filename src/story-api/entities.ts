@@ -6,7 +6,7 @@ export class SThing {}
 /** Ground plane — extends SThing with no additional capabilities. */
 export class SGround extends SThing {}
 
-/** Scene entity stub — extends SThing with no additional capabilities. */
+/** Scene entity — extends SThing with no additional capabilities. */
 export class SScene extends SThing {}
 
 /** Adds orientation (quaternion) to SThing. */
@@ -18,6 +18,14 @@ export class STurnable extends SThing {
   }
 
   set orientation(value: Orientation) {
+    if (
+      !Number.isFinite(value.x) ||
+      !Number.isFinite(value.y) ||
+      !Number.isFinite(value.z) ||
+      !Number.isFinite(value.w)
+    ) {
+      return;
+    }
     this._orientation = value;
   }
 }
@@ -31,6 +39,13 @@ export class SMovableTurnable extends STurnable {
   }
 
   set position(value: Position) {
+    if (
+      !Number.isFinite(value.x) ||
+      !Number.isFinite(value.y) ||
+      !Number.isFinite(value.z)
+    ) {
+      return;
+    }
     this._position = value;
   }
 }
@@ -47,11 +62,18 @@ export class SModel extends SMovableTurnable {
   }
 
   set size(value: Size) {
+    if (
+      !Number.isFinite(value.width) ||
+      !Number.isFinite(value.height) ||
+      !Number.isFinite(value.depth)
+    ) {
+      return;
+    }
     this._size = value;
   }
 }
 
-/** Adds joint hierarchy (stubbed) to SModel. */
+/** Adds joint hierarchy (not yet populated) to SModel. */
 export class SJointedModel extends SModel {
   getJoint(_name: string): JointId | undefined {
     return undefined;

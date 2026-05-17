@@ -121,7 +121,7 @@ Each level adds capabilities:
 ```
 SThing                          — base: name only
 ├── SGround                     — ground plane (no position/orientation)
-├── SScene                      — scene entity stub (no position/orientation)
+├── SScene                      — scene entity (no position/orientation)
 ├── STurnable                   — adds orientation
 │   └── SMovableTurnable        — adds position
 │       ├── SCamera             — camera (position + orientation, no size)
@@ -179,7 +179,7 @@ entity instanceof SThing;            // true
 This is used by the Tweedle VM to determine which operations are valid on an
 entity (e.g., only `SMovableTurnable` and subclasses support `setPosition`).
 
-### Joints (Stubbed)
+### Joints (Not Yet Populated)
 
 `SJointedModel` and its subclasses expose a `getJoint(name)` method that
 returns `JointId | undefined`. Joint data is not currently populated from the
@@ -188,7 +188,7 @@ Tweedle VM; joint loading will be added when animation support lands.
 
 ```typescript
 const biped = new SBiped();
-biped.getJoint('LEFT_SHOULDER'); // undefined (stub — joints not yet loaded)
+biped.getJoint('LEFT_SHOULDER'); // undefined — joints not yet loaded
 ```
 
 ## Scene Container
@@ -512,7 +512,7 @@ the Tweedle VM. A future refactor could have `scene-builder.ts` consume
 
 ## Limitations
 
-- **Joints are stubbed.** `SJointedModel.getJoint()` always returns `undefined`.
+- **Joints are not yet populated.** `SJointedModel.getJoint()` always returns `undefined`.
   Joint data loading will be added when animation support is implemented.
 - **No rendering.** The story API is a data model only. It does not create
   Three.js objects — that's `scene-builder.ts`'s job.
@@ -523,9 +523,9 @@ the Tweedle VM. A future refactor could have `scene-builder.ts` consume
 - **User types default to SProp.** `"User:Prop"`, `"User:Biped"`, and any
   unrecognized `typeName` all map to `SProp`. This is correct for most Alice
   lessons but may need refinement for advanced user-defined types.
-- **Scene properties are optional stubs.** `atmosphereColor`, `fogDensity`,
+- **Scene properties are not yet populated.** `atmosphereColor`, `fogDensity`,
   and `ambientLightColor` are typed but not populated by `fromProject()` in the
   initial implementation. They exist for future scene-environment support.
-- **SScene entity is a stub.** `SScene` extends `SThing` with no additional
+- **SScene entity is a placeholder.** `SScene` extends `SThing` with no additional
   capabilities. It exists to correctly map the `SScene` superType from the
   parser but has no rendering or runtime behavior.

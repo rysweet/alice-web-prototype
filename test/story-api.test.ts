@@ -231,10 +231,52 @@ describe("Entity property mutation", () => {
     // original reference should still be the default
     expect(original).toEqual({ x: 0, y: 0, z: 0 });
   });
+
+  it("position setter rejects NaN", () => {
+    const b = new SBiped();
+    b.position = { x: 1, y: 2, z: 3 };
+    b.position = { x: NaN, y: 0, z: 0 };
+    expect(b.position).toEqual({ x: 1, y: 2, z: 3 });
+  });
+
+  it("position setter rejects Infinity", () => {
+    const b = new SBiped();
+    b.position = { x: 1, y: 2, z: 3 };
+    b.position = { x: 0, y: Infinity, z: 0 };
+    expect(b.position).toEqual({ x: 1, y: 2, z: 3 });
+  });
+
+  it("orientation setter rejects NaN", () => {
+    const b = new SBiped();
+    const good = { x: 0, y: 0.707, z: 0, w: 0.707 };
+    b.orientation = good;
+    b.orientation = { x: 0, y: NaN, z: 0, w: 1 };
+    expect(b.orientation).toEqual(good);
+  });
+
+  it("orientation setter rejects -Infinity", () => {
+    const b = new SBiped();
+    b.orientation = { x: 0, y: 0, z: -Infinity, w: 1 };
+    expect(b.orientation).toEqual({ x: 0, y: 0, z: 0, w: 1 });
+  });
+
+  it("size setter rejects NaN", () => {
+    const b = new SBiped();
+    b.size = { width: 2, height: 3, depth: 4 };
+    b.size = { width: NaN, height: 3, depth: 4 };
+    expect(b.size).toEqual({ width: 2, height: 3, depth: 4 });
+  });
+
+  it("size setter rejects Infinity", () => {
+    const b = new SBiped();
+    b.size = { width: 2, height: 3, depth: 4 };
+    b.size = { width: 2, height: Infinity, depth: 4 };
+    expect(b.size).toEqual({ width: 2, height: 3, depth: 4 });
+  });
 });
 
 // ===========================================================================
-// 5. JOINTS (STUBBED)
+// 5. JOINTS (NOT YET POPULATED)
 // ===========================================================================
 
 describe("Joints (not yet populated)", () => {
