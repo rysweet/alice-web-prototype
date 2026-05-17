@@ -747,6 +747,64 @@ describe("Scene.fromProject()", () => {
     });
   });
 
+  describe("fromProject skips non-finite transforms from parser data", () => {
+    it("skips NaN position — keeps default", () => {
+      const project = makeProject([
+        makeAliceObject({
+          name: "b",
+          typeName: "org.lgna.story.SBiped",
+          position: { x: NaN, y: 0, z: 0 },
+        }),
+      ]);
+      const scene = Scene.fromProject(project);
+      const entity = scene.getEntity("b") as SBiped;
+      expect(entity.position).toEqual({ x: 0, y: 0, z: 0 });
+    });
+
+    it("skips Infinity orientation — keeps default", () => {
+      const project = makeProject([
+        makeAliceObject({
+          name: "b",
+          typeName: "org.lgna.story.SBiped",
+          orientation: { x: 0, y: Infinity, z: 0, w: 1 },
+        }),
+      ]);
+      const scene = Scene.fromProject(project);
+      const entity = scene.getEntity("b") as SBiped;
+      expect(entity.orientation).toEqual({ x: 0, y: 0, z: 0, w: 1 });
+    });
+
+    it("skips NaN size — keeps default", () => {
+      const project = makeProject([
+        makeAliceObject({
+          name: "b",
+          typeName: "org.lgna.story.SBiped",
+          size: { width: 2, height: NaN, depth: 4 },
+        }),
+      ]);
+      const scene = Scene.fromProject(project);
+      const entity = scene.getEntity("b") as SBiped;
+      expect(entity.size).toEqual({ width: 1, height: 1, depth: 1 });
+    });
+
+    it("applies valid transforms alongside skipped non-finite ones", () => {
+      const project = makeProject([
+        makeAliceObject({
+          name: "b",
+          typeName: "org.lgna.story.SBiped",
+          position: { x: 5, y: 0, z: -3 },
+          orientation: { x: 0, y: -Infinity, z: 0, w: 1 },
+          size: { width: 2, height: 3, depth: 4 },
+        }),
+      ]);
+      const scene = Scene.fromProject(project);
+      const entity = scene.getEntity("b") as SBiped;
+      expect(entity.position).toEqual({ x: 5, y: 0, z: -3 });
+      expect(entity.orientation).toEqual({ x: 0, y: 0, z: 0, w: 1 }); // skipped
+      expect(entity.size).toEqual({ width: 2, height: 3, depth: 4 });
+    });
+  });
+
   describe("type mapping order — SJointedModel vs SModel disambiguation", () => {
     it("SJointedModel is matched before SModel (order matters)", () => {
       // "SJointedModel" contains "SModel" as a substring.

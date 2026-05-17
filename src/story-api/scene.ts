@@ -120,14 +120,26 @@ export class Scene {
   }
 }
 
+function isFinitePosition(p: { x: number; y: number; z: number }): boolean {
+  return Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z);
+}
+
+function isFiniteOrientation(o: { x: number; y: number; z: number; w: number }): boolean {
+  return Number.isFinite(o.x) && Number.isFinite(o.y) && Number.isFinite(o.z) && Number.isFinite(o.w);
+}
+
+function isFiniteSize(s: { width: number; height: number; depth: number }): boolean {
+  return Number.isFinite(s.width) && Number.isFinite(s.height) && Number.isFinite(s.depth);
+}
+
 function applyTransforms(entity: SThing, obj: AliceObject): void {
-  if (entity instanceof SMovableTurnable && obj.position) {
+  if (entity instanceof SMovableTurnable && obj.position && isFinitePosition(obj.position)) {
     entity.position = obj.position;
   }
-  if (entity instanceof STurnable && obj.orientation) {
+  if (entity instanceof STurnable && obj.orientation && isFiniteOrientation(obj.orientation)) {
     entity.orientation = obj.orientation;
   }
-  if (entity instanceof SModel && obj.size) {
+  if (entity instanceof SModel && obj.size && isFiniteSize(obj.size)) {
     entity.size = obj.size;
   }
 }
