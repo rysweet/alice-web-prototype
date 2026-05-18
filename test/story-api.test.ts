@@ -889,3 +889,322 @@ describe("Scene.entities is a ReadonlyMap", () => {
     expect(names).toEqual(["a", "b"]);
   });
 });
+
+// ===========================================================================
+// VISUAL PROPERTIES — isShowing (SThing)
+// ===========================================================================
+
+describe("isShowing (SThing)", () => {
+  it("defaults to true on SThing", () => {
+    const t = new SThing();
+    expect(t.isShowing).toBe(true);
+  });
+
+  it("defaults to true on SGround", () => {
+    const g = new SGround();
+    expect(g.isShowing).toBe(true);
+  });
+
+  it("defaults to true on SScene entity", () => {
+    const s = new SSceneEntity();
+    expect(s.isShowing).toBe(true);
+  });
+
+  it("defaults to true on SBiped", () => {
+    const b = new SBiped();
+    expect(b.isShowing).toBe(true);
+  });
+
+  it("can be set to false", () => {
+    const b = new SBiped();
+    b.isShowing = false;
+    expect(b.isShowing).toBe(false);
+  });
+
+  it("can be toggled back to true", () => {
+    const b = new SBiped();
+    b.isShowing = false;
+    b.isShowing = true;
+    expect(b.isShowing).toBe(true);
+  });
+
+  it("silently rejects non-boolean (number)", () => {
+    const b = new SBiped();
+    b.isShowing = 0 as unknown as boolean;
+    expect(b.isShowing).toBe(true);
+  });
+
+  it("silently rejects non-boolean (string)", () => {
+    const b = new SBiped();
+    b.isShowing = "false" as unknown as boolean;
+    expect(b.isShowing).toBe(true);
+  });
+
+  it("silently rejects non-boolean (null)", () => {
+    const b = new SBiped();
+    b.isShowing = null as unknown as boolean;
+    expect(b.isShowing).toBe(true);
+  });
+
+  it("is inherited by SCamera", () => {
+    const c = new SCamera();
+    expect(c.isShowing).toBe(true);
+    c.isShowing = false;
+    expect(c.isShowing).toBe(false);
+  });
+
+  it("is inherited by SProp", () => {
+    const p = new SProp();
+    expect(p.isShowing).toBe(true);
+    p.isShowing = false;
+    expect(p.isShowing).toBe(false);
+  });
+});
+
+// ===========================================================================
+// VISUAL PROPERTIES — paint (SMovableTurnable)
+// ===========================================================================
+
+describe("paint (SMovableTurnable)", () => {
+  it("defaults to 'WHITE' on SMovableTurnable", () => {
+    const m = new SMovableTurnable();
+    expect(m.paint).toBe("WHITE");
+  });
+
+  it("defaults to 'WHITE' on SBiped", () => {
+    const b = new SBiped();
+    expect(b.paint).toBe("WHITE");
+  });
+
+  it("can be set to a valid string", () => {
+    const b = new SBiped();
+    b.paint = "BLUE";
+    expect(b.paint).toBe("BLUE");
+  });
+
+  it("silently rejects empty string", () => {
+    const b = new SBiped();
+    b.paint = "BLUE";
+    b.paint = "";
+    expect(b.paint).toBe("BLUE");
+  });
+
+  it("silently rejects non-string (number)", () => {
+    const b = new SBiped();
+    b.paint = 42 as unknown as string;
+    expect(b.paint).toBe("WHITE");
+  });
+
+  it("is available on SCamera", () => {
+    const c = new SCamera();
+    expect(c.paint).toBe("WHITE");
+    c.paint = "RED";
+    expect(c.paint).toBe("RED");
+  });
+
+  it("is NOT available on SThing", () => {
+    const t = new SThing();
+    expect("paint" in t).toBe(false);
+  });
+
+  it("is NOT available on SGround", () => {
+    const g = new SGround();
+    expect("paint" in g).toBe(false);
+  });
+
+  it("is NOT available on STurnable", () => {
+    const t = new STurnable();
+    expect("paint" in t).toBe(false);
+  });
+});
+
+// ===========================================================================
+// VISUAL PROPERTIES — color (SModel)
+// ===========================================================================
+
+describe("color (SModel)", () => {
+  it("defaults to 'WHITE' on SModel", () => {
+    const m = new SModel();
+    expect(m.color).toBe("WHITE");
+  });
+
+  it("defaults to 'WHITE' on SBiped", () => {
+    const b = new SBiped();
+    expect(b.color).toBe("WHITE");
+  });
+
+  it("can be set to a valid string", () => {
+    const b = new SBiped();
+    b.color = "RED";
+    expect(b.color).toBe("RED");
+  });
+
+  it("silently rejects empty string", () => {
+    const b = new SBiped();
+    b.color = "RED";
+    b.color = "";
+    expect(b.color).toBe("RED");
+  });
+
+  it("silently rejects non-string (number)", () => {
+    const b = new SBiped();
+    b.color = 0xff0000 as unknown as string;
+    expect(b.color).toBe("WHITE");
+  });
+
+  it("is NOT available on SCamera", () => {
+    const c = new SCamera();
+    expect("color" in c).toBe(false);
+  });
+
+  it("is NOT available on SMovableTurnable", () => {
+    const m = new SMovableTurnable();
+    expect("color" in m).toBe(false);
+  });
+
+  it("is inherited by SJointedModel", () => {
+    const j = new SJointedModel();
+    expect(j.color).toBe("WHITE");
+    j.color = "GREEN";
+    expect(j.color).toBe("GREEN");
+  });
+});
+
+// ===========================================================================
+// VISUAL PROPERTIES — opacity (SModel)
+// ===========================================================================
+
+describe("opacity (SModel)", () => {
+  it("defaults to 1.0 on SModel", () => {
+    const m = new SModel();
+    expect(m.opacity).toBe(1.0);
+  });
+
+  it("defaults to 1.0 on SBiped", () => {
+    const b = new SBiped();
+    expect(b.opacity).toBe(1.0);
+  });
+
+  it("can be set to a valid number", () => {
+    const b = new SBiped();
+    b.opacity = 0.5;
+    expect(b.opacity).toBe(0.5);
+  });
+
+  it("can be set to 0", () => {
+    const b = new SBiped();
+    b.opacity = 0;
+    expect(b.opacity).toBe(0);
+  });
+
+  it("silently rejects NaN", () => {
+    const b = new SBiped();
+    b.opacity = 0.5;
+    b.opacity = NaN;
+    expect(b.opacity).toBe(0.5);
+  });
+
+  it("silently rejects Infinity", () => {
+    const b = new SBiped();
+    b.opacity = 0.5;
+    b.opacity = Infinity;
+    expect(b.opacity).toBe(0.5);
+  });
+
+  it("silently rejects -Infinity", () => {
+    const b = new SBiped();
+    b.opacity = 0.5;
+    b.opacity = -Infinity;
+    expect(b.opacity).toBe(0.5);
+  });
+
+  it("is NOT available on SCamera", () => {
+    const c = new SCamera();
+    expect("opacity" in c).toBe(false);
+  });
+
+  it("is NOT available on SMovableTurnable", () => {
+    const m = new SMovableTurnable();
+    expect("opacity" in m).toBe(false);
+  });
+
+  it("is inherited by SProp", () => {
+    const p = new SProp();
+    expect(p.opacity).toBe(1.0);
+    p.opacity = 0.3;
+    expect(p.opacity).toBe(0.3);
+  });
+});
+
+// ===========================================================================
+// VISUAL PROPERTIES — vehicle (SModel)
+// ===========================================================================
+
+describe("vehicle (SModel)", () => {
+  it("defaults to null on SModel", () => {
+    const m = new SModel();
+    expect(m.vehicle).toBeNull();
+  });
+
+  it("defaults to null on SBiped", () => {
+    const b = new SBiped();
+    expect(b.vehicle).toBeNull();
+  });
+
+  it("can be set to an SThing instance", () => {
+    const b = new SBiped();
+    const car = new SProp();
+    b.vehicle = car;
+    expect(b.vehicle).toBe(car);
+  });
+
+  it("can be set to null (re-parent to scene root)", () => {
+    const b = new SBiped();
+    const car = new SProp();
+    b.vehicle = car;
+    b.vehicle = null;
+    expect(b.vehicle).toBeNull();
+  });
+
+  it("silently rejects non-SThing non-null values (string)", () => {
+    const b = new SBiped();
+    b.vehicle = "car" as unknown as SThing | null;
+    expect(b.vehicle).toBeNull();
+  });
+
+  it("silently rejects non-SThing non-null values (number)", () => {
+    const b = new SBiped();
+    b.vehicle = 42 as unknown as SThing | null;
+    expect(b.vehicle).toBeNull();
+  });
+
+  it("accepts any SThing subclass as vehicle", () => {
+    const b = new SBiped();
+    const ground = new SGround();
+    b.vehicle = ground;
+    expect(b.vehicle).toBe(ground);
+  });
+
+  it("is NOT available on SCamera", () => {
+    const c = new SCamera();
+    expect("vehicle" in c).toBe(false);
+  });
+
+  it("is NOT available on SMovableTurnable", () => {
+    const m = new SMovableTurnable();
+    expect("vehicle" in m).toBe(false);
+  });
+
+  it("is inherited by SFlyer", () => {
+    const f = new SFlyer();
+    expect(f.vehicle).toBeNull();
+    const carrier = new SProp();
+    f.vehicle = carrier;
+    expect(f.vehicle).toBe(carrier);
+  });
+
+  it("is inherited by SQuadruped", () => {
+    const q = new SQuadruped();
+    expect(q.vehicle).toBeNull();
+  });
+});

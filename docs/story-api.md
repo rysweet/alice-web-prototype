@@ -119,13 +119,13 @@ The entity class hierarchy mirrors Java Alice's `org.lgna.story` package.
 Each level adds capabilities:
 
 ```
-SThing                          — base: name only
+SThing                          — base: isShowing (visibility)
 ├── SGround                     — ground plane (no position/orientation)
 ├── SScene                      — scene entity (no position/orientation)
 ├── STurnable                   — adds orientation
-│   └── SMovableTurnable        — adds position
+│   └── SMovableTurnable        — adds position + paint
 │       ├── SCamera             — camera (position + orientation, no size)
-│       └── SModel              — adds size
+│       └── SModel              — adds size + color + opacity + vehicle
 │           └── SJointedModel   — adds joints
 │               ├── SBiped      — humanoid characters
 │               ├── SFlyer      — flying creatures
@@ -135,20 +135,20 @@ SThing                          — base: name only
 
 ### Capability Summary
 
-| Class | orientation | position | size | joints |
-|---|:---:|:---:|:---:|:---:|
-| `SThing` | — | — | — | — |
-| `SGround` | — | — | — | — |
-| `SScene` | — | — | — | — |
-| `STurnable` | ✓ | — | — | — |
-| `SMovableTurnable` | ✓ | ✓ | — | — |
-| `SCamera` | ✓ | ✓ | — | — |
-| `SModel` | ✓ | ✓ | ✓ | — |
-| `SJointedModel` | ✓ | ✓ | ✓ | ✓ |
-| `SBiped` | ✓ | ✓ | ✓ | ✓ |
-| `SFlyer` | ✓ | ✓ | ✓ | ✓ |
-| `SQuadruped` | ✓ | ✓ | ✓ | ✓ |
-| `SProp` | ✓ | ✓ | ✓ | ✓ |
+| Class | orientation | position | size | joints | isShowing | color | opacity | paint | vehicle |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `SThing` | — | — | — | — | ✓ | — | — | — | — |
+| `SGround` | — | — | — | — | ✓ | — | — | — | — |
+| `SScene` | — | — | — | — | ✓ | — | — | — | — |
+| `STurnable` | ✓ | — | — | — | ✓ | — | — | — | — |
+| `SMovableTurnable` | ✓ | ✓ | — | — | ✓ | — | — | ✓ | — |
+| `SCamera` | ✓ | ✓ | — | — | ✓ | — | — | ✓ | — |
+| `SModel` | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `SJointedModel` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `SBiped` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `SFlyer` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `SQuadruped` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `SProp` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 
 ### Construction
 
@@ -160,6 +160,114 @@ const biped = new SBiped();
 biped.position;    // { x: 0, y: 0, z: 0 }
 biped.orientation; // { x: 0, y: 0, z: 0, w: 1 }
 biped.size;        // { width: 1, height: 1, depth: 1 }
+biped.isShowing;   // true
+biped.paint;       // "WHITE"
+biped.color;       // "WHITE"
+biped.opacity;     // 1.0
+biped.vehicle;     // null
+```
+
+### Visual Properties
+
+#### `isShowing` (SThing)
+
+Controls entity visibility. Available on all entities (including SGround and
+SScene) for consistency with Alice 3.
+
+```typescript
+const biped = new SBiped();
+biped.isShowing;        // true (default)
+biped.isShowing = false;
+biped.isShowing;        // false
+```
+
+| Property | Type | Default | Validation |
+|----------|------|---------|------------|
+| `isShowing` | `boolean` | `true` | Non-boolean values silently rejected |
+
+#### `color` (SModel)
+
+Surface color as a string. Available on `SModel` and all subclasses.
+
+```typescript
+const biped = new SBiped();
+biped.color;            // "WHITE" (default)
+biped.color = "RED";
+biped.color;            // "RED"
+```
+
+| Property | Type | Default | Validation |
+|----------|------|---------|------------|
+| `color` | `string` | `"WHITE"` | Empty strings and non-strings silently rejected |
+
+#### `opacity` (SModel)
+
+Surface opacity as a number between 0 (transparent) and 1 (opaque). Available
+on `SModel` and all subclasses.
+
+```typescript
+const biped = new SBiped();
+biped.opacity;          // 1.0 (default)
+biped.opacity = 0.5;
+biped.opacity;          // 0.5
+```
+
+| Property | Type | Default | Validation |
+|----------|------|---------|------------|
+| `opacity` | `number` | `1.0` | Non-finite values silently rejected |
+
+#### `paint` (SMovableTurnable)
+
+Paint/material as a string. Available on `SMovableTurnable` and all subclasses
+(SCamera, SModel, SJointedModel, SBiped, etc.).
+
+```typescript
+const biped = new SBiped();
+biped.paint;            // "WHITE" (default)
+biped.paint = "BLUE";
+biped.paint;            // "BLUE"
+```
+
+| Property | Type | Default | Validation |
+|----------|------|---------|------------|
+| `paint` | `string` | `"WHITE"` | Empty strings and non-strings silently rejected |
+
+#### `vehicle` (SModel)
+
+The entity's vehicle (parent transform). Available on `SModel` and all
+subclasses. `null` means the entity is parented to the scene root.
+
+```typescript
+const bunny = new SBiped();
+const car = new SProp();
+bunny.vehicle;          // null (default — scene root)
+bunny.vehicle = car;
+bunny.vehicle;          // car (SProp instance)
+bunny.vehicle = null;   // re-parent to scene root
+```
+
+| Property | Type | Default | Validation |
+|----------|------|---------|------------|
+| `vehicle` | `SThing \| null` | `null` | Non-SThing values (except null) silently rejected |
+
+### Setter Validation Style
+
+All entity property setters use **silent rejection** — invalid values are
+ignored and the property retains its previous value. This matches the existing
+pattern established by `STurnable.orientation`, `SMovableTurnable.position`,
+and `SModel.size`:
+
+```typescript
+const biped = new SBiped();
+biped.opacity = 0.5;
+
+// Invalid value — silently rejected, opacity stays 0.5
+biped.opacity = NaN;
+biped.opacity;    // 0.5
+
+// Invalid type — silently rejected
+biped.color = "";
+biped.color;      // "WHITE" (default, unchanged)
 ```
 
 ### Type Guards (instanceof)
@@ -358,6 +466,11 @@ For each `AliceObject` in the project, `fromProject()`:
 4. If the entity supports size (`SModel+`) **and** the parsed object has a
    non-null `size`, applies it
 
+Visual properties (`isShowing`, `paint`, `color`, `opacity`, `vehicle`) are
+**not** extracted by the a3p parser — `AliceObject` does not carry these fields.
+These properties use their class defaults and are set at runtime by the Tweedle
+VM when executing scene setup code (e.g., `this.bunny.setOpacity(0.5)`).
+
 If a parsed object has position/orientation/size data but the mapped entity
 type doesn't support it (e.g., `SGround` with position), the data is silently
 skipped. This is expected — the parser extracts all method invocations
@@ -526,6 +639,9 @@ the Tweedle VM. A future refactor could have `scene-builder.ts` consume
 - **Scene properties are not yet populated.** `atmosphereColor`, `fogDensity`,
   and `ambientLightColor` are typed but not populated by `fromProject()` in the
   initial implementation. They exist for future scene-environment support.
+- **Visual properties not populated from `.a3p`.** `isShowing`, `paint`, `color`,
+  `opacity`, and `vehicle` start at defaults and are set only by Tweedle VM
+  execution. The a3p parser does not extract these values.
 - **SScene entity is a placeholder.** `SScene` extends `SThing` with no additional
   capabilities. It exists to correctly map the `SScene` superType from the
   parser but has no rendering or runtime behavior.

@@ -1,7 +1,18 @@
 import type { Position, Orientation, Size, JointId } from "./types";
 
-/** Base entity — name only, no spatial properties. */
-export class SThing {}
+/** Base entity — visibility only, no spatial properties. */
+export class SThing {
+  private _isShowing: boolean = true;
+
+  get isShowing(): boolean {
+    return this._isShowing;
+  }
+
+  set isShowing(value: boolean) {
+    if (typeof value !== "boolean") return;
+    this._isShowing = value;
+  }
+}
 
 /** Ground plane — extends SThing with no additional capabilities. */
 export class SGround extends SThing {}
@@ -30,9 +41,10 @@ export class STurnable extends SThing {
   }
 }
 
-/** Adds position to STurnable. */
+/** Adds position and paint to STurnable. */
 export class SMovableTurnable extends STurnable {
   private _position: Position = { x: 0, y: 0, z: 0 };
+  private _paint: string = "WHITE";
 
   get position(): Position {
     return this._position;
@@ -48,14 +60,26 @@ export class SMovableTurnable extends STurnable {
     }
     this._position = value;
   }
+
+  get paint(): string {
+    return this._paint;
+  }
+
+  set paint(value: string) {
+    if (typeof value !== "string" || value === "") return;
+    this._paint = value;
+  }
 }
 
 /** Camera — position + orientation, no size or joints. */
 export class SCamera extends SMovableTurnable {}
 
-/** Adds size to SMovableTurnable. */
+/** Adds size, color, opacity, and vehicle to SMovableTurnable. */
 export class SModel extends SMovableTurnable {
   private _size: Size = { width: 1, height: 1, depth: 1 };
+  private _color: string = "WHITE";
+  private _opacity: number = 1.0;
+  private _vehicle: SThing | null = null;
 
   get size(): Size {
     return this._size;
@@ -70,6 +94,37 @@ export class SModel extends SMovableTurnable {
       return;
     }
     this._size = value;
+  }
+
+  get color(): string {
+    return this._color;
+  }
+
+  set color(value: string) {
+    if (typeof value !== "string" || value === "") return;
+    this._color = value;
+  }
+
+  get opacity(): number {
+    return this._opacity;
+  }
+
+  set opacity(value: number) {
+    if (!Number.isFinite(value)) return;
+    this._opacity = value;
+  }
+
+  get vehicle(): SThing | null {
+    return this._vehicle;
+  }
+
+  set vehicle(value: SThing | null) {
+    if (value === null) {
+      this._vehicle = null;
+      return;
+    }
+    if (!(value instanceof SThing)) return;
+    this._vehicle = value;
   }
 }
 
