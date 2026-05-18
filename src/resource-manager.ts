@@ -55,8 +55,6 @@ export function createResourceManager(
   const registry = new Map<string, ResourceType>();
   // Cache holds loaded data (subject to LRU eviction)
   const cache = new Map<string, Uint8Array>();
-  // LRU order: index 0 = least recently used
-  const lruOrder: string[] = [];
   // In-flight loads for deduplication
   const pending = new Map<string, Promise<Uint8Array>>();
 
@@ -64,16 +62,18 @@ export function createResourceManager(
   let misses = 0;
   let evictions = 0;
 
-  function touchLru(key: string): void {
-    const idx = lruOrder.indexOf(key);
-    if (idx !== -1) lruOrder.splice(idx, 1);
-    lruOrder.push(key);
+  // LRU via Map insertion order: delete+re-set moves entry to end (most recent).
+  // Oldest entries are at the start of iteration. O(1) vs O(n) array indexOf.
+  function touchLru(key: string, data: Uint8Array): void {
+    cache.delete(key);
+    cache.set(key, data);
   }
 
   function evictIfNeeded(): void {
     if (maxCacheSize === 0) return;
-    while (cache.size >= maxCacheSize && lruOrder.length > 0) {
-      const oldest = lruOrder.shift()!;
+    while (cache.size >= maxCacheSize) {
+      const oldest = cache.keys().next().value;
+      if (oldest === undefined) break;
       cache.delete(oldest);
       evictions++;
     }
@@ -95,7 +95,7 @@ export function createResourceManager(
       const cached = cache.get(key);
       if (cached !== undefined) {
         hits++;
-        touchLru(key);
+        touchLru(key, cached);
         return cached;
       }
 
@@ -108,7 +108,6 @@ export function createResourceManager(
           pending.delete(key);
           evictIfNeeded();
           cache.set(key, data);
-          touchLru(key);
           return data;
         })
         .catch((err) => {
@@ -132,8 +131,6 @@ export function createResourceManager(
       if (!registry.has(key)) return false;
       registry.delete(key);
       cache.delete(key);
-      const idx = lruOrder.indexOf(key);
-      if (idx !== -1) lruOrder.splice(idx, 1);
       pending.delete(key);
       return true;
     },
@@ -141,7 +138,6 @@ export function createResourceManager(
     clear(): void {
       registry.clear();
       cache.clear();
-      lruOrder.length = 0;
       pending.clear();
       hits = 0;
       misses = 0;
@@ -162,7 +158,13 @@ export function createResourceManager(
     },
 
     entriesByType(type: ResourceType): ResourceEntry[] {
-      return mgr.entries().filter((e) => e.type === type);
+      const result: ResourceEntry[] = [];
+      for (const [key, rType] of registry) {
+        if (rType === type) {
+          result.push({ key, type: rType, data: cache.get(key) ?? null, loaded: cache.has(key) });
+        }
+      }
+      return result;
     },
   };
 

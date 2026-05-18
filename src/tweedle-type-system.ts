@@ -86,8 +86,6 @@ const BUILTIN_HIERARCHY: BuiltinEntry[] = [
   { name: "SProp", superClass: "SJointedModel" },
 ];
 
-const BUILTIN_NAMES = new Set(BUILTIN_HIERARCHY.map((e) => e.name));
-
 // ── Factory ──────────────────────────────────────────────────────────────
 
 export function createTypeHierarchy(classes: ClassDecl[]): TypeHierarchy {
@@ -175,7 +173,7 @@ export function createTypeHierarchy(classes: ClassDecl[]): TypeHierarchy {
       const type = typeMap.get(current);
       if (!type) break;
       if (type.kind === "user") {
-        current = (type as UserType).classDecl.superClass;
+        current = type.classDecl.superClass;
       } else {
         // Reached a built-in or primitive — no cycle possible
         break;
@@ -215,28 +213,18 @@ export function createTypeHierarchy(classes: ClassDecl[]): TypeHierarchy {
     if (source.kind === "primitive") return false;
 
     // Walk supertype chain for java/user types
-    let cur: AbstractType | null =
-      source.kind === "java"
-        ? (source as JavaType).superType
-        : (source as UserType).superType;
+    let cur: JavaType | UserType | null = source.superType;
     while (cur !== null) {
       if (cur === target) return true;
-      if (cur.kind === "java") {
-        cur = (cur as JavaType).superType;
-      } else if (cur.kind === "user") {
-        cur = (cur as UserType).superType;
-      } else {
-        break;
-      }
+      cur = cur.superType;
     }
     return false;
   }
 
   // ── 8. Attach isAssignableTo method to every type node ─────────────
   for (const type of typeMap.values()) {
-    const self = type;
     (type as any).isAssignableTo = (target: AbstractType): boolean =>
-      hierarchyIsAssignableTo(self, target);
+      hierarchyIsAssignableTo(type, target);
   }
 
   // ── 9. supertypesOf ────────────────────────────────────────────────
@@ -249,16 +237,10 @@ export function createTypeHierarchy(classes: ClassDecl[]): TypeHierarchy {
     }
 
     const chain: AbstractType[] = [];
-    let cur: AbstractType | null = type;
+    let cur: JavaType | UserType | null = type;
     while (cur !== null) {
       chain.push(cur);
-      if (cur.kind === "java") {
-        cur = (cur as JavaType).superType;
-      } else if (cur.kind === "user") {
-        cur = (cur as UserType).superType;
-      } else {
-        break;
-      }
+      cur = cur.superType;
     }
     return chain;
   }

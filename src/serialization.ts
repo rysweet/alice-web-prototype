@@ -48,8 +48,9 @@ export function serialize(
   options: SerializationOptions,
 ): string {
   if (options.format === "json") {
-    const pretty = options.pretty !== false;
-    return JSON.stringify(project, null, pretty ? 2 : undefined);
+    return options.pretty === false
+      ? JSON.stringify(project)
+      : serializeToJson(project);
   }
   return serializeToXml(project);
 }
@@ -594,21 +595,23 @@ function deserializeBoundingBoxEl(el: XmlElement): BoundingBox {
 
 // ── DOM Helpers ──────────────────────────────────────────────────────────
 
-function getChildElements(parent: XmlElement): XmlElement[] {
-  const result: XmlElement[] = [];
+function getChild(parent: XmlElement, tagName: string): XmlElement | null {
   for (let i = 0; i < parent.childNodes.length; i++) {
     const node = parent.childNodes[i];
-    if (node.nodeType === 1) result.push(node as XmlElement);
+    if (node.nodeType === 1 && node.nodeName === tagName) {
+      return node as XmlElement;
+    }
   }
-  return result;
-}
-
-function getChild(parent: XmlElement, tagName: string): XmlElement | null {
-  return (
-    getChildElements(parent).find((c) => c.nodeName === tagName) ?? null
-  );
+  return null;
 }
 
 function getChildren(parent: XmlElement, tagName: string): XmlElement[] {
-  return getChildElements(parent).filter((c) => c.nodeName === tagName);
+  const result: XmlElement[] = [];
+  for (let i = 0; i < parent.childNodes.length; i++) {
+    const node = parent.childNodes[i];
+    if (node.nodeType === 1 && node.nodeName === tagName) {
+      result.push(node as XmlElement);
+    }
+  }
+  return result;
 }
