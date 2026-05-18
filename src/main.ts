@@ -68,16 +68,19 @@ fileInput.addEventListener("change", async () => {
     }
 
     // Build and display scene
-    const { scene, camera } = buildScene(project);
+    const { scene, camera, cameraConfig } = buildScene(project);
     currentScene = scene;
     currentCamera = camera;
     resizeRenderer();
 
-    // Orbit controls
+    // Orbit controls — configured from scene-builder's cameraConfig
     controls?.dispose();
     controls = new OrbitControls(camera, canvas);
-    controls.enableDamping = true;
-    controls.target.set(0, 1, 0);
+    controls.target.set(cameraConfig.target.x, cameraConfig.target.y, cameraConfig.target.z);
+    controls.minDistance = cameraConfig.minDistance;
+    controls.maxDistance = cameraConfig.maxDistance;
+    controls.maxPolarAngle = cameraConfig.maxPolarAngle;
+    controls.enableDamping = cameraConfig.enableDamping;
   } catch (err) {
     status.textContent = `Error: ${err instanceof Error ? err.message : String(err)}`;
     console.error(err);
