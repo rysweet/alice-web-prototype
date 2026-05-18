@@ -148,7 +148,7 @@ function genExpr(expr: Expression, depth: number): string {
       const elems = expr.elements
         .map((e) => genExpr(e, depth + 1))
         .join(", ");
-      return elems.length > 0 ? `{${elems}}` : "{}";
+      return `{${elems}}`;
     }
   }
 

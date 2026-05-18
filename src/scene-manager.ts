@@ -61,10 +61,12 @@ export class SceneManager {
       throw new Error(`Scene "${name}" does not exist`);
     }
     if (this.activeName === name) return;
-    const fromName = this.activeName!;
+    const fromName = this.activeName;
     this.activeName = name;
-    for (const cb of this.transitionCallbacks) {
-      cb(fromName, name);
+    if (fromName !== null) {
+      for (const cb of this.transitionCallbacks) {
+        cb(fromName, name);
+      }
     }
   }
 

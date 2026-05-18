@@ -44,9 +44,7 @@ export class AudioPlayer {
   }
 
   load(res: AudioResource): void {
-    if (this._state !== "stopped") {
-      this._state = "stopped";
-    }
+    this._state = "stopped";
     this._resource = res;
     this.emit("load");
   }
