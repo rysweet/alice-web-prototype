@@ -140,7 +140,7 @@ Tests that the student has added at least one entity to the scene.
 
 | Criterion | Condition | Pass Message | Fail Message |
 |---|---|---|---|
-| `entity-added` | `scene.entities.size >= 1` (excluding default camera/ground) | "Scene contains N entity(ies)" | "No entities added to scene" |
+| `entity-added` | `scene.entities.size >= 1` (excluding entries where entity `instanceof SGround \|\| instanceof SScene \|\| instanceof SCamera`) | "Scene contains N entity(ies)" | "No entities added to scene" |
 
 ```typescript
 const result = gradeLesson(1, {

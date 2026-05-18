@@ -8,8 +8,8 @@ function matches a Java `story-api` method from `org.lgna.story`.
 
 | Function | Java Equivalent | Mutates Entity | Side Effect |
 |---|---|---|---|
-| `say` | `SBiped.say()` | No | Records text in WeakMap |
-| `think` | `SBiped.think()` | No | Records text in WeakMap |
+| `say` | `SThing.say()` | No | Records text in WeakMap |
+| `think` | `SThing.think()` | No | Records text in WeakMap |
 | `move` | `SMovableTurnable.move()` | Yes (position) | — |
 | `turn` | `STurnable.turn()` | Yes (orientation) | — |
 | `roll` | `STurnable.roll()` | Yes (orientation) | — |
