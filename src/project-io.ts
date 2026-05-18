@@ -5,7 +5,7 @@
  * and written back on round-trip.
  */
 import JSZip from "jszip";
-import { parseA3P, type AliceProject } from "./a3p-parser";
+import { parseA3PFromZip, type AliceProject } from "./a3p-parser";
 
 /** Complete archive contents returned by readProject(). */
 export interface AliceProjectArchive {
@@ -44,8 +44,8 @@ export async function readProject(
     validatePath(path);
   }
 
-  // Parse the project model using existing parser
-  const project = await parseA3P(data);
+  // Parse the project model from the already-loaded ZIP (no re-parse)
+  const project = await parseA3PFromZip(zip);
 
   // Extract original XML for round-trip pass-through (with provenance marker)
   const xmlEntry = zip.file("programType.xml");

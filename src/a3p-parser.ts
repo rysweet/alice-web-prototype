@@ -63,7 +63,11 @@ export interface AliceProject {
  */
 export async function parseA3P(data: ArrayBuffer | Uint8Array): Promise<AliceProject> {
   const zip = await JSZip.loadAsync(data);
+  return parseA3PFromZip(zip);
+}
 
+/** Internal: parse from an already-loaded JSZip instance (avoids re-parsing in readProject). */
+export async function parseA3PFromZip(zip: JSZip): Promise<AliceProject> {
   await ensureNodeXml();
   const version = await readTextFile(zip, "version.txt");
   const xmlText = await readXml(zip);

@@ -26,12 +26,8 @@ export interface JointId {
   readonly parent?: string;
 }
 
-/** 3D vector — used by BoundingBox corners and JointNode.localTransform.position. Structurally identical to Position. */
-export interface Vec3 {
-  readonly x: number;
-  readonly y: number;
-  readonly z: number;
-}
+/** 3D vector for math contexts (bounding boxes, transforms). */
+export type Vec3 = Position;
 
 /** Axis-aligned bounding box with min/max corners. */
 export interface BoundingBox {

@@ -40,9 +40,9 @@ export function easeOut(t: number): number {
   return 1 - (1 - t) * (1 - t);
 }
 
-/** Cubic smoothstep: 3t² - 2t³ */
+/** Cubic smoothstep: 3t² − 2t³ */
 export function easeInOut(t: number): number {
-  return 3 * t * t - 2 * t * t * t;
+  return t * t * (3 - 2 * t);
 }
 
 // ---------------------------------------------------------------------------
