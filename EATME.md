@@ -157,6 +157,9 @@ src/
   a3p-parser.ts         — .a3p ZIP/XML parser + joint/bbox/texture extraction
   animation.ts          — Pure-functional tween engine (4 easings, Vec3/Quat/scalar)
   project-io.ts         — Full .a3p archive read/write (manifest, resources, thumbnail)
+  collision-detection.ts — Spatial math: distance, AABB, Direction constants
+  tweedle-stdlib.ts     — 9 runtime primitives (say/think/move/turn/roll/resize/setOpacity/setColor/delay)
+  grading-pipeline.ts   — Lesson 1–8 grading engine with GradeResult scoring
   tweedle-parser.ts     — Tweedle AST parser: lexer + recursive-descent + Pratt
   tweedle-vm.ts         — Tweedle VM: executeProject(), VMScope, 7 handlers
   scene-builder.ts      — Three.js scene builder (existing)
@@ -184,6 +187,9 @@ docs/
   animation.md           — Animation system: tweens, easings, interpolation
   model-resources.md     — Joint hierarchy, bounding boxes, texture extraction
   project-io.md          — Full .a3p archive read/write with round-trip support
+  collision-detection.md — Spatial math: distance, AABB intersection, Direction
+  tweedle-stdlib.md      — Standard library: 9 runtime primitives
+  grading-pipeline.md    — Lesson grading engine (L1–L8)
 ```
 
 ## CLI Hooks (eatme-compatible)
