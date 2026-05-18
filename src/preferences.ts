@@ -45,7 +45,7 @@ export class Preferences {
     const processed = this._process(key, value);
     const old = this._data[key];
     if (old === processed) return;
-    (this._data as Record<string, unknown>)[key] = processed;
+    (this._data as unknown as Record<string, unknown>)[key] = processed;
     for (const listener of this._listeners) {
       listener(key, old, processed);
     }
@@ -65,7 +65,7 @@ export class Preferences {
       const k = key as keyof UserPreferences;
       if (k in data) {
         try {
-          prefs.set(k, (data as Record<string, unknown>)[k] as never);
+          prefs.set(k, (data as unknown as Record<string, unknown>)[k] as never);
         } catch {
           // invalid value — keep default
         }
@@ -79,7 +79,7 @@ export class Preferences {
       const old = this._data[key];
       const def = DEFAULT_PREFERENCES[key];
       if (old === def) return;
-      (this._data as Record<string, unknown>)[key] = def;
+      (this._data as unknown as Record<string, unknown>)[key] = def;
       for (const listener of this._listeners) {
         listener(key, old, def);
       }
