@@ -312,6 +312,56 @@ Disabled blocks are emitted verbatim:
   /* disabled code */
 ```
 
+#### WhileLoop
+
+```tweedle
+  while (count > 0) {
+    this.bunny.hop();
+    count <- count - 1;
+  }
+```
+
+#### TryCatch
+
+```tweedle
+  try {
+    this.bunny.moveTo(this.cat);
+  } catch (Exception e) {
+    this.bunny.say("Error!");
+  }
+```
+
+#### SwitchCase
+
+Each case has an independent body (no fall-through). `break` is implicit.
+
+```tweedle
+  switch (this.mode) {
+    case 1: {
+      this.bunny.say("Mode 1");
+    }
+    case 2: {
+      this.bunny.say("Mode 2");
+    }
+    default: {
+      this.bunny.say("Unknown");
+    }
+  }
+```
+
+Without default:
+
+```tweedle
+  switch (this.color) {
+    case "red": {
+      this.setColor(Color.RED);
+    }
+    case "blue": {
+      this.setColor(Color.BLUE);
+    }
+  }
+```
+
 ### Expressions
 
 #### Literals
@@ -425,6 +475,19 @@ items[0]
 (a + b)
 ```
 
+#### ArrayLiteral
+
+```tweedle
+{1, 2, 3}
+{"hello", "world"}
+```
+
+Empty array literal:
+
+```tweedle
+{}
+```
+
 ### Parameters
 
 ```tweedle
@@ -496,7 +559,8 @@ test/
 The code generator has **zero new dependencies**. It imports only the AST types
 (`ClassDecl`, `MethodDecl`, `FieldDecl`, `ConstructorDecl`, `Statement`,
 `Expression`, `TypeRef`, `Parameter`, `Argument`) from `tweedle-parser.ts` as
-type-only imports.
+type-only imports. It handles all statement types (`WhileLoop`, `TryCatch`,
+`SwitchCase` included) and all expression types (`ArrayLiteral` included).
 
 ## Limitations
 

@@ -173,6 +173,9 @@ All statement nodes satisfy the `TweedleStatement` union type.
 | `IfElse` | `if (condition) { } else { }` |
 | `ForEach` | `for each Type item in collection { }` |
 | `CountUpTo` | `count up to intExpression { }` |
+| `WhileLoop` | `while (condition) { }` — conditional loop |
+| `TryCatch` | `try { } catch (Type name) { }` — exception handling |
+| `SwitchCase` | `switch (expr) { case v1: { } ... default: { } }` — multi-branch dispatch |
 | `Return` | `return expression;` |
 | `ExpressionStatement` | Expression used as a statement (method calls, assignments) |
 | `LocalVariableDeclaration` | `Type name <- value;` or `constant Type name <- value;` |
@@ -240,6 +243,30 @@ interface TweedleDisabledBlock {
   type: "DisabledBlock";
   raw: string;              // unparsed content between *< and >*
 }
+
+interface TweedleWhileLoop {
+  type: "WhileLoop";
+  condition: TweedleExpression;
+  body: TweedleStatement[];
+}
+
+interface TweedleTryCatch {
+  type: "TryCatch";
+  tryBody: TweedleStatement[];
+  catchType: TweedleTypeRef;    // exception type, e.g. SimpleTypeRef("Exception")
+  catchName: string;            // variable name for the caught exception
+  catchBody: TweedleStatement[];
+}
+
+interface TweedleSwitchCase {
+  type: "SwitchCase";
+  expression: TweedleExpression;
+  cases: Array<{
+    value: TweedleExpression;   // the match value
+    body: TweedleStatement[];   // statements for this case (no fall-through)
+  }>;
+  defaultBody: TweedleStatement[] | null;  // optional default branch
+}
 ```
 
 ### Expressions
@@ -264,6 +291,7 @@ precedence is handled by a Pratt parser.
 | `TypeCast` | `x as SBiped` | Type cast (produces dedicated node, not `BinaryOp`) |
 | `InstanceOf` | `x instanceof SFlyer` | Type check (produces dedicated node, not `BinaryOp`) |
 | `Parenthesized` | `(a + b)` | Grouping |
+| `ArrayLiteral` | `{1, 2, 3}` | Inline array literal (expression context only) |
 
 #### Expression Node Shapes
 
@@ -353,6 +381,11 @@ interface TweedleInstanceOf {
 interface TweedleParenthesized {
   type: "Parenthesized";
   expression: TweedleExpression;
+}
+
+interface TweedleArrayLiteral {
+  type: "ArrayLiteral";
+  elements: TweedleExpression[];  // e.g. {1, 2, 3} → [Literal(1), Literal(2), Literal(3)]
 }
 ```
 
@@ -553,6 +586,31 @@ for each SThing thing in this.getThings() {
 count up to 5 {
   this.bunny.turn(direction: TurnDirection.LEFT, amount: 0.25);
 }
+
+// While loop
+while (this.bunny.getDistanceTo(this.cat) > 1.0) {
+  this.bunny.move(direction: MoveDirection.FORWARD, amount: 0.5);
+}
+
+// Try/catch
+try {
+  this.bunny.moveTo(this.cat);
+} catch (Exception e) {
+  this.bunny.say("Something went wrong!");
+}
+
+// Switch/case (no fall-through — each case has an independent body)
+switch (this.difficulty) {
+  case 1: {
+    this.bunny.say("Easy mode");
+  }
+  case 2: {
+    this.bunny.say("Medium mode");
+  }
+  default: {
+    this.bunny.say("Hard mode");
+  }
+}
 ```
 
 ### Disabled Blocks
@@ -569,6 +627,37 @@ recognizes these and produces `DisabledBlock` nodes:
 Identifiers like `$SceneGraph`, `$Clock`, and `$System` are valid per the
 Tweedle lexer grammar. They reference built-in Alice services and appear
 frequently in library code.
+
+### Array Literals
+
+Array literals use curly-brace syntax `{e1, e2, e3}` in expression context:
+
+```tweedle
+SThing[] things <- {this.bunny, this.cat, this.tree};
+WholeNumber[] scores <- {100, 95, 87};
+```
+
+This syntax is unambiguous because `{` is never valid at expression-start in
+the existing grammar (blocks only appear at statement level via `parseBlock()`).
+The parser produces an `ArrayLiteral` node with an `elements` array.
+
+> **Note:** This is distinct from `new Type[]{...}` (which produces `NewArray`).
+> Array literals have no explicit element type — it is inferred from context.
+
+### String Concatenation
+
+Tweedle supports two string concatenation operators:
+
+- `..` — the primary string concatenation operator
+- `+` — also produces string concatenation when used with string operands
+
+```tweedle
+TextString full <- "Hello" .. " " .. "World";
+TextString greeting <- "Hello, " + name;
+```
+
+Both operators are already handled via `BinaryOp` nodes — `+` is the standard
+addition/concatenation operator, and `..` is Tweedle-specific.
 
 ## Integration with a3p-parser
 
@@ -621,6 +710,10 @@ The parser enforces defensive limits to prevent abuse:
 The parser produces an **inert AST** — it does not evaluate expressions,
 execute code, or perform I/O. All AST nodes are plain data objects.
 
+New parser loops (`while`, `switch`, `try/catch`) inherit depth protection via
+`parseBlock()` — they all parse their bodies using the same depth-tracked block
+parser, so deeply nested constructs are caught by the existing 100-level limit.
+
 No regular expressions are used in the lexer hot path. The lexer is a
 character-by-character scanner for predictable performance.
 
@@ -640,8 +733,8 @@ The parser covers the following ANTLR grammar rules from `TweedleParser.g4`:
 | `fieldDeclaration` | ✅ Full support |
 | `block` | ✅ Full support |
 | `blockStatement` | ✅ Full support |
-| `statement` | ✅ All statement types |
-| `expression` | ✅ All expression types |
+| `statement` | ✅ All statement types (including `while`, `try/catch`, `switch/case`) |
+| `expression` | ✅ All expression types (including `ArrayLiteral`) |
 | `primary` | ✅ Full support |
 | `typeType` | ✅ Simple, void, array, lambda |
 | `formalParameters` | ✅ With defaults and varargs |
