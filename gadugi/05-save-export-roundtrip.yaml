@@ -173,9 +173,8 @@ scenario:
       target: "node"
       args: ["dist-server/cli.js", "serve",
              "--port", "${PORT}",
-             "--evidence-dir", "${EVIDENCE_DIR}",
-             "--project", "${EVIDENCE_DIR}/project-save/saved-project.a3p"]
-      description: "Re-launch server with the saved .a3p file"
+             "--evidence-dir", "${EVIDENCE_DIR}"]
+      description: "Re-launch server (project loaded via API, not CLI flag)"
       timeout: 10s
 
     - action: verify_output
