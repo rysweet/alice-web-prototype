@@ -562,6 +562,16 @@ function parseStatement(node: Element, keyMap: Map<string, Element>): AliceState
 }
 
 // ---------------------------------------------------------------------------
+// Numeric safety
+// ---------------------------------------------------------------------------
+
+/** Parse a float, coercing NaN/Infinity to a fallback (default 0). */
+function safeFloat(text: string | null, fallback = 0): number {
+  const n = parseFloat(text ?? String(fallback));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+// ---------------------------------------------------------------------------
 // Sprint 2: Joint Hierarchy Extraction
 // ---------------------------------------------------------------------------
 
@@ -587,15 +597,15 @@ function extractJointHierarchy(jointNodes: Element[]): JointNode[] {
       name,
       parentName: parentName || null,
       position: {
-        x: parseFloat(getPropertyText(n, "positionX") ?? "0"),
-        y: parseFloat(getPropertyText(n, "positionY") ?? "0"),
-        z: parseFloat(getPropertyText(n, "positionZ") ?? "0"),
+        x: safeFloat(getPropertyText(n, "positionX")),
+        y: safeFloat(getPropertyText(n, "positionY")),
+        z: safeFloat(getPropertyText(n, "positionZ")),
       },
       orientation: {
-        x: parseFloat(getPropertyText(n, "orientationX") ?? "0"),
-        y: parseFloat(getPropertyText(n, "orientationY") ?? "0"),
-        z: parseFloat(getPropertyText(n, "orientationZ") ?? "0"),
-        w: parseFloat(getPropertyText(n, "orientationW") ?? "1"),
+        x: safeFloat(getPropertyText(n, "orientationX")),
+        y: safeFloat(getPropertyText(n, "orientationY")),
+        z: safeFloat(getPropertyText(n, "orientationZ")),
+        w: safeFloat(getPropertyText(n, "orientationW"), 1),
       },
     });
   }
@@ -651,14 +661,14 @@ function extractBoundingBoxes(resourceInfoNodes: Element[]): Record<string, Boun
 
     boxes[name] = {
       min: {
-        x: parseFloat(getPropertyText(n, "boundingBoxMinX") ?? "0"),
-        y: parseFloat(getPropertyText(n, "boundingBoxMinY") ?? "0"),
-        z: parseFloat(getPropertyText(n, "boundingBoxMinZ") ?? "0"),
+        x: safeFloat(getPropertyText(n, "boundingBoxMinX")),
+        y: safeFloat(getPropertyText(n, "boundingBoxMinY")),
+        z: safeFloat(getPropertyText(n, "boundingBoxMinZ")),
       },
       max: {
-        x: parseFloat(getPropertyText(n, "boundingBoxMaxX") ?? "0"),
-        y: parseFloat(getPropertyText(n, "boundingBoxMaxY") ?? "0"),
-        z: parseFloat(getPropertyText(n, "boundingBoxMaxZ") ?? "0"),
+        x: safeFloat(getPropertyText(n, "boundingBoxMaxX")),
+        y: safeFloat(getPropertyText(n, "boundingBoxMaxY")),
+        z: safeFloat(getPropertyText(n, "boundingBoxMaxZ")),
       },
     };
   }
@@ -674,22 +684,29 @@ const IMAGE_EXTENSIONS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tga", ".webp",
 ]);
 
+/** Reject paths with traversal sequences, null bytes, or non-printable characters. */
+function isSafeTexturePath(p: string): boolean {
+  if (p.includes("..") || p.startsWith("/") || p.includes("\0")) return false;
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f]/.test(p)) return false;
+  const dotIdx = p.lastIndexOf(".");
+  if (dotIdx === -1) return false;
+  return IMAGE_EXTENSIONS.has(p.substring(dotIdx).toLowerCase());
+}
+
 function extractTextureRefs(textureNodes: Element[], zip: JSZip): string[] {
   const refs = new Set<string>();
 
   // Source 1: TextureReference nodes in XML
   for (const n of textureNodes) {
     const texPath = getPropertyText(n, "texturePath");
-    if (texPath) refs.add(texPath);
+    if (texPath && isSafeTexturePath(texPath)) refs.add(texPath);
   }
 
   // Source 2: Image files in ZIP directory
   for (const zipPath of Object.keys(zip.files)) {
     if (zip.files[zipPath].dir) continue;
-    const dotIdx = zipPath.lastIndexOf(".");
-    if (dotIdx === -1) continue;
-    const ext = zipPath.substring(dotIdx).toLowerCase();
-    if (IMAGE_EXTENSIONS.has(ext)) refs.add(zipPath);
+    if (isSafeTexturePath(zipPath)) refs.add(zipPath);
   }
 
   return [...refs].sort();
