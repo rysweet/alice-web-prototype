@@ -120,9 +120,13 @@ export class RemoveEntityCommand implements Command {
   }
 
   undo(): void {
-    if (this._capturedEntity) {
-      this._scene.addEntity(this._entityName, this._capturedEntity);
+    if (!this._capturedEntity) return;
+    if (this._scene.getEntity(this._entityName)) {
+      throw new Error(
+        `Cannot undo remove: entity "${this._entityName}" already exists (name conflict)`,
+      );
     }
+    this._scene.addEntity(this._entityName, this._capturedEntity);
   }
 }
 
@@ -161,9 +165,13 @@ export class MoveEntityCommand implements Command {
   undo(): void {
     if (!this._oldPosition) return;
     const entity = this._scene.getEntity(this._entityName);
-    if (entity instanceof SMovableTurnable) {
-      entity.position = this._oldPosition;
+    if (!entity) {
+      throw new Error(`Cannot undo move: entity "${this._entityName}" no longer exists`);
     }
+    if (!(entity instanceof SMovableTurnable)) {
+      throw new Error(`Cannot undo move: entity "${this._entityName}" type changed`);
+    }
+    entity.position = this._oldPosition;
   }
 }
 
@@ -202,9 +210,13 @@ export class RotateEntityCommand implements Command {
   undo(): void {
     if (!this._oldOrientation) return;
     const entity = this._scene.getEntity(this._entityName);
-    if (entity instanceof STurnable) {
-      entity.orientation = this._oldOrientation;
+    if (!entity) {
+      throw new Error(`Cannot undo rotate: entity "${this._entityName}" no longer exists`);
     }
+    if (!(entity instanceof STurnable)) {
+      throw new Error(`Cannot undo rotate: entity "${this._entityName}" type changed`);
+    }
+    entity.orientation = this._oldOrientation;
   }
 }
 
@@ -243,9 +255,13 @@ export class ResizeEntityCommand implements Command {
   undo(): void {
     if (!this._oldSize) return;
     const entity = this._scene.getEntity(this._entityName);
-    if (entity instanceof SModel) {
-      entity.size = this._oldSize;
+    if (!entity) {
+      throw new Error(`Cannot undo resize: entity "${this._entityName}" no longer exists`);
     }
+    if (!(entity instanceof SModel)) {
+      throw new Error(`Cannot undo resize: entity "${this._entityName}" type changed`);
+    }
+    entity.size = this._oldSize;
   }
 }
 

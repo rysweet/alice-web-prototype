@@ -419,3 +419,44 @@ describe("UndoRedoManager — integration", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Undo error handling — missing or changed entities
+// ---------------------------------------------------------------------------
+
+describe("Undo error handling", () => {
+  it("MoveEntityCommand.undo throws if entity was deleted", () => {
+    const scene = makeScene();
+    const cmd = new MoveEntityCommand(scene, "box", { x: 10, y: 0, z: 0 });
+    cmd.execute();
+    scene.removeEntity("box");
+    expect(() => cmd.undo()).toThrow(/no longer exists/);
+  });
+
+  it("RotateEntityCommand.undo throws if entity was deleted", () => {
+    const scene = makeScene();
+    const cmd = new RotateEntityCommand(scene, "box", { x: 0.5, y: 0.5, z: 0.5, w: 0.5 });
+    cmd.execute();
+    scene.removeEntity("box");
+    expect(() => cmd.undo()).toThrow(/no longer exists/);
+  });
+
+  it("ResizeEntityCommand.undo throws if entity was deleted", () => {
+    const scene = makeScene();
+    const cmd = new ResizeEntityCommand(scene, "box", { width: 5, height: 5, depth: 5 });
+    cmd.execute();
+    scene.removeEntity("box");
+    expect(() => cmd.undo()).toThrow(/no longer exists/);
+  });
+
+  it("RemoveEntityCommand.undo throws on name conflict", () => {
+    const scene = new Scene();
+    const original = new SProp();
+    scene.addEntity("tree", original);
+    const cmd = new RemoveEntityCommand(scene, "tree");
+    cmd.execute();
+    // Re-add a different entity with the same name
+    scene.addEntity("tree", new SModel());
+    expect(() => cmd.undo()).toThrow(/name conflict/);
+  });
+});

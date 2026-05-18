@@ -97,11 +97,15 @@ export class ProjectManager {
     this._recentFiles = [];
   }
 
+  private _lastTimestamp = 0;
+
   private _addRecentFile(fileName: string): void {
     this._recentFiles = this._recentFiles.filter(
       (r) => r.fileName !== fileName,
     );
-    this._recentFiles.unshift({ fileName, timestamp: Date.now() });
+    const timestamp = Math.max(Date.now(), this._lastTimestamp + 1);
+    this._lastTimestamp = timestamp;
+    this._recentFiles.unshift({ fileName, timestamp });
     if (this._recentFiles.length > MAX_RECENT_FILES) {
       this._recentFiles = this._recentFiles.slice(0, MAX_RECENT_FILES);
     }

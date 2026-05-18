@@ -419,7 +419,7 @@ describe("Input validation", () => {
     it("rejects duplicate name", () => {
       const scene = new Scene();
       scene.addEntity("bunny", new SBiped());
-      expect(() => scene.addEntity("bunny", new SProp())).toThrow(TypeError);
+      expect(() => scene.addEntity("bunny", new SProp())).toThrow(/already exists/);
     });
 
     it("error message mentions the duplicate name", () => {
@@ -434,7 +434,7 @@ describe("Input validation", () => {
       const scene = new Scene();
       expect(() =>
         scene.setEntityPosition("ghost", { x: 0, y: 0, z: 0 }),
-      ).toThrow(TypeError);
+      ).toThrow(/not found/);
     });
 
     it("throws for entity that does not support position (SGround)", () => {
@@ -442,7 +442,7 @@ describe("Input validation", () => {
       scene.addEntity("ground", new SGround());
       expect(() =>
         scene.setEntityPosition("ground", { x: 1, y: 0, z: 0 }),
-      ).toThrow(TypeError);
+      ).toThrow(/does not support/);
     });
 
     it("error message mentions entity name for unsupported type", () => {
@@ -483,7 +483,7 @@ describe("Input validation", () => {
       const scene = new Scene();
       expect(() =>
         scene.setEntityOrientation("ghost", { x: 0, y: 0, z: 0, w: 1 }),
-      ).toThrow(TypeError);
+      ).toThrow(/not found/);
     });
 
     it("throws for entity that does not support orientation (SGround)", () => {
@@ -491,7 +491,7 @@ describe("Input validation", () => {
       scene.addEntity("ground", new SGround());
       expect(() =>
         scene.setEntityOrientation("ground", { x: 0, y: 0, z: 0, w: 1 }),
-      ).toThrow(TypeError);
+      ).toThrow(/does not support/);
     });
 
     it("throws for NaN in orientation", () => {

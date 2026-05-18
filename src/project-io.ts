@@ -152,5 +152,9 @@ export async function writeProject(
     zip.file(path, bytes);
   }
 
-  return zip.generateAsync({ type: "uint8array" });
+  return zip.generateAsync({ type: "uint8array" }).catch((err) => {
+    throw new Error(
+      `Failed to generate project archive: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  });
 }

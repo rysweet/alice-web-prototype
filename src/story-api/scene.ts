@@ -62,7 +62,7 @@ export class Scene {
       throw new TypeError("entity name must be a non-empty string");
     }
     if (this._entities.has(name)) {
-      throw new TypeError(`entity "${name}" already exists in scene`);
+      throw new Error(`entity "${name}" already exists in scene`);
     }
     this._entities.set(name, entity);
   }
@@ -78,10 +78,10 @@ export class Scene {
   setEntityPosition(name: string, position: Position): void {
     const entity = this._entities.get(name);
     if (!entity) {
-      throw new TypeError(`entity "${name}" not found`);
+      throw new Error(`entity "${name}" not found`);
     }
     if (!(entity instanceof SMovableTurnable)) {
-      throw new TypeError(
+      throw new Error(
         `entity "${name}" (${entity.constructor.name}) does not support position`,
       );
     }
@@ -94,10 +94,10 @@ export class Scene {
   setEntityOrientation(name: string, orientation: Orientation): void {
     const entity = this._entities.get(name);
     if (!entity) {
-      throw new TypeError(`entity "${name}" not found`);
+      throw new Error(`entity "${name}" not found`);
     }
     if (!(entity instanceof STurnable)) {
-      throw new TypeError(
+      throw new Error(
         `entity "${name}" (${entity.constructor.name}) does not support orientation`,
       );
     }

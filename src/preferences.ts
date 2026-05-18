@@ -66,8 +66,8 @@ export class Preferences {
       if (k in data) {
         try {
           prefs.set(k, (data as unknown as Record<string, unknown>)[k] as never);
-        } catch {
-          // invalid value — keep default
+        } catch (err) {
+          console.warn(`Preferences.fromJSON: skipping invalid "${k}": ${err instanceof Error ? err.message : String(err)}`);
         }
       }
     }

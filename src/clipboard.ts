@@ -56,9 +56,13 @@ export class Clipboard {
     const candidate = `${baseName}_copy`;
     if (!scene.getEntity(candidate)) return candidate;
 
+    const MAX_ATTEMPTS = 10_000;
     let counter = 2;
     while (scene.getEntity(`${baseName}_copy_${counter}`)) {
       counter++;
+      if (counter > MAX_ATTEMPTS) {
+        throw new Error(`Failed to generate unique name for "${baseName}" after ${MAX_ATTEMPTS} attempts`);
+      }
     }
     return `${baseName}_copy_${counter}`;
   }
