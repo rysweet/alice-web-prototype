@@ -28,14 +28,9 @@ const result = buildScene(project, {
     { type: 'point', color: 0xff8800, intensity: 1.0,
       position: { x: -3, y: 5, z: 0 } },
   ],
-  camera: {
-    target: { x: 0, y: 1, z: 0 },
-    minDistance: 2,
-    maxDistance: 100,
-    maxPolarAngle: Math.PI / 2,
-    enableDamping: true,
-    dampingFactor: 0.08,
-  },
+  cameraTarget: { x: 0, y: 1, z: 0 },
+  cameraMinDistance: 2,
+  cameraMaxDistance: 100,
 });
 
 // result.scene       — THREE.Scene with all objects, lights, debug geometry
@@ -81,20 +76,24 @@ All fields are optional. Omitting the entire object preserves default behavior.
 ```typescript
 interface SceneBuildOptions {
   lights?: LightConfig[];
-  camera?: CameraConfig;
   showGroundGrid?: boolean;
   showBoundingBoxes?: boolean;
   showJointSkeletons?: boolean;
+  cameraTarget?: { x: number; y: number; z: number };
+  cameraMinDistance?: number;
+  cameraMaxDistance?: number;
 }
 ```
 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `lights` | `LightConfig[]` | `undefined` | Custom light array. When provided, replaces the default ambient + directional pair. When omitted, the default two lights are created. |
-| `camera` | `CameraConfig` | `undefined` | Camera/orbit-control configuration. When omitted, OrbitControls in `main.ts` use their own defaults. |
 | `showGroundGrid` | `boolean` | `false` | Show a reference grid on the ground plane. |
-| `showBoundingBoxes` | `boolean` | `false` | Show wireframe bounding boxes around model/prop entities. |
+| `showBoundingBoxes` | `boolean` | `false` | Show wireframe bounding boxes around non-ground entities. |
 | `showJointSkeletons` | `boolean` | `false` | Show skeleton line segments for jointed model entities. |
+| `cameraTarget` | `{x,y,z}` | `{x:0, y:1, z:0}` | OrbitControls look-at target. |
+| `cameraMinDistance` | `number` | `1` | Minimum zoom distance. Clamped to `[0.1, ∞)`. |
+| `cameraMaxDistance` | `number` | `200` | Maximum zoom distance. Clamped to `[0.1, ∞)`. If less than `minDistance`, set to `minDistance`. |
 
 ---
 
@@ -131,7 +130,6 @@ interface LightConfig {
   intensity: number;
   position?: { x: number; y: number; z: number };
   groundColor?: number;  // hemisphere lights only
-  castShadow?: boolean;  // directional and point only
 }
 ```
 
@@ -142,15 +140,14 @@ interface LightConfig {
 | `intensity` | `number` | yes | Brightness. Clamped to `[0, 10]`. |
 | `position` | `{x,y,z}` | no | World-space position. Required for `directional` and `point`. Ignored for `ambient`. |
 | `groundColor` | `number` | no | Ground hemisphere color. Only used when `type` is `'hemisphere'`. |
-| `castShadow` | `boolean` | no | Enable shadow casting. Only applies to `directional` and `point` types. Default `false`. |
 
 **Light types:**
 
 | Type | Three.js Class | Notes |
 |---|---|---|
 | `ambient` | `AmbientLight` | Uniform scene-wide illumination. No position needed. |
-| `directional` | `DirectionalLight` | Parallel rays from `position` toward origin. Supports shadows. |
-| `point` | `PointLight` | Omni-directional from `position`. Supports shadows. |
+| `directional` | `DirectionalLight` | Parallel rays from `position` toward origin. Always casts shadows. |
+| `point` | `PointLight` | Omni-directional from `position`. |
 | `hemisphere` | `HemisphereLight` | Sky/ground gradient. `color` is sky, `groundColor` is ground. |
 
 **Intensity clamping:** Values below 0 are clamped to 0; values above 10 are
@@ -162,9 +159,11 @@ clamped to 10. This prevents accidental blow-out from malformed project data.
 [
   { type: 'ambient', color: 0xffffff, intensity: 0.5 },
   { type: 'directional', color: 0xffffff, intensity: 0.8,
-    position: { x: 5, y: 10, z: 7 }, castShadow: true },
+    position: { x: 5, y: 10, z: 7 } },
 ]
 ```
+
+> **Note:** Directional lights always have `castShadow = true` set internally.
 
 ---
 
@@ -181,21 +180,20 @@ interface CameraConfig {
   maxDistance: number;
   maxPolarAngle: number;
   enableDamping: boolean;
-  dampingFactor: number;
 }
 ```
 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `target` | `{x,y,z}` | `{x:0, y:1, z:0}` | OrbitControls look-at target. |
-| `minDistance` | `number` | `2` | Minimum zoom distance. Clamped to `[0.1, ∞)`. |
-| `maxDistance` | `number` | `100` | Maximum zoom distance. Clamped to `[minDistance, 10000]`. |
-| `maxPolarAngle` | `number` | `Math.PI / 2` | Maximum vertical orbit angle (radians). Prevents looking below ground. |
+| `minDistance` | `number` | `1` | Minimum zoom distance. Clamped to `[0.1, ∞)`. |
+| `maxDistance` | `number` | `200` | Maximum zoom distance. Clamped to `[0.1, ∞)`. If less than `minDistance`, set to `minDistance`. |
+| `maxPolarAngle` | `number` | `Math.PI * 0.95` | Maximum vertical orbit angle (radians). Prevents looking below ground. |
 | `enableDamping` | `boolean` | `true` | Smooth inertial camera movement. |
-| `dampingFactor` | `number` | `0.08` | Damping strength. Higher = snappier. |
 
-**Distance clamping:** `minDistance` is floored at `0.1`. `maxDistance` is
-clamped to `[minDistance, 10000]`. This prevents degenerate camera states.
+**Distance clamping:** Both `minDistance` and `maxDistance` are floored at `0.1`.
+If `maxDistance < minDistance`, it is set to `minDistance`. This prevents
+degenerate camera states.
 
 ---
 
@@ -205,17 +203,17 @@ Post-build handle for adding, removing, and querying scene lights at runtime.
 
 ```typescript
 interface SceneLights {
-  add(config: LightConfig): THREE.Light;
+  readonly current: THREE.Light[];
+  add(light: THREE.Light): void;
   remove(light: THREE.Light): boolean;
-  readonly current: ReadonlyArray<THREE.Light>;
 }
 ```
 
 | Method | Description |
 |---|---|
-| `add(config)` | Creates a new Three.js light from config, adds it to the scene, returns the light object. |
+| `add(light)` | Adds an existing Three.js light to the scene and tracks it. |
 | `remove(light)` | Removes the light from the scene. Returns `true` if found, `false` otherwise. |
-| `current` | Readonly snapshot of all lights currently in the scene. |
+| `current` | Snapshot copy of all lights currently tracked in the scene. |
 
 **Example: swap to night lighting at runtime**
 
@@ -228,12 +226,13 @@ const { lights } = buildScene(project, {
 });
 
 // Later — remove all lights and add moonlight
-// Spread into a copy first — lights.current is a live snapshot
+// Spread into a copy first — lights.current is a snapshot
 for (const light of [...lights.current]) {
   lights.remove(light);
 }
-lights.add({ type: 'directional', color: 0x8888ff, intensity: 0.4,
-  position: { x: -5, y: 10, z: 3 } });
+const moonlight = new THREE.DirectionalLight(0x8888ff, 0.4);
+moonlight.position.set(-5, 10, 3);
+lights.add(moonlight);
 ```
 
 ---
@@ -251,14 +250,9 @@ In `main.ts`, after calling `buildScene`:
 
 ```typescript
 const { scene, camera, cameraConfig } = buildScene(project, {
-  camera: {
-    target: { x: 0, y: 2, z: 0 },
-    minDistance: 5,
-    maxDistance: 50,
-    maxPolarAngle: Math.PI * 0.45,
-    enableDamping: true,
-    dampingFactor: 0.1,
-  },
+  cameraTarget: { x: 0, y: 2, z: 0 },
+  cameraMinDistance: 5,
+  cameraMaxDistance: 50,
 });
 
 controls?.dispose();
@@ -268,11 +262,10 @@ controls.minDistance = cameraConfig.minDistance;
 controls.maxDistance = cameraConfig.maxDistance;
 controls.maxPolarAngle = cameraConfig.maxPolarAngle;
 controls.enableDamping = cameraConfig.enableDamping;
-controls.dampingFactor = cameraConfig.dampingFactor;
 ```
 
 When no camera config is provided, `buildScene` returns sensible defaults
-(target `{0,1,0}`, distances 2–100, damping enabled) that match the current
+(target `{0,1,0}`, distances 1–200, damping enabled) that match the current
 hardcoded behavior in `main.ts`.
 
 **Capabilities:**
@@ -282,8 +275,8 @@ hardcoded behavior in `main.ts`.
 | Orbit | Left-click drag (OrbitControls default) |
 | Pan | Right-click drag or two-finger drag |
 | Zoom | Scroll wheel or pinch gesture |
-| Constrain below ground | `maxPolarAngle: Math.PI / 2` prevents camera going underground |
-| Smooth motion | `enableDamping: true` with configurable `dampingFactor` |
+| Constrain below ground | `maxPolarAngle` (default `Math.PI * 0.95`) prevents camera going underground |
+| Smooth motion | `enableDamping: true` by default |
 
 ---
 
@@ -311,7 +304,7 @@ const result = buildScene(project, {
     { type: 'ambient', color: 0x333333, intensity: 0.3 },
     // Key light
     { type: 'directional', color: 0xffffff, intensity: 1.0,
-      position: { x: 5, y: 10, z: 7 }, castShadow: true },
+      position: { x: 5, y: 10, z: 7 } },
     // Fill light
     { type: 'directional', color: 0x8888ff, intensity: 0.4,
       position: { x: -5, y: 5, z: -3 } },
@@ -330,7 +323,7 @@ const result = buildScene(project, {
     { type: 'hemisphere', color: 0x87ceeb, groundColor: 0x4a7c3f,
       intensity: 0.6 },
     { type: 'directional', color: 0xffffff, intensity: 0.8,
-      position: { x: 5, y: 10, z: 7 }, castShadow: true },
+      position: { x: 5, y: 10, z: 7 } },
   ],
 });
 ```
@@ -376,29 +369,28 @@ const result = buildScene(project, { showBoundingBoxes: true });
 | Entity type | Bounding box? |
 |---|---|
 | `SModel`, `SJointedModel`, `SBiped`, `SFlyer`, `SQuadruped`, `SProp` | ✓ Yes |
-| `SGround` | No — ground plane is conceptually infinite |
-| `SCamera` | No — not rendered |
-| Generic / unknown | No |
+| Generic / unknown | ✓ Yes |
+| `SGround` | No — ground plane is excluded |
+| `SCamera` | No — not rendered (returns null) |
 
 **Implementation details:**
 
-- Each eligible entity's mesh is wrapped in a `THREE.Group`.
-- A `THREE.BoxHelper` is added as a sibling of the mesh within the group.
+- Every entity with a rendered mesh gets a `THREE.BoxHelper` added directly to the scene (not wrapped in a Group).
+- `SGround` entities are explicitly excluded.
+- `SCamera` entities never produce a mesh, so they are implicitly excluded.
 - The box helper uses green wireframe (`0x00ff00`).
-- The group is tagged with `userData.debugType = 'bbox'`.
-- The box helper automatically updates when the mesh transforms change.
+- Each box helper is tagged with `userData.debugType = 'bbox'`.
+- The box helper is named `${entityName}_bbox`.
 
 **Example scene with bboxes:**
 
 ```
 Scene
 ├── ground (Mesh)
-├── bunny-group (Group)  ← userData.debugType = 'bbox'
-│   ├── bunny (Mesh)     ← the entity placeholder
-│   └── BoxHelper        ← green wireframe around bunny
-├── tree-group (Group)
-│   ├── tree (Mesh)
-│   └── BoxHelper
+├── bunny (Mesh)        ← the entity placeholder
+├── bunny_bbox (BoxHelper) ← green wireframe around bunny
+├── tree (Mesh)
+├── tree_bbox (BoxHelper)
 ```
 
 ---
@@ -453,9 +445,9 @@ coordinates, scaled to match the entity's bounding size.
           ●   ●    feet
 ```
 
-The skeleton is added as a `THREE.LineSegments` child of the entity's wrapper
-group (or the mesh directly if bounding boxes are not enabled). It is tagged
-with `userData.debugType = 'skeleton'` for future toggling.
+The skeleton is added as a `THREE.LineSegments` directly to the scene. It is
+named `${entityName}_skeleton` and tagged with `userData.debugType = 'skeleton'`
+for future toggling.
 
 ---
 
@@ -467,7 +459,7 @@ This enables future UI toggles without changing the builder:
 | `userData.debugType` | Object | Created by |
 |---|---|---|
 | `'grid'` | `GridHelper` | `showGroundGrid` |
-| `'bbox'` | `Group` containing mesh + `BoxHelper` | `showBoundingBoxes` |
+| `'bbox'` | `BoxHelper` | `showBoundingBoxes` |
 | `'skeleton'` | `LineSegments` | `showJointSkeletons` |
 
 **Future toggle pattern** (not implemented yet — shown for reference):
@@ -496,16 +488,12 @@ const { scene, camera, cameraConfig, lights } = buildScene(project, {
   showGroundGrid: true,
   showBoundingBoxes: true,
   showJointSkeletons: true,
-  camera: {
-    target: { x: 0, y: 1, z: 0 },
+  cameraTarget: { x: 0, y: 1, z: 0 },
+  cameraMinDistance: 2,
+  cameraMaxDistance: 100,
+});
     minDistance: 2,
     maxDistance: 100,
-    maxPolarAngle: Math.PI / 2,
-    enableDamping: true,
-    dampingFactor: 0.08,
-  },
-});
-
 currentScene = scene;
 currentCamera = camera;
 resizeRenderer();
@@ -518,7 +506,6 @@ controls.minDistance = cameraConfig.minDistance;
 controls.maxDistance = cameraConfig.maxDistance;
 controls.maxPolarAngle = cameraConfig.maxPolarAngle;
 controls.enableDamping = cameraConfig.enableDamping;
-controls.dampingFactor = cameraConfig.dampingFactor;
 ```
 
 The scene builder remains **DOM-free** — it never touches `document`, `window`,
@@ -543,14 +530,9 @@ buildScene(project, {
 ```typescript
 buildScene(project, {
   showJointSkeletons: true,
-  camera: {
-    target: { x: 0, y: 1.5, z: 0 },
-    minDistance: 1,
-    maxDistance: 20,
-    maxPolarAngle: Math.PI * 0.8,
-    enableDamping: true,
-    dampingFactor: 0.05,
-  },
+  cameraTarget: { x: 0, y: 1.5, z: 0 },
+  cameraMinDistance: 1,
+  cameraMaxDistance: 20,
 });
 ```
 
@@ -564,16 +546,11 @@ buildScene(project, {
   lights: [
     { type: 'ambient', color: 0xffffff, intensity: 0.6 },
     { type: 'directional', color: 0xffffff, intensity: 1.0,
-      position: { x: 5, y: 10, z: 7 }, castShadow: true },
+      position: { x: 5, y: 10, z: 7 } },
   ],
-  camera: {
-    target: { x: 0, y: 1, z: 0 },
-    minDistance: 2,
-    maxDistance: 100,
-    maxPolarAngle: Math.PI / 2,
-    enableDamping: true,
-    dampingFactor: 0.08,
-  },
+  cameraTarget: { x: 0, y: 1, z: 0 },
+  cameraMinDistance: 2,
+  cameraMaxDistance: 100,
 });
 ```
 
@@ -584,7 +561,7 @@ buildScene(project, {
   lights: [
     { type: 'ambient', color: 0x333333, intensity: 0.2 },
     { type: 'directional', color: 0xffeedd, intensity: 1.0,
-      position: { x: 8, y: 12, z: 5 }, castShadow: true },
+      position: { x: 8, y: 12, z: 5 } },
     { type: 'hemisphere', color: 0x87ceeb, groundColor: 0x4a7c3f,
       intensity: 0.5 },
   ],
@@ -609,22 +586,24 @@ src/
   main.ts             ← Modified: consumes cameraConfig from SceneBuildResult
 
 test/
-  scene-builder.test.ts  ← New: 9 test cases
+  scene-builder.test.ts  ← New: 33 test cases
 ```
 
 ### Internal helpers (not exported)
 
 | Helper | Purpose |
 |---|---|
-| `createLightsFromConfig(configs)` | Creates Three.js lights from `LightConfig[]`, clamps intensity. |
-| `buildCameraConfig(partial?)` | Merges user config with defaults, clamps distances. |
-| `createGroundGrid()` | Returns `GridHelper(200, 40)` at y=0.01 with debug tag. |
-| `wrapWithBoundingBox(mesh)` | Wraps mesh in Group with BoxHelper sibling, tagged `debugType='bbox'`. |
-| `createSkeletonForType(typeName, size)` | Returns `LineSegments` from per-subtype template, tagged `debugType='skeleton'`. Falls back to prop cross for unknown jointed subtypes. |
-| `getBipedSkeleton(size)` | 13-segment humanoid template. |
-| `getQuadrupedSkeleton(size)` | 10-segment four-legged template. |
-| `getFlyerSkeleton(size)` | 6-segment flying template. |
-| `getPropSkeleton(size)` | 3-segment cross template. |
+| `clampIntensity(value)` | Clamps light intensity to `[0, 10]`. |
+| `createLightFromConfig(cfg)` | Creates a Three.js light from a single `LightConfig`, clamps intensity. |
+| `createSceneLightsAPI(scene, tracked)` | Creates the `SceneLights` management handle. |
+| `buildCameraConfig(opts?)` | Builds `CameraConfig` from `SceneBuildOptions`, clamps distances. |
+| `getSkeletonTemplate(typeName)` | Returns segment template array for entity type, or null. |
+| `createSkeletonVis(obj, template)` | Creates `LineSegments` from template scaled to entity size. |
+| `createMeshForObject(obj)` | Dispatches to ground, prop, or generic mesh creation. |
+| `createGround(obj)` | Creates ground plane mesh. |
+| `createPropPlaceholder(obj)` | Creates box mesh for prop/model entities. |
+| `createGenericPlaceholder(obj)` | Creates sphere mesh for unknown entity types. |
+| `applyTransform(mesh, obj)` | Sets position and quaternion from entity data. |
 
 ---
 
