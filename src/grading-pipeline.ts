@@ -56,6 +56,13 @@ const BUILTIN_METHODS: ReadonlySet<string> = new Set([
 ]);
 
 // ---------------------------------------------------------------------------
+// Pre-compiled patterns
+// ---------------------------------------------------------------------------
+
+const RE_METHOD_NAME = /this\.(\w+)\(/;
+const RE_MOVEMENT = /\b(?:move|turn)\b/;
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -77,7 +84,7 @@ function countNonDefaultEntities(scene: Scene): number {
 
 /** Extract method name from a detail string like "this.methodName(args)". */
 function extractMethodName(detail: string): string | null {
-  const match = /this\.(\w+)\(/.exec(detail);
+  const match = RE_METHOD_NAME.exec(detail);
   return match ? match[1] : null;
 }
 
@@ -99,7 +106,7 @@ function hasLogKind(log: readonly ExecutionLogEntry[], kind: string): boolean {
 /** True if the log contains a MethodCall whose detail includes move or turn. */
 function hasMovementStatement(log: readonly ExecutionLogEntry[]): boolean {
   return log.some(
-    (e) => e.kind === "MethodCall" && /\b(?:move|turn)\b/.test(e.detail),
+    (e) => e.kind === "MethodCall" && RE_MOVEMENT.test(e.detail),
   );
 }
 
@@ -108,10 +115,9 @@ function buildResult(
   criteria: CriterionResult[],
 ): GradeResult {
   const passed = criteria.every((c) => c.passed);
-  const score =
-    criteria.length > 0
-      ? criteria.filter((c) => c.passed).length / criteria.length
-      : 0;
+  let passedCount = 0;
+  for (const c of criteria) if (c.passed) passedCount++;
+  const score = criteria.length > 0 ? passedCount / criteria.length : 0;
   return { lesson, passed, criteria, score };
 }
 
@@ -215,9 +221,20 @@ function gradeL7(input: GradeInput): CriterionResult[] {
 
 function gradeL8(input: GradeInput): CriterionResult[] {
   const entityCount = countNonDefaultEntities(input.scene);
-  const hasLoop = hasLogKind(input.executionLog, "CountLoop");
-  const hasConditional = hasLogKind(input.executionLog, "IfElse");
-  const hasCustom = hasCustomMethodCall(input.executionLog);
+
+  // Single-pass scan of execution log for all three criteria
+  let hasLoop = false;
+  let hasConditional = false;
+  let hasCustom = false;
+  for (const entry of input.executionLog) {
+    if (entry.kind === "CountLoop") hasLoop = true;
+    else if (entry.kind === "IfElse") hasConditional = true;
+    else if (entry.kind === "MethodCall") {
+      const name = extractMethodName(entry.detail);
+      if (name !== null && !BUILTIN_METHODS.has(name)) hasCustom = true;
+    }
+    if (hasLoop && hasConditional && hasCustom) break;
+  }
 
   return [
     {

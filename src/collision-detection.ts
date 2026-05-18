@@ -26,7 +26,12 @@ export function isWithinDistance(a: Vec3, b: Vec3, threshold: number): boolean {
   if (!Number.isFinite(threshold) || threshold < 0) {
     throw new TypeError("threshold must be a non-negative finite number");
   }
-  return euclideanDistance(a, b) <= threshold;
+  assertFiniteVec3(a, "first point");
+  assertFiniteVec3(b, "second point");
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  const dz = a.z - b.z;
+  return dx * dx + dy * dy + dz * dz <= threshold * threshold;
 }
 
 /** Compute an axis-aligned bounding box centered on an SModel's position. */
