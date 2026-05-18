@@ -15,4 +15,4 @@ export {
   SProp,
 } from "./entities";
 
-export { Scene } from "./scene";
+export { Scene, createEntityForType } from "./scene";

@@ -15,8 +15,8 @@ import {
   SProp,
 } from "./entities";
 
-/** Type mapping entries checked in order — first match wins. */
-const TYPE_MAP: Array<[substring: string, factory: () => SThing]> = [
+/** Single source of truth for type-name → entity factory mappings. */
+const TYPE_FACTORIES: Array<[suffix: string, factory: () => SThing]> = [
   ["SBiped", () => new SBiped()],
   ["SFlyer", () => new SFlyer()],
   ["SQuadruped", () => new SQuadruped()],
@@ -28,8 +28,18 @@ const TYPE_MAP: Array<[substring: string, factory: () => SThing]> = [
   ["SModel", () => new SModel()],
 ];
 
-function createEntityForType(typeName: string): SThing {
-  for (const [substring, factory] of TYPE_MAP) {
+/** O(1) lookup by exact suffix (e.g. "org.lgna.story.SBiped" → "SBiped"). */
+const SUFFIX_TYPE_MAP = new Map<string, () => SThing>(TYPE_FACTORIES);
+
+export function createEntityForType(typeName: string): SThing {
+  // Fast path: extract suffix after last dot for O(1) Map lookup
+  const dotIdx = typeName.lastIndexOf(".");
+  const suffix = dotIdx >= 0 ? typeName.substring(dotIdx + 1) : typeName;
+  const fast = SUFFIX_TYPE_MAP.get(suffix);
+  if (fast) return fast();
+
+  // Slow path: substring scan for unconventional type names
+  for (const [substring, factory] of TYPE_FACTORIES) {
     if (typeName.includes(substring)) return factory();
   }
   return new SProp();
@@ -75,11 +85,7 @@ export class Scene {
         `entity "${name}" (${entity.constructor.name}) does not support position`,
       );
     }
-    if (
-      !Number.isFinite(position.x) ||
-      !Number.isFinite(position.y) ||
-      !Number.isFinite(position.z)
-    ) {
+    if (!isFinitePosition(position)) {
       throw new TypeError("position coordinates must be finite numbers");
     }
     entity.position = position;
@@ -95,12 +101,7 @@ export class Scene {
         `entity "${name}" (${entity.constructor.name}) does not support orientation`,
       );
     }
-    if (
-      !Number.isFinite(orientation.x) ||
-      !Number.isFinite(orientation.y) ||
-      !Number.isFinite(orientation.z) ||
-      !Number.isFinite(orientation.w)
-    ) {
+    if (!isFiniteOrientation(orientation)) {
       throw new TypeError("orientation components must be finite numbers");
     }
     entity.orientation = orientation;

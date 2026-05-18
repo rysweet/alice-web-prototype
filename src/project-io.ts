@@ -68,13 +68,23 @@ export async function readProject(
   const resources = new Map<string, Uint8Array>();
   const storedXmlBytes = new TextEncoder().encode(storedXml);
   resources.set("__original_xml__", storedXmlBytes);
-  let totalSize = storedXmlBytes.length;
 
+  // Extract resources in parallel instead of sequential awaits
+  const resourceEntries: Array<{ path: string; entry: JSZip.JSZipObject }> = [];
   for (const [path, entry] of Object.entries(zip.files)) {
-    if (entry.dir) continue;
-    if (SPECIAL_ENTRIES.has(path)) continue;
+    if (entry.dir || SPECIAL_ENTRIES.has(path)) continue;
+    resourceEntries.push({ path, entry });
+  }
 
-    const bytes = await entry.async("uint8array");
+  const extractedResources = await Promise.all(
+    resourceEntries.map(async ({ path, entry }) => ({
+      path,
+      bytes: await entry.async("uint8array"),
+    })),
+  );
+
+  let totalSize = storedXmlBytes.length;
+  for (const { path, bytes } of extractedResources) {
     totalSize += bytes.length;
     if (totalSize > MAX_EXTRACT_SIZE) {
       throw new Error(
