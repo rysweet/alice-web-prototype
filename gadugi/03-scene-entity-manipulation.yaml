@@ -1,0 +1,211 @@
+# Level 3: Scene Entity Manipulation
+# Tests adding objects to the scene and capturing a screenshot.
+# No .a3p file needed — server seeds default ground + camera on launch.
+# Java parity: SceneEditor.addModel()
+
+scenario:
+  name: "Scene Entity Manipulation"
+  description: |
+    Verifies scene manipulation through the HTTP API: launch without a
+    project (server seeds ground + camera), add multiple objects, verify
+    counts increment, then capture a screenshot reflecting all objects.
+    Maps to Java Alice's SceneEditor.addModel() pipeline.
+  type: cli
+  level: 3
+
+  tags: [alice, integration, scene, add-object, screenshot, java-parity]
+
+  prerequisites:
+    - "npm run build:server has been run"
+
+  environment:
+    variables:
+      PORT: "${PORT:-3000}"
+      EVIDENCE_DIR: "./evidence/03-scene-entity-manipulation"
+
+  steps:
+    # ── Launch ────────────────────────────────────────────────────────
+    - action: launch
+      target: "node"
+      args: ["dist-server/cli.js", "serve",
+             "--port", "${PORT}",
+             "--evidence-dir", "${EVIDENCE_DIR}"]
+      description: "Start alice-web server (no project)"
+      timeout: 10s
+
+    - action: verify_output
+      matches: '"status"\\s*:\\s*"listening"'
+      timeout: 5s
+      description: "Server prints JSON listening message"
+
+    # ── Health check gate ─────────────────────────────────────────────
+    - action: http_request
+      method: GET
+      url: "http://127.0.0.1:${PORT}/api/health"
+      retry:
+        max_attempts: 10
+        interval: 500ms
+      description: "Poll health endpoint until server is ready"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "running"
+      description: "Health check returns running"
+
+    # ── Launch (no project — seeds defaults) ──────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/launch"
+      headers:
+        Content-Type: "application/json"
+      body: '{}'
+      description: "Launch without project — seeds ground + camera"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "launched"
+      description: "Launch succeeded"
+
+    - action: verify_response
+      json_path: "$.sceneObjectCount"
+      equals: 2
+      description: "Default scene has exactly 2 objects (ground + camera)"
+
+    # ── Add first object: bunny ───────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/scene/add-object"
+      headers:
+        Content-Type: "application/json"
+      body: '{"className": "org.lgna.story.SBiped", "name": "bunny"}'
+      description: "Add a Biped named bunny to the scene"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "added"
+      description: "Object add returns success"
+
+    - action: verify_response
+      json_path: "$.objectName"
+      equals: "bunny"
+      description: "Object name matches the explicit name provided"
+
+    - action: verify_response
+      json_path: "$.className"
+      equals: "org.lgna.story.SBiped"
+      description: "className echoed back correctly"
+
+    - action: verify_response
+      json_path: "$.sceneFieldCountAfter"
+      equals: 3
+      description: "Scene now has 3 objects (ground + camera + bunny)"
+
+    - action: verify_response
+      json_path: "$.evidenceArtifact"
+      matches: ".+"
+      description: "Evidence artifact path is non-empty"
+
+    # ── Add second object: tree ───────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/scene/add-object"
+      headers:
+        Content-Type: "application/json"
+      body: '{"className": "org.lgna.story.SProp", "name": "tree"}'
+      description: "Add a Prop named tree to the scene"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "added"
+      description: "Second add-object returns success"
+
+    - action: verify_response
+      json_path: "$.objectName"
+      equals: "tree"
+      description: "Object name is tree"
+
+    - action: verify_response
+      json_path: "$.sceneFieldCountAfter"
+      equals: 4
+      description: "Scene now has 4 objects"
+
+    # ── Add object without explicit name (derived from className) ─────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/scene/add-object"
+      headers:
+        Content-Type: "application/json"
+      body: '{"className": "org.lgna.story.SFlyer"}'
+      description: "Add object without name — should derive from className"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.objectName"
+      equals: "sflyer"
+      description: "Name derived from last segment of className, lowercased"
+
+    - action: verify_response
+      json_path: "$.sceneFieldCountAfter"
+      equals: 5
+      description: "Scene now has 5 objects"
+
+    # ── Negative test: missing className ──────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/scene/add-object"
+      headers:
+        Content-Type: "application/json"
+      body: '{"name": "orphan"}'
+      description: "Attempt add-object without className (should fail)"
+
+    - action: verify_response
+      status: 400
+      json_path: "$.error"
+      equals: "className is required"
+      description: "400 error when className missing"
+
+    # ── Screenshot with all objects ───────────────────────────────────
+    - action: http_request
+      method: GET
+      url: "http://127.0.0.1:${PORT}/api/screenshot"
+      description: "Capture screenshot of scene with all objects"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "captured"
+      description: "Screenshot captured"
+
+    - action: verify_response
+      json_path: "$.objectCount"
+      greater_than_or_equal: 5
+      description: "Screenshot reflects at least 5 scene objects"
+
+    # ── Graceful shutdown ─────────────────────────────────────────────
+    - action: send_input
+      value: ""
+      signal: SIGTERM
+      description: "Send SIGTERM for graceful shutdown"
+
+    - action: verify_output
+      contains: "shutting down"
+      timeout: 5s
+      description: "Server logs shutdown message"
+
+    - action: verify_exit_code
+      expected: 0
+      description: "Clean exit code 0"
+
+  cleanup:
+    - action: stop_application
+      signal: SIGTERM
+      timeout: 5s
+      description: "Ensure server process is terminated"
+
+    - action: shell
+      command: "rm -rf ${EVIDENCE_DIR}"
+      description: "Remove evidence artifacts"

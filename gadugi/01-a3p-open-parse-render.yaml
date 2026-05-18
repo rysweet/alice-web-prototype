@@ -1,0 +1,130 @@
+# Level 3: A3P Project Open / Parse / Render Cycle
+# Tests the complete lifecycle of opening an Alice project: launch server with
+# a .a3p project path, verify the parser extracts scene objects, capture screenshot.
+# Java parity: ProjectImp.open() → SceneImp.render()
+
+scenario:
+  name: "A3P Open / Parse / Render"
+  description: |
+    Verifies the full .a3p project lifecycle through the HTTP API:
+    launch the server with a project file, confirm the parser extracts
+    scene objects and project name, then capture a rendered screenshot.
+    Maps to Java Alice's ProjectImp.open() → SceneImp.render() pipeline.
+  type: cli
+  level: 3
+
+  tags: [alice, integration, a3p, parse, render, java-parity]
+
+  prerequisites:
+    - "npm run build:server has been run"
+    - "Valid .a3p file exists at the path set in A3P_FILE env var"
+
+  environment:
+    variables:
+      PORT: "${PORT:-3000}"
+      EVIDENCE_DIR: "./evidence/01-a3p-open-parse-render"
+      A3P_FILE: "${A3P_FILE}"
+
+  steps:
+    # ── Launch ────────────────────────────────────────────────────────
+    - action: launch
+      target: "node"
+      args: ["dist-server/cli.js", "serve",
+             "--port", "${PORT}",
+             "--evidence-dir", "${EVIDENCE_DIR}",
+             "--project", "${A3P_FILE}"]
+      description: "Start alice-web server with .a3p project"
+      timeout: 10s
+
+    # ── Verify startup output ─────────────────────────────────────────
+    - action: verify_output
+      matches: '"status"\\s*:\\s*"listening"'
+      timeout: 5s
+      description: "Server prints JSON listening message on startup"
+
+    # ── Health check gate ─────────────────────────────────────────────
+    - action: http_request
+      method: GET
+      url: "http://127.0.0.1:${PORT}/api/health"
+      retry:
+        max_attempts: 10
+        interval: 500ms
+      description: "Poll health endpoint until server is ready"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "running"
+      description: "Health check returns running status"
+
+    - action: verify_response
+      json_path: "$.runtime"
+      equals: "typescript-web-prototype"
+      description: "Confirm runtime identifier"
+
+    # ── Launch project ────────────────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/launch"
+      headers:
+        Content-Type: "application/json"
+      body: '{"project": "${A3P_FILE}"}'
+      description: "Launch project via API with .a3p file path"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "launched"
+      description: "Launch returns success status"
+
+    - action: verify_response
+      json_path: "$.projectName"
+      matches: ".+"
+      description: "projectName is non-empty (extracted from .a3p)"
+
+    - action: verify_response
+      json_path: "$.sceneObjectCount"
+      greater_than_or_equal: 2
+      description: "At least ground + camera seeded in scene"
+
+    # ── Screenshot ────────────────────────────────────────────────────
+    - action: http_request
+      method: GET
+      url: "http://127.0.0.1:${PORT}/api/screenshot"
+      description: "Capture rendered scene screenshot"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "captured"
+      description: "Screenshot captured successfully"
+
+    - action: verify_response
+      json_path: "$.objectCount"
+      greater_than_or_equal: 2
+      description: "Screenshot reflects at least 2 scene objects"
+
+    # ── Graceful shutdown ─────────────────────────────────────────────
+    - action: send_input
+      value: ""
+      signal: SIGTERM
+      description: "Send SIGTERM for graceful shutdown"
+
+    - action: verify_output
+      contains: "shutting down"
+      timeout: 5s
+      description: "Server logs graceful shutdown message"
+
+    - action: verify_exit_code
+      expected: 0
+      description: "Server exits cleanly with code 0"
+
+  cleanup:
+    - action: stop_application
+      signal: SIGTERM
+      timeout: 5s
+      description: "Ensure server process is terminated"
+
+    - action: shell
+      command: "rm -rf ${EVIDENCE_DIR}"
+      description: "Remove evidence artifacts"

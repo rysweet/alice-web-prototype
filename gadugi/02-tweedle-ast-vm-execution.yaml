@@ -1,0 +1,155 @@
+# Level 3: Tweedle AST Extraction and VM Execution
+# Tests the Tweedle virtual machine: launch a project, execute methods via
+# POST /api/world/run, verify the execution log structure.
+# Java parity: VirtualMachine.execute()
+
+scenario:
+  name: "Tweedle AST & VM Execution"
+  description: |
+    Verifies the Tweedle virtual machine pipeline: parse .a3p project to
+    extract AST, execute all methods, and produce a structured execution
+    log. Maps to Java Alice's VirtualMachine.execute() pipeline.
+  type: cli
+  level: 3
+
+  tags: [alice, integration, tweedle, vm, execution, java-parity]
+
+  prerequisites:
+    - "npm run build:server has been run"
+    - "Valid .a3p file with at least one Tweedle method at A3P_FILE path"
+
+  environment:
+    variables:
+      PORT: "${PORT:-3000}"
+      EVIDENCE_DIR: "./evidence/02-tweedle-ast-vm-execution"
+      A3P_FILE: "${A3P_FILE}"
+
+  steps:
+    # ── Launch ────────────────────────────────────────────────────────
+    - action: launch
+      target: "node"
+      args: ["dist-server/cli.js", "serve",
+             "--port", "${PORT}",
+             "--evidence-dir", "${EVIDENCE_DIR}",
+             "--project", "${A3P_FILE}"]
+      description: "Start alice-web server with .a3p project"
+      timeout: 10s
+
+    - action: verify_output
+      matches: '"status"\\s*:\\s*"listening"'
+      timeout: 5s
+      description: "Server prints JSON listening message"
+
+    # ── Health check gate ─────────────────────────────────────────────
+    - action: http_request
+      method: GET
+      url: "http://127.0.0.1:${PORT}/api/health"
+      retry:
+        max_attempts: 10
+        interval: 500ms
+      description: "Poll health endpoint until server is ready"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "running"
+      description: "Health check returns running"
+
+    # ── Launch project ────────────────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/launch"
+      headers:
+        Content-Type: "application/json"
+      body: '{"project": "${A3P_FILE}"}'
+      description: "Launch project via API"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "launched"
+      description: "Project launched successfully"
+
+    # ── Execute world (Tweedle VM) ────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/world/run"
+      headers:
+        Content-Type: "application/json"
+      body: '{}'
+      description: "Execute project methods via Tweedle VM"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "completed"
+      description: "VM execution completed without errors"
+
+    - action: verify_response
+      json_path: "$.schema_version"
+      equals: "eatme.alice-run-world-result/v1"
+      description: "Response uses correct schema version"
+
+    - action: verify_response
+      json_path: "$.statements_executed"
+      greater_than_or_equal: 0
+      description: "Statement count is a non-negative integer"
+
+    - action: verify_response
+      json_path: "$.execution_log"
+      is_array: true
+      description: "Execution log is an array"
+
+    - action: verify_response
+      json_path: "$.scene_object_count"
+      greater_than_or_equal: 2
+      description: "Scene has at least ground + camera"
+
+    - action: verify_response
+      json_path: "$.procedure_count"
+      greater_than_or_equal: 1
+      description: "At least myFirstMethod exists"
+
+    - action: verify_response
+      json_path: "$.errors"
+      is_array: true
+      description: "Errors field is an array (empty on success)"
+
+    - action: verify_response
+      json_path: "$.errors"
+      length: 0
+      description: "No execution errors"
+
+    - action: verify_response
+      json_path: "$.run_duration_ms"
+      greater_than_or_equal: 0
+      description: "Run duration is non-negative"
+
+    # ── Verify world/run before launch returns 400 ────────────────────
+    # (Covered implicitly by the order: launch must come first.
+    #  A standalone negative test would need a separate scenario.)
+
+    # ── Graceful shutdown ─────────────────────────────────────────────
+    - action: send_input
+      value: ""
+      signal: SIGTERM
+      description: "Send SIGTERM for graceful shutdown"
+
+    - action: verify_output
+      contains: "shutting down"
+      timeout: 5s
+      description: "Server logs shutdown message"
+
+    - action: verify_exit_code
+      expected: 0
+      description: "Clean exit code 0"
+
+  cleanup:
+    - action: stop_application
+      signal: SIGTERM
+      timeout: 5s
+      description: "Ensure server process is terminated"
+
+    - action: shell
+      command: "rm -rf ${EVIDENCE_DIR}"
+      description: "Remove evidence artifacts"

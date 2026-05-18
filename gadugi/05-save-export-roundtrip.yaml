@@ -1,0 +1,241 @@
+# Level 3: Save / Export Round-Trip
+# Tests edit → save → re-launch → verify cycle.
+# No .a3p file needed — uses in-memory defaults.
+# Java parity: ProjectImp.save() / modifyAndWriteA3P
+
+scenario:
+  name: "Save / Export Round-Trip"
+  description: |
+    Verifies the full edit-and-save round-trip: launch server, edit a
+    procedure, save the project, shut down, re-launch with the saved
+    file, and confirm the project loads. Maps to Java Alice's
+    ProjectImp.save() and modifyAndWriteA3P pipeline.
+  type: cli
+  level: 3
+
+  tags: [alice, integration, save, export, roundtrip, java-parity]
+
+  prerequisites:
+    - "npm run build:server has been run"
+
+  environment:
+    variables:
+      PORT: "${PORT:-3000}"
+      EVIDENCE_DIR: "./evidence/05-save-export-roundtrip"
+
+  steps:
+    # ══════════════════════════════════════════════════════════════════
+    # Phase 1: Launch → Edit → Save
+    # ══════════════════════════════════════════════════════════════════
+
+    # ── Launch ────────────────────────────────────────────────────────
+    - action: launch
+      target: "node"
+      args: ["dist-server/cli.js", "serve",
+             "--port", "${PORT}",
+             "--evidence-dir", "${EVIDENCE_DIR}"]
+      description: "Start alice-web server (no project)"
+      timeout: 10s
+
+    - action: verify_output
+      matches: '"status"\\s*:\\s*"listening"'
+      timeout: 5s
+      description: "Server prints JSON listening message"
+
+    # ── Health check gate ─────────────────────────────────────────────
+    - action: http_request
+      method: GET
+      url: "http://127.0.0.1:${PORT}/api/health"
+      retry:
+        max_attempts: 10
+        interval: 500ms
+      description: "Poll health endpoint until server is ready"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "running"
+      description: "Health check returns running"
+
+    # ── Launch (no project) ───────────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/launch"
+      headers:
+        Content-Type: "application/json"
+      body: '{}'
+      description: "Launch without project"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "launched"
+      description: "Launch succeeded"
+
+    # ── Edit procedure ────────────────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/code/edit-procedure"
+      headers:
+        Content-Type: "application/json"
+      body: '{"procedureSelector": "scene.myFirstMethod", "editSpec": "append-comment:gadugi-round-trip-proof"}'
+      description: "Edit myFirstMethod — append a comment marker"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "proved"
+      description: "Edit returns proved status"
+
+    - action: verify_response
+      json_path: "$.schema_version"
+      equals: "eatme.alice-first-lesson-code-editor-action-proof-result/v1"
+      description: "Edit proof uses correct schema version"
+
+    - action: verify_response
+      json_path: "$.procedure_selector"
+      equals: "scene.myFirstMethod"
+      description: "procedure_selector echoed back"
+
+    - action: verify_response
+      json_path: "$.edited_project_artifact"
+      equals: "edited-project.a3p"
+      description: "Edited project artifact filename"
+
+    - action: verify_response
+      json_path: "$.action_proof"
+      equals: "first-lesson-code-editor-action-proof.json"
+      description: "Action proof filename"
+
+    - action: verify_response
+      json_path: "$.doesNotClaim"
+      is_array: true
+      description: "doesNotClaim is present as array"
+
+    # ── Save project ──────────────────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/project/save"
+      headers:
+        Content-Type: "application/json"
+      body: '{"saveSelector": "scene.myFirstMethod"}'
+      description: "Save the project to evidence directory"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "saved"
+      description: "Save returns saved status"
+
+    - action: verify_response
+      json_path: "$.schema_version"
+      equals: "eatme.alice-project-save-result/v1"
+      description: "Save uses correct schema version"
+
+    - action: verify_response
+      json_path: "$.save_selector"
+      equals: "scene.myFirstMethod"
+      description: "save_selector echoed back"
+
+    - action: verify_response
+      json_path: "$.saved_project_artifact"
+      equals: "saved-project.a3p"
+      description: "Saved project artifact filename"
+
+    - action: verify_response
+      json_path: "$.save_artifact"
+      equals: "desktop-save-operation-result.json"
+      description: "Save evidence artifact filename"
+
+    # ── Shut down first server instance ───────────────────────────────
+    - action: send_input
+      value: ""
+      signal: SIGTERM
+      description: "Send SIGTERM to first server instance"
+
+    - action: verify_output
+      contains: "shutting down"
+      timeout: 5s
+      description: "First server logs shutdown message"
+
+    - action: verify_exit_code
+      expected: 0
+      description: "First server exits cleanly"
+
+    # ══════════════════════════════════════════════════════════════════
+    # Phase 2: Re-launch with saved project → verify round-trip
+    # ══════════════════════════════════════════════════════════════════
+
+    - action: launch
+      target: "node"
+      args: ["dist-server/cli.js", "serve",
+             "--port", "${PORT}",
+             "--evidence-dir", "${EVIDENCE_DIR}",
+             "--project", "${EVIDENCE_DIR}/project-save/saved-project.a3p"]
+      description: "Re-launch server with the saved .a3p file"
+      timeout: 10s
+
+    - action: verify_output
+      matches: '"status"\\s*:\\s*"listening"'
+      timeout: 5s
+      description: "Second server prints listening message"
+
+    # ── Health check gate (second instance) ───────────────────────────
+    - action: http_request
+      method: GET
+      url: "http://127.0.0.1:${PORT}/api/health"
+      retry:
+        max_attempts: 10
+        interval: 500ms
+      description: "Poll health endpoint on second instance"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "running"
+      description: "Second instance health check passes"
+
+    # ── Launch with saved project ─────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/launch"
+      headers:
+        Content-Type: "application/json"
+      body: '{"project": "${EVIDENCE_DIR}/project-save/saved-project.a3p"}'
+      description: "Launch with saved project to verify round-trip"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "launched"
+      description: "Saved project launched successfully — round-trip complete"
+
+    - action: verify_response
+      json_path: "$.sceneObjectCount"
+      greater_than_or_equal: 2
+      description: "Saved project retains scene objects"
+
+    # ── Shut down second server ───────────────────────────────────────
+    - action: send_input
+      value: ""
+      signal: SIGTERM
+      description: "Send SIGTERM to second server instance"
+
+    - action: verify_output
+      contains: "shutting down"
+      timeout: 5s
+      description: "Second server logs shutdown message"
+
+    - action: verify_exit_code
+      expected: 0
+      description: "Second server exits cleanly"
+
+  cleanup:
+    - action: stop_application
+      signal: SIGTERM
+      timeout: 5s
+      description: "Ensure any server process is terminated"
+
+    - action: shell
+      command: "rm -rf ${EVIDENCE_DIR}"
+      description: "Remove evidence artifacts"

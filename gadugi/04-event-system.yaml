@@ -1,0 +1,405 @@
+# Level 3: Event System — Register, Fire, Collision
+# Tests all three event types: sceneActivated, keyPress, proximity.
+# No .a3p file needed — server seeds ground + camera on launch.
+# Java parity: EventManager listener registration and dispatch
+
+scenario:
+  name: "Event System"
+  description: |
+    Verifies the event system through the HTTP API: register handlers for
+    sceneActivated, keyPress, and proximity events; fire each event type
+    and verify the correct handlers trigger (or don't). Tests sequential
+    ID assignment, key filtering, and proximity distance checks.
+    Maps to Java Alice's EventManager listener pipeline.
+  type: cli
+  level: 3
+
+  tags: [alice, integration, events, register, fire, proximity, java-parity]
+
+  prerequisites:
+    - "npm run build:server has been run"
+
+  environment:
+    variables:
+      PORT: "${PORT:-3000}"
+      EVIDENCE_DIR: "./evidence/04-event-system"
+
+  steps:
+    # ── Launch ────────────────────────────────────────────────────────
+    - action: launch
+      target: "node"
+      args: ["dist-server/cli.js", "serve",
+             "--port", "${PORT}",
+             "--evidence-dir", "${EVIDENCE_DIR}"]
+      description: "Start alice-web server (no project)"
+      timeout: 10s
+
+    - action: verify_output
+      matches: '"status"\\s*:\\s*"listening"'
+      timeout: 5s
+      description: "Server prints JSON listening message"
+
+    # ── Health check gate ─────────────────────────────────────────────
+    - action: http_request
+      method: GET
+      url: "http://127.0.0.1:${PORT}/api/health"
+      retry:
+        max_attempts: 10
+        interval: 500ms
+      description: "Poll health endpoint until server is ready"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "running"
+      description: "Health check returns running"
+
+    # ── Launch (seeds ground + camera) ────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/launch"
+      headers:
+        Content-Type: "application/json"
+      body: '{}'
+      description: "Launch without project"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "launched"
+      description: "Launch succeeded"
+
+    # ══════════════════════════════════════════════════════════════════
+    # Register events
+    # ══════════════════════════════════════════════════════════════════
+
+    # ── Register sceneActivated handler ───────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/events/register"
+      headers:
+        Content-Type: "application/json"
+      body: '{"eventType": "sceneActivated", "handlerName": "onSceneStart"}'
+      description: "Register sceneActivated handler"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.registrationId"
+      equals: "evt-1"
+      description: "First registration gets sequential ID evt-1"
+
+    - action: verify_response
+      json_path: "$.eventType"
+      equals: "sceneActivated"
+      description: "eventType echoed back"
+
+    - action: verify_response
+      json_path: "$.handlerName"
+      equals: "onSceneStart"
+      description: "handlerName echoed back"
+
+    - action: verify_response
+      json_path: "$.evidenceArtifact"
+      matches: ".+"
+      description: "Evidence artifact path is non-empty"
+
+    # ── Register keyPress handler for Space ───────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/events/register"
+      headers:
+        Content-Type: "application/json"
+      body: '{"eventType": "keyPress", "handlerName": "onSpacePressed", "key": "Space"}'
+      description: "Register keyPress handler for Space key"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.registrationId"
+      equals: "evt-2"
+      description: "Second registration gets evt-2"
+
+    - action: verify_response
+      json_path: "$.eventType"
+      equals: "keyPress"
+      description: "eventType is keyPress"
+
+    # ── Add two objects for proximity test ────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/scene/add-object"
+      headers:
+        Content-Type: "application/json"
+      body: '{"className": "org.lgna.story.SBiped", "name": "bunny"}'
+      description: "Add bunny for proximity test"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "added"
+      description: "Bunny added"
+
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/scene/add-object"
+      headers:
+        Content-Type: "application/json"
+      body: '{"className": "org.lgna.story.SBiped", "name": "cat"}'
+      description: "Add cat for proximity test"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.status"
+      equals: "added"
+      description: "Cat added"
+
+    # ── Register proximity handler ────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/events/register"
+      headers:
+        Content-Type: "application/json"
+      body: '{"eventType": "proximity", "handlerName": "onBunnyCatClose", "targetObjects": ["bunny", "cat"], "threshold": 3.0}'
+      description: "Register proximity handler for bunny/cat pair"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.registrationId"
+      equals: "evt-3"
+      description: "Third registration gets evt-3"
+
+    - action: verify_response
+      json_path: "$.eventType"
+      equals: "proximity"
+      description: "eventType is proximity"
+
+    # ══════════════════════════════════════════════════════════════════
+    # Negative registration tests
+    # ══════════════════════════════════════════════════════════════════
+
+    # ── Missing eventType ─────────────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/events/register"
+      headers:
+        Content-Type: "application/json"
+      body: '{"handlerName": "orphan"}'
+      description: "Register without eventType (should fail)"
+
+    - action: verify_response
+      status: 400
+      json_path: "$.error"
+      equals: "eventType is required"
+      description: "400 when eventType missing"
+
+    # ── Unknown eventType ─────────────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/events/register"
+      headers:
+        Content-Type: "application/json"
+      body: '{"eventType": "bogusEvent", "handlerName": "h"}'
+      description: "Register with unknown eventType (should fail)"
+
+    - action: verify_response
+      status: 400
+      json_path: "$.error"
+      contains: "unknown eventType"
+      description: "400 for unknown event type"
+
+    # ── keyPress without key ──────────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/events/register"
+      headers:
+        Content-Type: "application/json"
+      body: '{"eventType": "keyPress", "handlerName": "noKey"}'
+      description: "Register keyPress without key (should fail)"
+
+    - action: verify_response
+      status: 400
+      json_path: "$.error"
+      equals: "key is required for keyPress events"
+      description: "400 when key missing for keyPress"
+
+    # ── proximity with unknown object ─────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/events/register"
+      headers:
+        Content-Type: "application/json"
+      body: '{"eventType": "proximity", "handlerName": "h", "targetObjects": ["bunny", "ghost"]}'
+      description: "Register proximity with unknown object (should fail)"
+
+    - action: verify_response
+      status: 400
+      json_path: "$.error"
+      contains: "unknown object"
+      description: "400 when target object not in scene"
+
+    # ── proximity with wrong targetObjects count ──────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/events/register"
+      headers:
+        Content-Type: "application/json"
+      body: '{"eventType": "proximity", "handlerName": "h", "targetObjects": ["bunny"]}'
+      description: "Register proximity with only 1 target (should fail)"
+
+    - action: verify_response
+      status: 400
+      json_path: "$.error"
+      contains: "exactly 2 entries"
+      description: "400 when targetObjects doesn't have exactly 2"
+
+    # ══════════════════════════════════════════════════════════════════
+    # Fire events
+    # ══════════════════════════════════════════════════════════════════
+
+    # ── Fire sceneActivated ───────────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/events/fire"
+      headers:
+        Content-Type: "application/json"
+      body: '{"eventType": "sceneActivated"}'
+      description: "Fire sceneActivated event"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.triggered"
+      is_array: true
+      description: "triggered is an array"
+
+    - action: verify_response
+      json_path: "$.triggered"
+      length: 1
+      description: "Exactly one handler triggered"
+
+    - action: verify_response
+      json_path: "$.triggered[0].id"
+      equals: "evt-1"
+      description: "evt-1 (sceneActivated handler) triggered"
+
+    - action: verify_response
+      json_path: "$.triggered[0].handlerName"
+      equals: "onSceneStart"
+      description: "Handler name matches registration"
+
+    - action: verify_response
+      json_path: "$.evidenceArtifact"
+      matches: ".+"
+      description: "Fire evidence artifact written"
+
+    # ── Fire keyPress with matching key ───────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/events/fire"
+      headers:
+        Content-Type: "application/json"
+      body: '{"eventType": "keyPress", "payload": {"key": "Space"}}'
+      description: "Fire keyPress with key=Space (should match)"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.triggered"
+      length: 1
+      description: "One handler triggered for Space"
+
+    - action: verify_response
+      json_path: "$.triggered[0].id"
+      equals: "evt-2"
+      description: "evt-2 (Space keyPress handler) triggered"
+
+    # ── Fire keyPress with non-matching key ───────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/events/fire"
+      headers:
+        Content-Type: "application/json"
+      body: '{"eventType": "keyPress", "payload": {"key": "ArrowUp"}}'
+      description: "Fire keyPress with key=ArrowUp (should NOT match)"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.triggered"
+      length: 0
+      description: "No handlers triggered for non-matching key"
+
+    # ── Fire proximity (both at origin, distance=0 ≤ 3.0) ────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/events/fire"
+      headers:
+        Content-Type: "application/json"
+      body: '{"eventType": "proximity", "payload": {"sourceObject": "bunny"}}'
+      description: "Fire proximity — bunny and cat both at origin (dist=0)"
+
+    - action: verify_response
+      status: 200
+      json_path: "$.triggered"
+      length: 1
+      description: "Proximity handler triggered (0 ≤ 3.0)"
+
+    - action: verify_response
+      json_path: "$.triggered[0].id"
+      equals: "evt-3"
+      description: "evt-3 (proximity handler) triggered"
+
+    # ══════════════════════════════════════════════════════════════════
+    # Negative fire tests
+    # ══════════════════════════════════════════════════════════════════
+
+    # ── Fire without eventType ────────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/events/fire"
+      headers:
+        Content-Type: "application/json"
+      body: '{}'
+      description: "Fire without eventType (should fail)"
+
+    - action: verify_response
+      status: 400
+      json_path: "$.error"
+      equals: "eventType is required"
+      description: "400 when eventType missing on fire"
+
+    # ── Fire unknown eventType ────────────────────────────────────────
+    - action: http_request
+      method: POST
+      url: "http://127.0.0.1:${PORT}/api/events/fire"
+      headers:
+        Content-Type: "application/json"
+      body: '{"eventType": "bogus"}'
+      description: "Fire unknown eventType (should fail)"
+
+    - action: verify_response
+      status: 400
+      json_path: "$.error"
+      contains: "unknown eventType"
+      description: "400 for unknown event type on fire"
+
+    # ── Graceful shutdown ─────────────────────────────────────────────
+    - action: send_input
+      value: ""
+      signal: SIGTERM
+      description: "Send SIGTERM for graceful shutdown"
+
+    - action: verify_output
+      contains: "shutting down"
+      timeout: 5s
+      description: "Server logs shutdown message"
+
+    - action: verify_exit_code
+      expected: 0
+      description: "Clean exit code 0"
+
+  cleanup:
+    - action: stop_application
+      signal: SIGTERM
+      timeout: 5s
+      description: "Ensure server process is terminated"
+
+    - action: shell
+      command: "rm -rf ${EVIDENCE_DIR}"
+      description: "Remove evidence artifacts"
