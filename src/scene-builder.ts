@@ -58,6 +58,38 @@ const DEFAULT_COLOR = 0x8888cc;
 const SKELETON_COLOR = 0xffff00;
 const MAX_SKELETON_SEGMENTS = 50;
 
+// ── Cached geometries & materials (shared across meshes) ──────────────
+
+let _groundGeo: THREE.PlaneGeometry | null = null;
+let _groundMat: THREE.MeshLambertMaterial | null = null;
+let _sphereGeo: THREE.SphereGeometry | null = null;
+let _defaultMat: THREE.MeshLambertMaterial | null = null;
+let _propMat: THREE.MeshLambertMaterial | null = null;
+let _modelMat: THREE.MeshLambertMaterial | null = null;
+let _skeletonMat: THREE.LineBasicMaterial | null = null;
+
+function groundGeo(): THREE.PlaneGeometry {
+  return (_groundGeo ??= new THREE.PlaneGeometry(200, 200));
+}
+function groundMat(): THREE.MeshLambertMaterial {
+  return (_groundMat ??= new THREE.MeshLambertMaterial({ color: GROUND_COLOR }));
+}
+function sphereGeo(): THREE.SphereGeometry {
+  return (_sphereGeo ??= new THREE.SphereGeometry(0.5, 16, 16));
+}
+function defaultMat(): THREE.MeshLambertMaterial {
+  return (_defaultMat ??= new THREE.MeshLambertMaterial({ color: DEFAULT_COLOR }));
+}
+function propMat(): THREE.MeshLambertMaterial {
+  return (_propMat ??= new THREE.MeshLambertMaterial({ color: PROP_COLOR }));
+}
+function modelMat(): THREE.MeshLambertMaterial {
+  return (_modelMat ??= new THREE.MeshLambertMaterial({ color: MODEL_COLOR }));
+}
+function skeletonMat(): THREE.LineBasicMaterial {
+  return (_skeletonMat ??= new THREE.LineBasicMaterial({ color: SKELETON_COLOR }));
+}
+
 // Skeleton templates — each entry is [x1,y1,z1, x2,y2,z2] normalized to entity size.
 // Biped: 13 segments — humanoid stick figure
 const BIPED_SEGMENTS: number[][] = [
@@ -258,7 +290,7 @@ function getSkeletonTemplate(typeName: string): number[][] | null {
 }
 
 function createSkeletonVis(obj: AliceObject, template: number[][]): THREE.LineSegments {
-  const segments = template.slice(0, MAX_SKELETON_SEGMENTS);
+  const segments = template.length <= MAX_SKELETON_SEGMENTS ? template : template.slice(0, MAX_SKELETON_SEGMENTS);
   const positions = new Float32Array(segments.length * 6);
 
   const w = obj.size?.width ?? 1;
@@ -281,8 +313,7 @@ function createSkeletonVis(obj: AliceObject, template: number[][]): THREE.LineSe
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  const material = new THREE.LineBasicMaterial({ color: SKELETON_COLOR });
-  return new THREE.LineSegments(geometry, material);
+  return new THREE.LineSegments(geometry, skeletonMat());
 }
 
 // ── Mesh creation (existing logic, extended) ──────────────────────────
@@ -311,9 +342,7 @@ function createMeshForObject(obj: AliceObject): THREE.Object3D | null {
 }
 
 function createGround(obj: AliceObject): THREE.Mesh {
-  const geo = new THREE.PlaneGeometry(200, 200);
-  const mat = new THREE.MeshLambertMaterial({ color: GROUND_COLOR });
-  const mesh = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(groundGeo(), groundMat());
   mesh.rotation.x = -Math.PI / 2;
   mesh.receiveShadow = true;
   mesh.name = obj.name;
@@ -325,9 +354,9 @@ function createPropPlaceholder(obj: AliceObject): THREE.Mesh {
   const h = obj.size?.height ?? 1;
   const d = obj.size?.depth ?? 1;
 
+  // BoxGeometry varies per object — cannot cache
   const geo = new THREE.BoxGeometry(w, h, d);
-  const color = obj.typeName.includes("SProp") ? PROP_COLOR : MODEL_COLOR;
-  const mat = new THREE.MeshLambertMaterial({ color });
+  const mat = obj.typeName.includes("SProp") ? propMat() : modelMat();
   const mesh = new THREE.Mesh(geo, mat);
   mesh.castShadow = true;
 
@@ -337,9 +366,7 @@ function createPropPlaceholder(obj: AliceObject): THREE.Mesh {
 }
 
 function createGenericPlaceholder(obj: AliceObject): THREE.Mesh {
-  const geo = new THREE.SphereGeometry(0.5, 16, 16);
-  const mat = new THREE.MeshLambertMaterial({ color: DEFAULT_COLOR });
-  const mesh = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(sphereGeo(), defaultMat());
   mesh.castShadow = true;
 
   applyTransform(mesh, obj);
