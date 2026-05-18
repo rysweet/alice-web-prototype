@@ -154,14 +154,16 @@ src/
   evidence-writer.ts    — Writes JSON proof artifacts matching Java schemas
   server.ts             — Express HTTP API server
   cli.ts                — CLI entry point (alice-web serve ...)
-  a3p-parser.ts         — .a3p ZIP/XML parser (existing)
+  a3p-parser.ts         — .a3p ZIP/XML parser + joint/bbox/texture extraction
+  animation.ts          — Pure-functional tween engine (4 easings, Vec3/Quat/scalar)
+  project-io.ts         — Full .a3p archive read/write (manifest, resources, thumbnail)
   tweedle-parser.ts     — Tweedle AST parser: lexer + recursive-descent + Pratt
   tweedle-vm.ts         — Tweedle VM: executeProject(), VMScope, 7 handlers
   scene-builder.ts      — Three.js scene builder (existing)
   scene-renderer.ts     — PNG scene renderer (existing)
   story-api/
     index.ts            — Barrel exports for typed scene/entity model
-    types.ts            — Position, Orientation, Size, JointId value types
+    types.ts            — Position, Orientation, Size, JointId, Vec3, BoundingBox, JointNode
     entities.ts         — Entity class hierarchy (SThing → SBiped, etc.)
     scene.ts            — Scene container + fromProject() bridge
   hooks/
@@ -179,6 +181,9 @@ docs/
   statement-execution.md — Full statement execution documentation
   event-system.md        — Event system & object interaction documentation
   story-api.md           — Scene/entity model: types, hierarchy, Scene container
+  animation.md           — Animation system: tweens, easings, interpolation
+  model-resources.md     — Joint hierarchy, bounding boxes, texture extraction
+  project-io.md          — Full .a3p archive read/write with round-trip support
 ```
 
 ## CLI Hooks (eatme-compatible)

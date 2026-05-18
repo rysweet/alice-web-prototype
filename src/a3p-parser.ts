@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import type { JointNode, BoundingBox } from "./story-api/types";
 
 /** A single object extracted from an Alice scene. */
 export interface AliceObject {
@@ -51,6 +52,9 @@ export interface AliceProject {
   projectName: string;
   sceneObjects: AliceObject[];
   methods: AliceMethod[];
+  jointHierarchy?: JointNode[];
+  boundingBoxes?: Record<string, BoundingBox>;
+  textureRefs?: string[];
 }
 
 /**
@@ -59,18 +63,25 @@ export interface AliceProject {
  */
 export async function parseA3P(data: ArrayBuffer | Uint8Array): Promise<AliceProject> {
   const zip = await JSZip.loadAsync(data);
+  return parseA3PFromZip(zip);
+}
 
+/** Internal: parse from an already-loaded JSZip instance (avoids re-parsing in readProject). */
+export async function parseA3PFromZip(zip: JSZip): Promise<AliceProject> {
   await ensureNodeXml();
   const version = await readTextFile(zip, "version.txt");
   const xmlText = await readXml(zip);
   const doc = parseXmlString(xmlText);
 
   const projectName = getProjectName(doc);
-  const keyMap = buildKeyMap(doc.documentElement);
-  const sceneObjects = extractSceneObjects(doc, keyMap);
-  const methods = extractMethods(doc, keyMap);
+  const idx = indexNodes(doc.documentElement);
+  const sceneObjects = extractSceneObjects(idx);
+  const methods = extractMethods(idx.userMethods, idx.keyMap);
+  const jointHierarchy = extractJointHierarchy(idx.jointImplementations);
+  const boundingBoxes = extractBoundingBoxes(idx.modelResourceInfos);
+  const textureRefs = extractTextureRefs(idx.textureReferences, zip);
 
-  return { version: version.trim(), projectName, sceneObjects, methods };
+  return { version: version.trim(), projectName, sceneObjects, methods, jointHierarchy, boundingBoxes, textureRefs };
 }
 
 // ---------------------------------------------------------------------------
@@ -138,27 +149,59 @@ async function ensureNodeXml(): Promise<void> {
 // Key-based reference resolution
 // ---------------------------------------------------------------------------
 
-/**
- * Alice XML uses a key-based reference system: `<node key="X" type="...">...children...</node>`
- * is a definition, while `<node key="X"/>` (no type, no children) is a reference.
- * Build a map from key → definition element so we can resolve references.
- */
-function buildKeyMap(root: Element): Map<string, Element> {
-  const map = new Map<string, Element>();
+/** Pre-classified node buckets from a single getElementsByTagName pass. */
+interface NodeIndex {
+  keyMap: Map<string, Element>;
+  namedUserTypes: Element[];
+  userMethods: Element[];
+  jointImplementations: Element[];
+  modelResourceInfos: Element[];
+  textureReferences: Element[];
+}
+
+/** Single-pass: build key map and classify nodes by type. Eliminates 5 redundant DOM traversals. */
+function indexNodes(root: Element): NodeIndex {
+  const keyMap = new Map<string, Element>();
+  const namedUserTypes: Element[] = [];
+  const userMethods: Element[] = [];
+  const jointImplementations: Element[] = [];
+  const modelResourceInfos: Element[] = [];
+  const textureReferences: Element[] = [];
+
   const allNodes = root.getElementsByTagName("node");
   for (let i = 0; i < allNodes.length; i++) {
     const n = allNodes[i];
+    const nodeType = n.getAttribute("type");
+
+    // Build key map (definitions only)
     const key = n.getAttribute("key");
-    if (!key) continue;
-    // A definition has a `type` attribute or has child elements
-    if (n.getAttribute("type") || n.childNodes.length > 0) {
-      // Only store first definition (some keys appear multiple times as refs)
-      if (!map.has(key)) {
-        map.set(key, n);
+    if (key && !keyMap.has(key)) {
+      if (nodeType || n.childNodes.length > 0) {
+        keyMap.set(key, n);
       }
     }
+
+    // Classify by type
+    switch (nodeType) {
+      case "org.lgna.project.ast.NamedUserType":
+        namedUserTypes.push(n);
+        break;
+      case "org.lgna.project.ast.UserMethod":
+        userMethods.push(n);
+        break;
+      case "org.lgna.story.resourceutilities.JointImplementation":
+        jointImplementations.push(n);
+        break;
+      case "org.lgna.story.resourceutilities.ModelResourceInfo":
+        modelResourceInfos.push(n);
+        break;
+      case "org.lgna.story.resourceutilities.TextureReference":
+        textureReferences.push(n);
+        break;
+    }
   }
-  return map;
+
+  return { keyMap, namedUserTypes, userMethods, jointImplementations, modelResourceInfos, textureReferences };
 }
 
 /** Resolve a node: if it's a keyref (no type, no children), return the definition. */
@@ -181,35 +224,29 @@ function getProjectName(doc: Document): string {
   return getPropertyText(root, "name") ?? "Unknown";
 }
 
-function extractSceneObjects(doc: Document, keyMap: Map<string, Element>): AliceObject[] {
+function extractSceneObjects(idx: NodeIndex): AliceObject[] {
   const objects: AliceObject[] = [];
-  const root = doc.documentElement;
 
   // Find the Scene NamedUserType (superType = org.lgna.story.SScene)
-  const sceneType = findSceneType(root, keyMap);
+  const sceneType = findSceneType(idx.namedUserTypes, idx.keyMap);
   if (!sceneType) return objects;
 
   // Gather all field nodes inside the scene's "fields" property, resolving refs
-  const fieldNodes = getCollectionNodesResolved(sceneType, "fields", keyMap);
+  const fieldNodes = getCollectionNodesResolved(sceneType, "fields", idx.keyMap);
 
   for (const field of fieldNodes) {
-    const obj = parseUserField(field, keyMap);
+    const obj = parseUserField(field, idx.keyMap);
     if (obj) objects.push(obj);
   }
 
   // Extract position/orientation/size from scene setup methods
-  enrichFromMethods(sceneType, objects, keyMap);
+  enrichFromMethods(sceneType, objects, idx.keyMap);
 
   return objects;
 }
 
-function findSceneType(root: Element, keyMap: Map<string, Element>): Element | null {
-  // Walk all <node type="org.lgna.project.ast.NamedUserType"> and find the one
-  // whose superType contains "SScene".
-  const allNodes = root.getElementsByTagName("node");
-  for (let i = 0; i < allNodes.length; i++) {
-    const n = allNodes[i];
-    if (n.getAttribute("type") !== "org.lgna.project.ast.NamedUserType") continue;
+function findSceneType(namedUserTypes: Element[], keyMap: Map<string, Element>): Element | null {
+  for (const n of namedUserTypes) {
     const superType = getSuperTypeName(n, keyMap);
     if (superType && superType.includes("SScene")) return n;
   }
@@ -398,15 +435,10 @@ function extractDoubleArgs(methodInvocation: Element): number[] {
 // Method / procedure / function extraction
 // ---------------------------------------------------------------------------
 
-function extractMethods(doc: Document, keyMap: Map<string, Element>): AliceMethod[] {
+function extractMethods(userMethods: Element[], keyMap: Map<string, Element>): AliceMethod[] {
   const methods: AliceMethod[] = [];
-  const allNodes = doc.getElementsByTagName("node");
 
-  for (let i = 0; i < allNodes.length; i++) {
-    const node = allNodes[i];
-    const nodeType = node.getAttribute("type");
-    if (nodeType !== "org.lgna.project.ast.UserMethod") continue;
-
+  for (const node of userMethods) {
     const name = getPropertyText(node, "name");
     if (!name || name === "main") continue;
 
@@ -527,4 +559,155 @@ function parseStatement(node: Element, keyMap: Map<string, Element>): AliceState
   }
 
   return { kind: nodeType.split(".").pop() ?? "Unknown" };
+}
+
+// ---------------------------------------------------------------------------
+// Numeric safety
+// ---------------------------------------------------------------------------
+
+/** Parse a float, coercing NaN/Infinity to a fallback (default 0). */
+function safeFloat(text: string | null, fallback = 0): number {
+  const n = parseFloat(text ?? String(fallback));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 2: Joint Hierarchy Extraction
+// ---------------------------------------------------------------------------
+
+const MAX_JOINT_DEPTH = 64;
+
+interface JointData {
+  name: string;
+  parentName: string | null;
+  position: { x: number; y: number; z: number };
+  orientation: { x: number; y: number; z: number; w: number };
+}
+
+function extractJointHierarchy(jointNodes: Element[]): JointNode[] {
+  const joints: JointData[] = [];
+
+  for (const n of jointNodes) {
+
+    const name = getPropertyText(n, "jointName");
+    if (!name) continue;
+
+    const parentName = getPropertyText(n, "parent") ?? null;
+    joints.push({
+      name,
+      parentName: parentName || null,
+      position: {
+        x: safeFloat(getPropertyText(n, "positionX")),
+        y: safeFloat(getPropertyText(n, "positionY")),
+        z: safeFloat(getPropertyText(n, "positionZ")),
+      },
+      orientation: {
+        x: safeFloat(getPropertyText(n, "orientationX")),
+        y: safeFloat(getPropertyText(n, "orientationY")),
+        z: safeFloat(getPropertyText(n, "orientationZ")),
+        w: safeFloat(getPropertyText(n, "orientationW"), 1),
+      },
+    });
+  }
+
+  // Group children by parent name
+  const childrenMap = new Map<string, JointData[]>();
+  const roots: JointData[] = [];
+
+  for (const j of joints) {
+    if (j.parentName) {
+      let siblings = childrenMap.get(j.parentName);
+      if (!siblings) {
+        siblings = [];
+        childrenMap.set(j.parentName, siblings);
+      }
+      siblings.push(j);
+    } else {
+      roots.push(j);
+    }
+  }
+
+  function buildNode(data: JointData, depth: number): JointNode {
+    const children =
+      depth < MAX_JOINT_DEPTH
+        ? (childrenMap.get(data.name) ?? []).map((c) => buildNode(c, depth + 1))
+        : [];
+
+    return {
+      name: data.name,
+      parentName: data.parentName,
+      children,
+      localTransform: {
+        position: data.position,
+        orientation: data.orientation,
+      },
+    };
+  }
+
+  return roots.map((r) => buildNode(r, 1));
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 2: Bounding Box Extraction
+// ---------------------------------------------------------------------------
+
+function extractBoundingBoxes(resourceInfoNodes: Element[]): Record<string, BoundingBox> {
+  const boxes: Record<string, BoundingBox> = {};
+
+  for (const n of resourceInfoNodes) {
+
+    const name = getPropertyText(n, "resourceName");
+    if (!name) continue;
+
+    boxes[name] = {
+      min: {
+        x: safeFloat(getPropertyText(n, "boundingBoxMinX")),
+        y: safeFloat(getPropertyText(n, "boundingBoxMinY")),
+        z: safeFloat(getPropertyText(n, "boundingBoxMinZ")),
+      },
+      max: {
+        x: safeFloat(getPropertyText(n, "boundingBoxMaxX")),
+        y: safeFloat(getPropertyText(n, "boundingBoxMaxY")),
+        z: safeFloat(getPropertyText(n, "boundingBoxMaxZ")),
+      },
+    };
+  }
+
+  return boxes;
+}
+
+// ---------------------------------------------------------------------------
+// Sprint 2: Texture Reference Extraction
+// ---------------------------------------------------------------------------
+
+const IMAGE_EXTENSIONS = new Set([
+  ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tga", ".webp",
+]);
+
+/** Reject paths with traversal sequences, null bytes, or non-printable characters. */
+function isSafeTexturePath(p: string): boolean {
+  if (p.includes("..") || p.startsWith("/") || p.includes("\0")) return false;
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f]/.test(p)) return false;
+  const dotIdx = p.lastIndexOf(".");
+  if (dotIdx === -1) return false;
+  return IMAGE_EXTENSIONS.has(p.substring(dotIdx).toLowerCase());
+}
+
+function extractTextureRefs(textureNodes: Element[], zip: JSZip): string[] {
+  const refs = new Set<string>();
+
+  // Source 1: TextureReference nodes in XML
+  for (const n of textureNodes) {
+    const texPath = getPropertyText(n, "texturePath");
+    if (texPath && isSafeTexturePath(texPath)) refs.add(texPath);
+  }
+
+  // Source 2: Image files in ZIP directory
+  for (const zipPath of Object.keys(zip.files)) {
+    if (zip.files[zipPath].dir) continue;
+    if (isSafeTexturePath(zipPath)) refs.add(zipPath);
+  }
+
+  return [...refs].sort();
 }

@@ -12,7 +12,7 @@ The module exposes three layers:
 
 | Layer | File | Purpose |
 |---|---|---|
-| Value types | `types.ts` | `Position`, `Orientation`, `Size`, `JointId` — immutable value objects |
+| Value types | `types.ts` | `Position`, `Orientation`, `Size`, `JointId`, `Vec3`, `BoundingBox`, `JointNode` — immutable value objects |
 | Entity hierarchy | `entities.ts` | Abstract class hierarchy from `SThing` down to concrete `SBiped`, `SFlyer`, etc. |
 | Scene container | `scene.ts` | `Scene` class with CRUD operations and `Scene.fromProject()` bridge |
 
@@ -287,17 +287,19 @@ entity instanceof SThing;            // true
 This is used by the Tweedle VM to determine which operations are valid on an
 entity (e.g., only `SMovableTurnable` and subclasses support `setPosition`).
 
-### Joints (Not Yet Populated)
+### Joints (Populated from Parser)
 
 `SJointedModel` and its subclasses expose a `getJoint(name)` method that
-returns `JointId | undefined`. Joint data is not currently populated from the
-parser — `getJoint()` always returns `undefined`. This is sufficient for the
-Tweedle VM; joint loading will be added when animation support lands.
+returns `JointId | undefined`. Joint data is populated when the project is
+parsed with the extended a3p parser — see [model-resources.md](model-resources.md)
+for the full `JointNode` hierarchy extraction.
 
 ```typescript
 const biped = new SBiped();
-biped.getJoint('LEFT_SHOULDER'); // undefined — joints not yet loaded
+biped.getJoint('LEFT_SHOULDER'); // { name: 'LEFT_SHOULDER', parent: 'SPINE_UPPER' }
 ```
+
+For animation of joints, see [animation.md](animation.md).
 
 ## Scene Container
 
@@ -568,7 +570,7 @@ Everything is exported from the barrel at `src/story-api/index.ts`:
 
 ```typescript
 // Value types
-import type { Position, Orientation, Size, JointId } from './story-api';
+import type { Position, Orientation, Size, JointId, Vec3, BoundingBox, JointNode } from './story-api';
 
 // Entity classes
 import {
@@ -596,21 +598,34 @@ import { Scene } from './story-api';
 src/
   story-api/
     index.ts        — Barrel re-export of all public types and classes
-    types.ts        — Position, Orientation, Size, JointId interfaces
+    types.ts        — Position, Orientation, Size, JointId, Vec3, BoundingBox, JointNode
     entities.ts     — SThing → STurnable → SMovableTurnable → SModel →
                       SJointedModel → {SBiped, SFlyer, SQuadruped, SProp}
                       + SGround, SCamera, SScene
     scene.ts        — Scene container with CRUD + static fromProject() bridge
-  a3p-parser.ts     — .a3p ZIP/XML parser (existing, unchanged)
+  a3p-parser.ts     — .a3p ZIP/XML parser + joint/bbox/texture extraction
+  animation.ts      — Pure-functional tween engine (see animation.md)
+  project-io.ts     — Full .a3p archive read/write (see project-io.md)
   scene-builder.ts  — Three.js scene builder (existing, unchanged)
 test/
   story-api.test.ts — Entity construction, type guards, Scene CRUD,
                       fromProject bridge, validation errors
+  animation.test.ts — Easing functions, interpolation, Tween lifecycle
+  project-io.test.ts — Round-trip, manifest, thumbnail, security
 ```
 
 The story API has **zero new dependencies** — it imports only the existing
 `AliceProject` and `AliceObject` types from `a3p-parser.ts` (type-only
 imports, no runtime dependency on the parser module).
+
+## Related Modules
+
+| Module | Documentation | Relationship |
+|---|---|---|
+| `animation.ts` | [animation.md](animation.md) | Uses `Vec3`, `Orientation` from story-api types; produces values applied via `Scene` |
+| `a3p-parser.ts` | [model-resources.md](model-resources.md) | Extracts `JointNode`, `BoundingBox`, texture refs from .a3p |
+| `project-io.ts` | [project-io.md](project-io.md) | Wraps `parseA3P()` for full archive read/write |
+| `scene-builder.ts` | [scene-rendering.md](scene-rendering.md) | Creates Three.js geometry from parser output |
 
 ## Relationship to scene-builder.ts
 
@@ -625,12 +640,10 @@ the Tweedle VM. A future refactor could have `scene-builder.ts` consume
 
 ## Limitations
 
-- **Joints are not yet populated.** `SJointedModel.getJoint()` always returns `undefined`.
-  Joint data loading will be added when animation support is implemented.
 - **No rendering.** The story API is a data model only. It does not create
   Three.js objects — that's `scene-builder.ts`'s job.
-- **No persistence.** Scenes exist in memory only. There is no save/load for
-  the entity model (project save uses the parser's format).
+- **No persistence.** Scenes exist in memory only. For save/load, use
+  [project-io.ts](project-io.md).
 - **`resourceType` not stored.** Entity classes do not carry the model resource
   identifier. It remains on `AliceObject` for downstream consumers.
 - **User types default to SProp.** `"User:Prop"`, `"User:Biped"`, and any

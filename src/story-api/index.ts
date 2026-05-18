@@ -1,4 +1,4 @@
-export type { Position, Orientation, Size, JointId } from "./types";
+export type { Position, Orientation, Size, JointId, Vec3, BoundingBox, JointNode } from "./types";
 
 export {
   SThing,
