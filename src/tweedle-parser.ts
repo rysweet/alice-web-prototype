@@ -17,6 +17,7 @@ enum TT {
   FOR_EACH, DO_IN_ORDER, DO_TOGETHER, COUNT_UP_TO,
   THIS, SUPER, TRUE, FALSE, NULL_LIT,
   AS, INSTANCEOF, ENUM, IN,
+  WHILE, TRY, CATCH, SWITCH, CASE, DEFAULT,
   LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET,
   SEMI, COMMA, DOT, COLON, ELLIPSIS,
   PLUS, MINUS, STAR, SLASH, PERCENT,
@@ -38,6 +39,8 @@ const KEYWORDS = new Map<string, TT>([
   ["true", TT.TRUE], ["false", TT.FALSE], ["null", TT.NULL_LIT],
   ["as", TT.AS], ["instanceof", TT.INSTANCEOF],
   ["enum", TT.ENUM], ["in", TT.IN],
+  ["while", TT.WHILE], ["try", TT.TRY], ["catch", TT.CATCH],
+  ["switch", TT.SWITCH], ["case", TT.CASE], ["default", TT.DEFAULT],
 ]);
 
 interface Token {
@@ -76,7 +79,10 @@ export type Statement =
   | { type: "ExpressionStatement"; expression: Expression }
   | { type: "LocalVariableDeclaration"; name: string; varType: TypeRef; initializer: Expression; isConstant: boolean }
   | { type: "Block"; body: Statement[] }
-  | { type: "DisabledBlock"; raw: string };
+  | { type: "DisabledBlock"; raw: string }
+  | { type: "WhileLoop"; condition: Expression; body: Statement[] }
+  | { type: "TryCatch"; tryBody: Statement[]; catchType: TypeRef; catchVariable: string; catchBody: Statement[] }
+  | { type: "SwitchCase"; expression: Expression; cases: Array<{ value: Expression; body: Statement[] }>; defaultCase: Statement[] | null };
 
 export type Expression =
   | { type: "Literal"; value: number | string | boolean | null; literalType: "number" | "string" | "boolean" | "null" }
@@ -93,7 +99,8 @@ export type Expression =
   | { type: "ArrayAccess"; target: Expression; index: Expression }
   | { type: "TypeCast"; expression: Expression; targetType: TypeRef }
   | { type: "InstanceOf"; expression: Expression; testType: TypeRef }
-  | { type: "Parenthesized"; expression: Expression };
+  | { type: "Parenthesized"; expression: Expression }
+  | { type: "ArrayLiteral"; elements: Expression[] };
 
 export type ConstructorDecl = {
   type: "ConstructorDeclaration";
@@ -643,6 +650,57 @@ class Parser {
       return { type: "CountUpTo", count, body };
     }
 
+    // while (condition) { ... }
+    if (this.check(TT.WHILE)) {
+      this.advance();
+      this.expect(TT.LPAREN, "'('");
+      const condition = this.parseExpression();
+      this.expect(TT.RPAREN, "')'");
+      const body = this.parseBlock();
+      return { type: "WhileLoop", condition, body };
+    }
+
+    // try { ... } catch (Type var) { ... }
+    if (this.check(TT.TRY)) {
+      this.advance();
+      const tryBody = this.parseBlock();
+      this.expect(TT.CATCH, "'catch'");
+      this.expect(TT.LPAREN, "'('");
+      const catchType = this.parseTypeRef();
+      const catchVariable = this.expect(TT.IDENTIFIER, "exception variable name").text;
+      this.expect(TT.RPAREN, "')'");
+      const catchBody = this.parseBlock();
+      return { type: "TryCatch", tryBody, catchType, catchVariable, catchBody };
+    }
+
+    // switch (expr) { case value: { ... } ... default: { ... } }
+    if (this.check(TT.SWITCH)) {
+      this.advance();
+      this.expect(TT.LPAREN, "'('");
+      const switchExpr = this.parseExpression();
+      this.expect(TT.RPAREN, "')'");
+      this.expect(TT.LBRACE, "'{'");
+      const cases: Array<{ value: Expression; body: Statement[] }> = [];
+      let defaultCase: Statement[] | null = null;
+      while (!this.check(TT.RBRACE) && !this.check(TT.EOF)) {
+        if (this.check(TT.CASE)) {
+          this.advance();
+          const value = this.parseExpression();
+          this.expect(TT.COLON, "':'");
+          const caseBody = this.parseBlock();
+          cases.push({ value, body: caseBody });
+        } else if (this.check(TT.DEFAULT)) {
+          this.advance();
+          this.expect(TT.COLON, "':'");
+          defaultCase = this.parseBlock();
+        } else {
+          this.fail("Expected 'case' or 'default' in switch block");
+        }
+      }
+      this.expect(TT.RBRACE, "'}'");
+      return { type: "SwitchCase", expression: switchExpr, cases, defaultCase };
+    }
+
     // return [expr];
     if (this.check(TT.RETURN)) {
       this.advance();
@@ -834,6 +892,18 @@ class Parser {
     // new
     if (tok.type === TT.NEW) {
       return this.parseNewExpression();
+    }
+
+    // Array literal: {expr, expr, ...}
+    if (tok.type === TT.LBRACE) {
+      this.advance();
+      const elements: Expression[] = [];
+      while (!this.check(TT.RBRACE) && !this.check(TT.EOF)) {
+        if (elements.length > 0) this.expect(TT.COMMA, "','");
+        elements.push(this.parseExpression());
+      }
+      this.expect(TT.RBRACE, "'}'");
+      return { type: "ArrayLiteral", elements };
     }
 
     // identifier
