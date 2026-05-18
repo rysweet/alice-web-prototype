@@ -68,12 +68,12 @@ describe("Outside-In Scenario 2: Edge cases & integration", () => {
     });
 
     it("try/catch roundtrips", () => {
-      const ast = parseTweedle(`class X { void m() { try { this.risky(); } catch (e Exception) { this.handle(); } } }`);
+      const ast = parseTweedle(`class X { void m() { try { this.risky(); } catch (Exception e) { this.handle(); } } }`);
       const stmt = ast.methods[0].body[0];
       expect(stmt.type).toBe("TryCatch");
       const code = generateTweedle(ast);
       expect(code).toContain("try");
-      expect(code).toContain("catch");
+      expect(code).toContain("catch (Exception e)");
     });
 
     it("switch/case roundtrips", () => {
