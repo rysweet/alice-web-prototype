@@ -1,20 +1,28 @@
-export type { Position, Orientation, Size, JointId, Vec3, BoundingBox, JointNode } from "./types";
-export type { EntityMarker, PropertyChange, PropertyListener } from "./implementation";
-
-export {
-  SThing,
-  SGround,
-  SScene,
-  STurnable,
-  SMovableTurnable,
-  SCamera,
-  SModel,
-  SJointedModel,
-  SBiped,
-  SFlyer,
-  SQuadruped,
-  SProp,
-} from "./entities";
-
-export { Property, EntityImp, JointedModelImp } from "./implementation";
-export { Scene, createEntityForType } from "./scene";
+export type {
+  BoundingBox,
+  JointId,
+  JointNode,
+  MoveDirection,
+  Orientation,
+  Position,
+  RollDirection,
+  Size,
+  SpatialRelation,
+  SpeechBubbleState,
+  TransformSnapshot,
+  TurnDirection,
+  Vec3,
+} from "./expanded-types";
+export type {
+  ActivationListener,
+  BindingSyncDirection,
+  EntityMarker,
+  PropertyChange,
+  PropertyListener,
+  SceneActivationListener,
+  SceneActivationController,
+  SceneLifecycleHost,
+} from "./expanded-implementation";
+export * from "./expanded-entities";
+export * from "./expanded-implementation";
+export * from "./expanded-scene";
