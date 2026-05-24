@@ -9,6 +9,7 @@ export type {
   Size,
   SpatialRelation,
   SpeechBubbleState,
+  TextBubbleEntity,
   TransformSnapshot,
   TurnDirection,
   Vec3,

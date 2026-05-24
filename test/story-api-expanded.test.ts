@@ -75,12 +75,14 @@ describe("expanded story-api entity coverage", () => {
 
     flyer.move("FORWARD", 2);
     flyer.turn("LEFT", Math.PI / 2);
+    flyer.move("FORWARD", 2);
     flyer.roll("RIGHT", Math.PI / 4);
     flyer.moveToward(target, 3);
     flyer.place("ABOVE", target, 1);
 
     expect(flyer.position.y).toBeGreaterThan(target.position.y);
     expect(flyer.orientation).not.toEqual({ x: 0, y: 0, z: 0, w: 1 });
+    expect(flyer.position.x).not.toBe(0);
   });
 
   it("captures speech and thought state on models", () => {
@@ -91,6 +93,8 @@ describe("expanded story-api entity coverage", () => {
     expect(billboard.lastSpokenText).toBe("Hello");
     expect(billboard.lastThoughtText).toBe("Hmm");
     expect(billboard.speechBubble).toEqual({ kind: "think", text: "Hmm", duration: 0.5 });
+    expect(billboard.speechBubbleEntity).toMatchObject({ kind: "think", text: "Hmm", duration: 0.5 });
+    expect(billboard.speechBubbleEntity!.anchor.y).toBeGreaterThanOrEqual(billboard.position.y);
   });
 
   it("exposes joint entities and can straighten poses", () => {
@@ -199,5 +203,17 @@ describe("expanded story-api entity coverage", () => {
     prop.size = { width: 2, height: 3, depth: 4 };
 
     expect(changes).toEqual([{ width: 2, height: 3, depth: 4 }]);
+  });
+
+  it("supports explicit visual setter helpers", () => {
+    const prop = new SProp();
+
+    prop.setColor("RED");
+    prop.setOpacity(0.25);
+    prop.setSize({ width: 2, height: 3, depth: 4 });
+
+    expect(prop.color).toBe("RED");
+    expect(prop.opacity).toBe(0.25);
+    expect(prop.size).toEqual({ width: 2, height: 3, depth: 4 });
   });
 });

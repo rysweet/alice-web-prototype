@@ -41,6 +41,7 @@ import type {
   Size,
   SpatialRelation,
   SpeechBubbleState,
+  TextBubbleEntity,
   TurnDirection,
   Vec3,
 } from "./expanded-types";
@@ -90,6 +91,32 @@ export interface PropertyOptions<T> {
 
 const identityClone = <T>(value: T): T => value;
 const nonEmptyString = (value: string): boolean => typeof value === "string" && value.trim().length > 0;
+let textBubbleId = 0;
+
+function cloneTextBubbleEntity(value: TextBubbleEntity): TextBubbleEntity {
+  return {
+    ...value,
+    anchor: clonePosition(value.anchor),
+    size: cloneSize(value.size),
+  };
+}
+
+function sameTextBubbleEntity(left: TextBubbleEntity | null, right: TextBubbleEntity | null): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+  return (
+    left.id === right.id
+    && left.kind === right.kind
+    && left.text === right.text
+    && left.duration === right.duration
+    && samePosition(left.anchor, right.anchor)
+    && sameSize(left.size, right.size)
+  );
+}
 
 export abstract class PropertyOwnerImp {
   get program(): ProgramImp | null {
@@ -672,8 +699,11 @@ export class TransformableImp extends EntityImp {
     if (!Number.isFinite(amount)) {
       throw new TypeError("amount must be a finite number");
     }
-    const offset = scaleVec3(vectorFromMoveDirection(direction), amount);
-    this.position.setValue(addVec3(this.position.value, offset));
+    const basis = typeof direction === "string"
+      ? rotateVector(this.getAbsoluteOrientation(), vectorFromMoveDirection(direction))
+      : normalizeVec3(direction);
+    const offset = scaleVec3(normalizeVec3(basis), amount);
+    this.setAbsolutePosition(addVec3(this.getAbsolutePosition(), offset));
   }
 
   moveToward(target: EntityImp, amount: number): void {
@@ -773,6 +803,12 @@ export class ModelImp extends TransformableImp {
       equals: (left, right) => JSON.stringify(left) === JSON.stringify(right),
     }),
   );
+  readonly speechBubbleEntity = this.registerProperty(
+    new Property<TextBubbleEntity | null>(this, "speechBubbleEntity", null, {
+      clone: (value) => (value ? cloneTextBubbleEntity(value) : null),
+      equals: sameTextBubbleEntity,
+    }),
+  );
   readonly lastSpokenText = this.registerProperty(new StringProperty<string | null>(this, "lastSpokenText", null, true));
   readonly lastThoughtText = this.registerProperty(new StringProperty<string | null>(this, "lastThoughtText", null, true));
 
@@ -810,6 +846,27 @@ export class ModelImp extends TransformableImp {
     this.size.setValue(scale);
   }
 
+  setSize(size: Size): void {
+    if (!isFiniteSize(size) || size.width <= 0 || size.height <= 0 || size.depth <= 0) {
+      throw new TypeError("size must contain positive finite dimensions");
+    }
+    this.size.setValue(size);
+  }
+
+  setColor(color: string): void {
+    if (!nonEmptyString(color)) {
+      throw new TypeError("color must be a non-empty string");
+    }
+    this.color.setValue(color);
+  }
+
+  setOpacity(opacity: number): void {
+    if (!Number.isFinite(opacity)) {
+      throw new TypeError("opacity must be a finite number");
+    }
+    this.opacity.setValue(opacity);
+  }
+
   resize(factor: number): void {
     if (!Number.isFinite(factor) || factor <= 0) {
       throw new TypeError("factor must be a positive finite number");
@@ -839,20 +896,52 @@ export class ModelImp extends TransformableImp {
     this.setDepth(this.size.value.depth * factor);
   }
 
+  #createBubbleEntity(kind: "say" | "think", text: string, duration: number): TextBubbleEntity {
+    const bounds = this.getBoundingBox();
+    const anchor = bounds
+      ? {
+          x: (bounds.min.x + bounds.max.x) / 2,
+          y: bounds.max.y,
+          z: bounds.min.z,
+        }
+      : this.getAbsolutePosition();
+    const lineCount = Math.max(1, Math.ceil(Math.max(text.length, 1) / 24));
+    return {
+      id: `bubble-${++textBubbleId}`,
+      kind,
+      text,
+      duration,
+      anchor,
+      size: {
+        width: Math.max(0.5, Math.min(6, Math.max(text.length, 1) * 0.12)),
+        height: 0.3 + lineCount * 0.2,
+        depth: 0.05,
+      },
+    };
+  }
+
   say(text: string, duration = 0): void {
     if (typeof text !== "string") {
       throw new TypeError("text must be a string");
     }
+    if (!Number.isFinite(duration) || duration < 0) {
+      throw new TypeError("duration must be a non-negative finite number");
+    }
     this.lastSpokenText.setValue(text);
     this.speechBubble.setValue({ kind: "say", text, duration });
+    this.speechBubbleEntity.setValue(this.#createBubbleEntity("say", text, duration));
   }
 
   think(text: string, duration = 0): void {
     if (typeof text !== "string") {
       throw new TypeError("text must be a string");
     }
+    if (!Number.isFinite(duration) || duration < 0) {
+      throw new TypeError("duration must be a non-negative finite number");
+    }
     this.lastThoughtText.setValue(text);
     this.speechBubble.setValue({ kind: "think", text, duration });
+    this.speechBubbleEntity.setValue(this.#createBubbleEntity("think", text, duration));
   }
 }
 

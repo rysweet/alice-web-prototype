@@ -919,6 +919,37 @@ export class TexturedAppearance extends SingleAppearance {
   isDiffuseColorTextureAlphaBlended = false;
   isDiffuseColorTextureClamped = false;
 
+  override clone(): TexturedAppearance {
+    const copy = new TexturedAppearance();
+    Object.assign(copy, this);
+    return copy;
+  }
+
+  setDiffuseColorTextureAlphaBlended(isDiffuseColorTextureAlphaBlended: boolean): void {
+    this.isDiffuseColorTextureAlphaBlended = isDiffuseColorTextureAlphaBlended;
+  }
+
+  setDiffuseColorTextureClamped(isDiffuseColorTextureClamped: boolean): void {
+    this.isDiffuseColorTextureClamped = isDiffuseColorTextureClamped;
+  }
+
+  setDiffuseColorTexture(diffuseColorTexture: THREE.Texture | null): void {
+    this.diffuseColorTexture = diffuseColorTexture;
+  }
+
+  setDiffuseColorTextureAndInferAlphaBlend(diffuseColorTexture: THREE.Texture | null): void {
+    this.diffuseColorTexture = diffuseColorTexture;
+    const inferredAlphaBlend = diffuseColorTexture
+      ? ((diffuseColorTexture.userData?.isPotentiallyAlphaBlended as boolean | undefined)
+          ?? (diffuseColorTexture.format === THREE.RGBAFormat || diffuseColorTexture.format === THREE.AlphaFormat))
+      : false;
+    this.isDiffuseColorTextureAlphaBlended = inferredAlphaBlend;
+  }
+
+  setBumpTexture(bumpTexture: THREE.Texture | null): void {
+    this.bumpTexture = bumpTexture;
+  }
+
   override toThreeMaterial(side = THREE.FrontSide): THREE.Material {
     const material = super.toThreeMaterial(side) as THREE.MeshPhongMaterial;
     const texture = this.diffuseColorTexture ?? this.texture;

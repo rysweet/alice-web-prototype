@@ -56,6 +56,16 @@ export interface SpeechBubbleState {
   readonly duration: number;
 }
 
+/** Concrete bubble entity data created by say()/think(). */
+export interface TextBubbleEntity {
+  readonly id: string;
+  readonly kind: "say" | "think";
+  readonly text: string;
+  readonly duration: number;
+  readonly anchor: Position;
+  readonly size: Size;
+}
+
 export type MoveDirection =
   | "FORWARD"
   | "BACKWARD"

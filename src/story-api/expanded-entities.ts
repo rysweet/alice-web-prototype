@@ -41,6 +41,7 @@ import type {
   Size,
   SpatialRelation,
   SpeechBubbleState,
+  TextBubbleEntity,
   TurnDirection,
   Vec3,
 } from "./expanded-types";
@@ -476,7 +477,7 @@ export class SModel extends SMovableTurnable {
 
   set color(value: string) {
     if (nonEmptyString(value)) {
-      this.modelImp.color.value = value;
+      this.modelImp.setColor(value);
     }
   }
 
@@ -512,6 +513,18 @@ export class SModel extends SMovableTurnable {
     this.modelImp.setDepth(value);
   }
 
+  setSize(value: Size): void {
+    this.modelImp.setSize(value);
+  }
+
+  setColor(value: string): void {
+    this.modelImp.setColor(value);
+  }
+
+  setOpacity(value: number): void {
+    this.modelImp.setOpacity(value);
+  }
+
   resize(factor: number): void {
     this.modelImp.resize(factor);
   }
@@ -538,6 +551,10 @@ export class SModel extends SMovableTurnable {
 
   get speechBubble(): SpeechBubbleState | null {
     return this.modelImp.speechBubble.value;
+  }
+
+  get speechBubbleEntity(): TextBubbleEntity | null {
+    return this.modelImp.speechBubbleEntity.value;
   }
 
   get lastSpokenText(): string | null {
