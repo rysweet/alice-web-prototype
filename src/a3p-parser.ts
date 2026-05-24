@@ -492,7 +492,15 @@ function extractResourceType(field: Element, keyMap: Map<string, Element>): stri
   if (!initNode) return null;
   const refs = initNode.getElementsByTagName("resourceReference");
   if (refs.length === 0) return null;
-  return refs[0].getAttribute("name") ?? null;
+
+  const reference = refs[0];
+  const resourceName = reference.getAttribute("name");
+  if (resourceName?.includes(".")) {
+    return resourceName;
+  }
+
+  const declaringClass = directChild(reference, "declaringClass")?.getAttribute("name");
+  return declaringClass ?? resourceName ?? null;
 }
 
 function parseUserField(field: Element, keyMap: Map<string, Element>): AliceObject | null {

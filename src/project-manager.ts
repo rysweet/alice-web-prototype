@@ -3,10 +3,16 @@
  */
 import { readProject, writeProject, type AliceProjectArchive } from "./project-io";
 import type { AliceProject } from "./a3p-parser";
+import { getCurrentAliceVersion } from "./project-migration";
 
 export interface RecentFile {
   fileName: string;
   timestamp: number;
+  projectName: string | null;
+  projectVersion: string | null;
+  resourceCount: number;
+  thumbnailPresent: boolean;
+  migrated: boolean;
 }
 
 export interface ProjectBackup {
@@ -88,7 +94,7 @@ export class ProjectManager {
 
   create(): AliceProjectArchive {
     const project: AliceProject = {
-      version: "3.6.0.0",
+      version: getCurrentAliceVersion(),
       projectName: "Untitled",
       sceneObjects: [],
       methods: [],
@@ -97,7 +103,17 @@ export class ProjectManager {
       project,
       manifest: null,
       resources: new Map(),
+      resourceEntries: [],
       thumbnail: null,
+      versionInfo: {
+        originalAliceVersion: project.version,
+        detectedAliceVersion: project.version,
+        manifestVersion: null,
+        xmlVersion: null,
+        versionSource: "default",
+        migrated: false,
+        migrationSteps: [],
+      },
     };
     this._archive = archive;
     this._fileName = null;
@@ -112,7 +128,7 @@ export class ProjectManager {
     this._fileName = fileName;
     this._dirty = false;
     this._lastSavedData = cloneBytes(data);
-    this._addRecentFile(fileName);
+    this._addRecentFile(fileName, archive);
   }
 
   async recoverCorruptedProject(
@@ -137,7 +153,7 @@ export class ProjectManager {
       this._fileName = fileName;
       this._dirty = false;
       this._lastSavedData = new Uint8Array(backup.data);
-      this._addRecentFile(fileName);
+      this._addRecentFile(fileName, archive);
       return {
         archive,
         source: "backup",
@@ -162,7 +178,7 @@ export class ProjectManager {
     this._dirty = false;
     this._lastSavedData = new Uint8Array(result);
     if (this._fileName) {
-      this._addRecentFile(this._fileName);
+      this._addRecentFile(this._fileName, this._archive);
     }
     return result;
   }
@@ -293,11 +309,19 @@ export class ProjectManager {
     ].sort((a, b) => b.timestamp - a.timestamp);
   }
 
-  private _addRecentFile(fileName: string): void {
+  private _addRecentFile(fileName: string, archive: AliceProjectArchive | null = this._archive): void {
     this._recentFiles = this._recentFiles.filter(
       (r) => r.fileName !== fileName,
     );
-    this._recentFiles.unshift({ fileName, timestamp: Date.now() });
+    this._recentFiles.unshift({
+      fileName,
+      timestamp: Date.now(),
+      projectName: archive?.project.projectName ?? null,
+      projectVersion: archive?.versionInfo.detectedAliceVersion ?? archive?.project.version ?? null,
+      resourceCount: archive?.resourceEntries.length ?? 0,
+      thumbnailPresent: archive?.thumbnail !== null,
+      migrated: archive?.versionInfo.migrated ?? false,
+    });
     if (this._recentFiles.length > MAX_RECENT_FILES) {
       this._recentFiles = this._recentFiles.slice(0, MAX_RECENT_FILES);
     }

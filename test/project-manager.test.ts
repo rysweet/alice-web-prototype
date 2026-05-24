@@ -93,7 +93,7 @@ describe("ProjectManager — create", () => {
     const archive = pm.create();
     expect(archive).not.toBeNull();
     expect(archive.project.projectName).toBe("Untitled");
-    expect(archive.project.version).toBe("3.6.0.0");
+    expect(archive.project.version).toBe("3.10.0.0");
     expect(archive.project.sceneObjects).toEqual([]);
     expect(archive.project.methods).toEqual([]);
     expect(archive.resources.size).toBe(0);
@@ -320,7 +320,7 @@ describe("ProjectManager — recent files", () => {
     expect(pm.recentFiles[0].fileName).toBe("file-14.a3p");
   });
 
-  it("recent files include timestamp", async () => {
+  it("recent files include timestamp and project metadata", async () => {
     const pm = new ProjectManager();
     const data = await buildSyntheticZip();
     const before = Date.now();
@@ -329,6 +329,11 @@ describe("ProjectManager — recent files", () => {
     const entry = pm.recentFiles[0];
     expect(entry.timestamp).toBeGreaterThanOrEqual(before);
     expect(entry.timestamp).toBeLessThanOrEqual(after);
+    expect(entry.projectName).toBe("Program");
+    expect(entry.projectVersion).toBe("3.10.0.0");
+    expect(entry.resourceCount).toBe(0);
+    expect(entry.thumbnailPresent).toBe(false);
+    expect(entry.migrated).toBe(true);
   });
 
   it("clearRecentFiles() empties the list", async () => {

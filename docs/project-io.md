@@ -2,8 +2,9 @@
 
 The project IO module (`src/project-io.ts`) provides buffer-based reading and
 writing of complete Alice `.a3p` project archives. It wraps the existing
-`parseA3P()` for XML extraction and adds support for manifest, resources,
-and thumbnails — everything needed for symmetric round-trip serialization.
+`parseA3P()` for XML extraction and adds support for manifest/version
+detection, migration of older Alice 3.x archives, resource extraction,
+thumbnails, and graceful archive error reporting.
 
 ## Overview
 
@@ -11,7 +12,7 @@ and thumbnails — everything needed for symmetric round-trip serialization.
 |---|---|---|
 | `readProject` | async function | Parse a complete .a3p archive into `AliceProjectArchive` |
 | `writeProject` | async function | Serialize an `AliceProjectArchive` back to .a3p bytes |
-| `AliceProjectArchive` | interface | Full archive contents: project + manifest + resources + thumbnail |
+| `AliceProjectArchive` | interface | Full archive contents: project + manifest + resources + thumbnail + version metadata |
 
 The module operates on `ArrayBuffer | Uint8Array` inputs and produces
 `Uint8Array` outputs. It has no filesystem dependency — it works identically
@@ -31,7 +32,9 @@ const archive = await readProject(buffer);
 
 console.log(archive.project.projectName);       // "myProject"
 console.log(archive.manifest);                   // { version: "1.0", ... } or null
-console.log(archive.resources.size);             // 12 resource entries
+console.log(archive.resources.size);             // 12 extracted resource entries (+ __original_xml__)
+console.log(archive.resourceEntries);            // typed resource descriptors (image/audio/model/other)
+console.log(archive.versionInfo);                // detected Alice version + migration info
 console.log(archive.thumbnail !== null);         // true if thumbnail.png exists
 ```
 
@@ -82,11 +85,17 @@ interface AliceProjectArchive {
   /** Contents of manifest.json from the ZIP root, or null if absent */
   manifest: Record<string, unknown> | null;
 
-  /** All resource entries from the ZIP, keyed by path */
+  /** All extracted resource entries from the ZIP, keyed by path */
   resources: Map<string, Uint8Array>;
+
+  /** Resource descriptors with inferred kind and extracted size */
+  resourceEntries: Array<{ path: string; kind: 'image' | 'audio' | 'model' | 'other'; size: number }>;
 
   /** Thumbnail image bytes (thumbnail.png), or null if absent */
   thumbnail: Uint8Array | null;
+
+  /** Detected Alice version source and applied migration steps */
+  versionInfo: ProjectVersionInfo;
 }
 ```
 
@@ -94,8 +103,10 @@ interface AliceProjectArchive {
 |---|---|---|
 | `project` | `AliceProject` | The parsed project (scene objects, methods, joints, etc.) |
 | `manifest` | `Record<string, unknown> \| null` | Parsed `manifest.json` or `null` |
-| `resources` | `Map<string, Uint8Array>` | All ZIP entries except `programType.xml`, `manifest.json`, and `thumbnail.png` |
+| `resources` | `Map<string, Uint8Array>` | All ZIP entries except `programType.xml`, `manifest.json`, `thumbnail.png`, and `version.txt` |
+| `resourceEntries` | `ProjectResourceDescriptor[]` | Resource paths classified as image/audio/model/other with extracted sizes |
 | `thumbnail` | `Uint8Array \| null` | Raw bytes of `thumbnail.png` or `null` |
+| `versionInfo` | `ProjectVersionInfo` | Original/detected Alice version, source, and migration steps |
 
 ## `readProject(data)`
 
@@ -108,10 +119,10 @@ async function readProject(
 Parse a complete .a3p archive. This function:
 
 1. Opens the ZIP archive
-2. Extracts and parses `programType.xml` via `parseA3P()` (existing parser)
-3. Reads `manifest.json` if present, parses as JSON → `manifest`
+2. Reads `manifest.json` if present and detects Alice 3.x version metadata
+3. Extracts `programType.xml` / `program.xml`, applies known migration transforms for older Alice 3.x archives, and parses the migrated XML
 4. Reads `thumbnail.png` if present → `thumbnail`
-5. Collects all remaining entries → `resources` map
+5. Collects all remaining entries, classifies them (image/audio/model/other), and returns them in `resources` + `resourceEntries`
 
 **Parameters:**
 
@@ -125,10 +136,11 @@ Parse a complete .a3p archive. This function:
 
 | Error | Condition |
 |---|---|
-| `Error` | Input is not a valid ZIP archive |
-| `Error` | `programType.xml` is missing from the ZIP |
-| `Error` | Total extracted size exceeds 256 MB (ZIP bomb protection) |
-| `Error` | Any entry path contains `..` or is absolute (path traversal protection) |
+| `ProjectIoError(code=\"corrupted-archive\")` | Input is not a valid ZIP archive or is truncated/corrupted |
+| `ProjectIoError(code=\"missing-program-xml\")` | `programType.xml` / `program.xml` is missing from the ZIP |
+| `ProjectIoError(code=\"invalid-manifest\")` | `manifest.json` exists but is not valid JSON |
+| `ProjectIoError(code=\"zip-bomb\")` | Total extracted size exceeds 256 MB |
+| `ProjectIoError(code=\"unsafe-path\")` | Any entry path contains `..`, `\\`, or is absolute |
 
 ### Resource Map Keys
 
