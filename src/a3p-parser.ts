@@ -23,7 +23,11 @@ export interface AliceStatement {
   arguments?: string[];
   /** For loops */
   count?: number;
+  countExpression?: string;
   body?: AliceStatement[];
+  itemType?: string;
+  itemName?: string;
+  collection?: string;
   /** For if/else */
   condition?: string;
   ifBody?: AliceStatement[];
@@ -33,6 +37,9 @@ export interface AliceStatement {
   catchBody?: AliceStatement[];
   catchType?: string;
   catchVariable?: string;
+  /** For switch/case */
+  cases?: Array<{ value: string; body: AliceStatement[] }>;
+  defaultCase?: AliceStatement[] | null;
   /** For events */
   event?: string;
   /** For return / throw */
