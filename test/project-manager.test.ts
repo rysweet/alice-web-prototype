@@ -168,6 +168,18 @@ describe("ProjectManager — save", () => {
     expect(saved.length).toBeGreaterThan(0);
   });
 
+  it("save can synthesize a brand-new empty project", async () => {
+    const pm = new ProjectManager();
+    pm.create();
+
+    const saved = await pm.save();
+    const reopened = new ProjectManager();
+    await reopened.open(saved, "empty.a3p");
+
+    expect(reopened.currentArchive!.project.projectName).toBe("Untitled");
+    expect(reopened.currentArchive!.project.sceneObjects).toEqual([]);
+  });
+
   it("save clears dirty flag", async () => {
     const pm = new ProjectManager();
     const data = await buildSyntheticZip();

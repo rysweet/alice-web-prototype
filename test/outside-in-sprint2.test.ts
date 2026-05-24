@@ -115,13 +115,16 @@ describe("Outside-in: Full integration - animation + project-io + a3p-parser", (
       await expect(readProject(buf)).rejects.toThrow(/programType.xml/);
     });
 
-    it("writeProject rejects missing XML source", async () => {
-      await expect(writeProject({
+    it("writeProject synthesizes XML for a brand-new empty project", async () => {
+      const bytes = await writeProject({
         project: { version: "1.0", projectName: "X", sceneObjects: [], methods: [] },
         manifest: null,
         resources: new Map(),
         thumbnail: null,
-      })).rejects.toThrow(/no XML source/);
+      });
+      const archive = await readProject(bytes);
+      expect(archive.project.projectName).toBe("X");
+      expect(archive.project.sceneObjects).toEqual([]);
     });
   });
 

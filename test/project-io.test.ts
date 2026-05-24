@@ -241,14 +241,15 @@ describe("project-io", () => {
       expect(await entry!.async("uint8array")).toEqual(new Uint8Array([7, 8, 9]));
     });
 
-    it("throws when __original_xml__ is missing and no programType.xml in resources", async () => {
+    it("can still write when __original_xml__ is missing but the parsed source is attached", async () => {
       const data = await createSyntheticArchive();
       const archive = await readProject(data);
 
-      // Remove the pass-through XML
       archive.resources.delete("__original_xml__");
 
-      await expect(writeProject(archive)).rejects.toThrow();
+      const output = await writeProject(archive);
+      const roundTripped = await readProject(output);
+      expect(roundTripped.project.projectName).toBe(archive.project.projectName);
     });
   });
 

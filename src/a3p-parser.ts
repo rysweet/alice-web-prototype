@@ -61,6 +61,8 @@ export interface AliceMethod {
 
 export interface AliceFieldDefinition {
   name: string;
+  typeName?: string | null;
+  resourceType?: string | null;
   initializer?: string | null;
 }
 
@@ -84,6 +86,45 @@ export interface AliceProject {
   textureRefs?: string[];
 }
 
+export interface A3PSourceMetadata {
+  zip: JSZip | null;
+  xmlEntryName: string;
+  xmlText: string;
+  snapshot: string;
+}
+
+export const DEFAULT_A3P_XML_ENTRY = "programType.xml";
+export const LEGACY_A3P_XML_ENTRY = "program.xml";
+
+const A3P_SOURCE = Symbol("a3p-source");
+type AliceProjectWithSource = AliceProject & { [A3P_SOURCE]?: A3PSourceMetadata };
+
+export function getA3PSource(project: AliceProject): A3PSourceMetadata | null {
+  return (project as AliceProjectWithSource)[A3P_SOURCE] ?? null;
+}
+
+export function snapshotAliceProject(project: AliceProject): string {
+  return JSON.stringify({
+    version: project.version,
+    projectName: project.projectName,
+    sceneObjects: project.sceneObjects,
+    methods: project.methods,
+    types: project.types ?? [],
+    jointHierarchy: project.jointHierarchy ?? [],
+    boundingBoxes: project.boundingBoxes ?? {},
+    textureRefs: project.textureRefs ?? [],
+  });
+}
+
+function attachA3PSource(project: AliceProject, source: A3PSourceMetadata): void {
+  Object.defineProperty(project, A3P_SOURCE, {
+    value: source,
+    enumerable: false,
+    configurable: true,
+    writable: true,
+  });
+}
+
 /**
  * Parse an Alice .a3p file (ZIP) and extract the scene graph.
  * Works in both browser (File/ArrayBuffer) and Node (Buffer).
@@ -97,18 +138,37 @@ export async function parseA3P(data: ArrayBuffer | Uint8Array): Promise<AlicePro
 export async function parseA3PFromZip(zip: JSZip): Promise<AliceProject> {
   await ensureNodeXml();
   const version = await readTextFile(zip, "version.txt");
-  const xmlText = await readXml(zip);
-  const doc = parseXmlString(xmlText);
+  const xmlEntry = await readA3PXmlEntry(zip);
+  const doc = parseXmlString(xmlEntry.text);
 
   const projectName = getProjectName(doc);
   const idx = indexNodes(doc.documentElement);
   const sceneObjects = extractSceneObjects(idx);
-  const methods = extractMethods(idx.userMethods, idx.keyMap);
+  const methods = extractMethods(idx.userMethods, idx.keyMap, { includeMain: false });
+  const types = extractTypes(idx.namedUserTypes, idx.keyMap);
   const jointHierarchy = extractJointHierarchy(idx.jointImplementations);
   const boundingBoxes = extractBoundingBoxes(idx.modelResourceInfos);
   const textureRefs = extractTextureRefs(idx.textureReferences, zip);
 
-  return { version: version.trim(), projectName, sceneObjects, methods, jointHierarchy, boundingBoxes, textureRefs };
+  const project: AliceProject = {
+    version: version.trim(),
+    projectName,
+    sceneObjects,
+    methods,
+    types,
+    jointHierarchy,
+    boundingBoxes,
+    textureRefs,
+  };
+
+  attachA3PSource(project, {
+    zip,
+    xmlEntryName: xmlEntry.name,
+    xmlText: xmlEntry.text,
+    snapshot: snapshotAliceProject(project),
+  });
+
+  return project;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,25 +181,33 @@ async function readTextFile(zip: JSZip, name: string): Promise<string> {
   return entry.async("string");
 }
 
-async function readXml(zip: JSZip): Promise<string> {
-  const entry = zip.file("programType.xml");
-  if (!entry) throw new Error("No programType.xml found in .a3p archive");
+export async function readA3PXmlEntry(zip: JSZip): Promise<{ name: string; text: string }> {
+  const entryName = zip.file(DEFAULT_A3P_XML_ENTRY)
+    ? DEFAULT_A3P_XML_ENTRY
+    : zip.file(LEGACY_A3P_XML_ENTRY)
+      ? LEGACY_A3P_XML_ENTRY
+      : null;
 
-  // Detect encoding: the file may be UTF-16BE, UTF-16LE, or UTF-8/ASCII.
-  const raw = await entry.async("uint8array");
+  if (!entryName) {
+    throw new Error(
+      `No ${DEFAULT_A3P_XML_ENTRY} or ${LEGACY_A3P_XML_ENTRY} found in .a3p archive`,
+    );
+  }
 
-  // UTF-16 BOM detection
+  const raw = await zip.file(entryName)!.async("uint8array");
+  return { name: entryName, text: decodeXmlBytes(raw) };
+}
+
+function decodeXmlBytes(raw: Uint8Array): string {
   if (raw.length >= 2) {
     if (raw[0] === 0xfe && raw[1] === 0xff) {
-      return decodeUtf16(raw, true); // big-endian
+      return decodeUtf16(raw, true);
     }
     if (raw[0] === 0xff && raw[1] === 0xfe) {
-      return decodeUtf16(raw, false); // little-endian
+      return decodeUtf16(raw, false);
     }
-    // Heuristic: if second byte is 0x00, likely UTF-16 big-endian without BOM
     if (raw[0] === 0x00 || raw[1] === 0x00) {
-      const isBE = raw[0] === 0x00;
-      return decodeUtf16(raw, isBE);
+      return decodeUtf16(raw, raw[0] === 0x00);
     }
   }
 
@@ -155,14 +223,12 @@ function parseXmlString(xml: string): Document {
   if (typeof globalThis.DOMParser !== "undefined") {
     return new globalThis.DOMParser().parseFromString(xml, "application/xml");
   }
-  // Node.js: use the lazily-loaded xmldom parser
   if (!_xmlDomParser) {
     throw new Error("Call initNodeXml() before parseXmlString in Node.js");
   }
   return _xmlDomParser.parseFromString(xml, "application/xml");
 }
 
-// Lazy-loaded Node.js XML parser
 let _xmlDomParser: InstanceType<typeof DOMParser> | null = null;
 
 async function ensureNodeXml(): Promise<void> {
@@ -176,7 +242,6 @@ async function ensureNodeXml(): Promise<void> {
 // Key-based reference resolution
 // ---------------------------------------------------------------------------
 
-/** Pre-classified node buckets from a single getElementsByTagName pass. */
 interface NodeIndex {
   keyMap: Map<string, Element>;
   namedUserTypes: Element[];
@@ -186,7 +251,6 @@ interface NodeIndex {
   textureReferences: Element[];
 }
 
-/** Single-pass: build key map and classify nodes by type. Eliminates 5 redundant DOM traversals. */
 function indexNodes(root: Element): NodeIndex {
   const keyMap = new Map<string, Element>();
   const namedUserTypes: Element[] = [];
@@ -199,16 +263,12 @@ function indexNodes(root: Element): NodeIndex {
   for (let i = 0; i < allNodes.length; i++) {
     const n = allNodes[i];
     const nodeType = n.getAttribute("type");
-
-    // Build key map (definitions only)
     const key = n.getAttribute("key");
-    if (key && !keyMap.has(key)) {
-      if (nodeType || n.childNodes.length > 0) {
-        keyMap.set(key, n);
-      }
+
+    if (key && !keyMap.has(key) && (nodeType || n.childNodes.length > 0)) {
+      keyMap.set(key, n);
     }
 
-    // Classify by type
     switch (nodeType) {
       case "org.lgna.project.ast.NamedUserType":
         namedUserTypes.push(n);
@@ -231,13 +291,10 @@ function indexNodes(root: Element): NodeIndex {
   return { keyMap, namedUserTypes, userMethods, jointImplementations, modelResourceInfos, textureReferences };
 }
 
-/** Resolve a node: if it's a keyref (no type, no children), return the definition. */
 function resolve(node: Element, keyMap: Map<string, Element>): Element {
   const key = node.getAttribute("key");
   if (!key) return node;
-  // If this node has a type attribute or children, it's a definition
   if (node.getAttribute("type") || node.childNodes.length > 0) return node;
-  // Otherwise, it's a reference – resolve it
   return keyMap.get(key) ?? node;
 }
 
@@ -253,23 +310,90 @@ function getProjectName(doc: Document): string {
 
 function extractSceneObjects(idx: NodeIndex): AliceObject[] {
   const objects: AliceObject[] = [];
-
-  // Find the Scene NamedUserType (superType = org.lgna.story.SScene)
   const sceneType = findSceneType(idx.namedUserTypes, idx.keyMap);
   if (!sceneType) return objects;
 
-  // Gather all field nodes inside the scene's "fields" property, resolving refs
-  const fieldNodes = getCollectionNodesResolved(sceneType, "fields", idx.keyMap);
+  const fieldNodes = getCollectionNodesResolved(sceneType, "fields", idx.keyMap)
+    .filter((node) => node.getAttribute("type") === "org.lgna.project.ast.UserField");
 
   for (const field of fieldNodes) {
     const obj = parseUserField(field, idx.keyMap);
     if (obj) objects.push(obj);
   }
 
-  // Extract position/orientation/size from scene setup methods
   enrichFromMethods(sceneType, objects, idx.keyMap);
-
   return objects;
+}
+
+function extractTypes(namedUserTypes: Element[], keyMap: Map<string, Element>): AliceTypeDefinition[] {
+  const types: AliceTypeDefinition[] = [];
+  const seen = new Set<string>();
+
+  for (const node of namedUserTypes) {
+    const identity = node.getAttribute("key") ?? node.getAttribute("uuid") ?? `${types.length}`;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+
+    const name = getPropertyText(node, "name");
+    if (!name) continue;
+
+    const methodNodes = getCollectionNodesResolved(node, "methods", keyMap)
+      .filter((child) => child.getAttribute("type") === "org.lgna.project.ast.UserMethod");
+
+    const constructorNodes = getCollectionNodesResolved(node, "constructors", keyMap)
+      .filter((child) => child.getAttribute("type") === "org.lgna.project.ast.NamedUserConstructor");
+
+    types.push({
+      name,
+      superTypeName: getSuperTypeName(node, keyMap),
+      methods: extractMethods(methodNodes, keyMap, { includeMain: true }),
+      constructors: extractConstructors(constructorNodes, keyMap, name),
+      fields: extractFieldDefinitions(node, keyMap),
+    });
+  }
+
+  return types;
+}
+
+function extractConstructors(
+  constructorNodes: Element[],
+  keyMap: Map<string, Element>,
+  typeName: string,
+): AliceMethod[] {
+  return constructorNodes.map((node) => ({
+    name: typeName,
+    isFunction: false,
+    returnType: typeName,
+    parameters: extractParameters(node, keyMap),
+    statements: extractStatements(node, keyMap),
+  }));
+}
+
+function extractFieldDefinitions(typeNode: Element, keyMap: Map<string, Element>): AliceFieldDefinition[] {
+  const fields: AliceFieldDefinition[] = [];
+  const fieldNodes = getCollectionNodesResolved(typeNode, "fields", keyMap)
+    .filter((child) => child.getAttribute("type") === "org.lgna.project.ast.UserField");
+
+  for (const field of fieldNodes) {
+    const name = getPropertyText(field, "name");
+    if (!name) continue;
+    fields.push({
+      name,
+      typeName: extractFieldValueType(field, keyMap),
+      resourceType: extractResourceType(field, keyMap),
+      initializer: summarizeInitializer(field, keyMap),
+    });
+  }
+
+  return fields;
+}
+
+function summarizeInitializer(field: Element, keyMap: Map<string, Element>): string | null {
+  const initNode = getPropertyNode(field, "initializer", keyMap);
+  if (!initNode) return null;
+  const resourceType = extractResourceType(field, keyMap);
+  if (resourceType) return resourceType;
+  return initNode.getAttribute("type")?.split(".").pop() ?? null;
 }
 
 function findSceneType(namedUserTypes: Element[], keyMap: Map<string, Element>): Element | null {
@@ -281,16 +405,10 @@ function findSceneType(namedUserTypes: Element[], keyMap: Map<string, Element>):
 }
 
 function getSuperTypeName(typeNode: Element, keyMap: Map<string, Element>): string | null {
-  const prop = getProperty(typeNode, "superType");
-  if (!prop) return null;
-  let inner = directChild(prop, "node");
-  if (!inner) return null;
-  inner = resolve(inner, keyMap);
-  const te = directChild(inner, "type");
-  return te?.getAttribute("name") ?? null;
+  const superNode = getPropertyNode(typeNode, "superType", keyMap);
+  return superNode ? extractResolvedTypeName(superNode, keyMap) : null;
 }
 
-/** Get the text content of a <property name="X"><value>TEXT</value></property> */
 function getPropertyText(node: Element, propName: string): string | null {
   const prop = getProperty(node, propName);
   if (!prop) return null;
@@ -316,22 +434,13 @@ function directChild(node: Element, tagName: string): Element | null {
   return null;
 }
 
-function getCollectionNodes(parent: Element, propName: string, nodeType: string): Element[] {
-  const prop = getProperty(parent, propName);
-  if (!prop) return [];
-  const coll = directChild(prop, "collection");
-  if (!coll) return [];
-  const result: Element[] = [];
-  for (let i = 0; i < coll.childNodes.length; i++) {
-    const c = coll.childNodes[i] as Element;
-    if (c.nodeType === 1 && c.tagName === "node" && c.getAttribute("type") === nodeType) {
-      result.push(c);
-    }
-  }
-  return result;
+function getPropertyNode(node: Element, propName: string, keyMap: Map<string, Element>): Element | null {
+  const prop = getProperty(node, propName);
+  if (!prop) return null;
+  const child = directChild(prop, "node");
+  return child ? resolve(child, keyMap) : null;
 }
 
-/** Like getCollectionNodes but resolves key references and doesn't filter by type. */
 function getCollectionNodesResolved(parent: Element, propName: string, keyMap: Map<string, Element>): Element[] {
   const prop = getProperty(parent, propName);
   if (!prop) return [];
@@ -347,41 +456,59 @@ function getCollectionNodesResolved(parent: Element, propName: string, keyMap: M
   return result;
 }
 
+function extractResolvedTypeName(node: Element, keyMap: Map<string, Element>): string | null {
+  const resolved = resolve(node, keyMap);
+  const typeEl = directChild(resolved, "type");
+  if (typeEl?.getAttribute("name")) {
+    return typeEl.getAttribute("name");
+  }
+
+  const classText = getPropertyText(resolved, "class");
+  if (classText) return classText;
+
+  if (resolved.getAttribute("type") === "org.lgna.project.ast.NamedUserType") {
+    return getPropertyText(resolved, "name");
+  }
+
+  return null;
+}
+
+function extractFieldValueType(field: Element, keyMap: Map<string, Element>): string | null {
+  const valueTypeNode = getPropertyNode(field, "valueType", keyMap);
+  if (!valueTypeNode) return null;
+
+  const resolved = resolve(valueTypeNode, keyMap);
+  if (resolved.getAttribute("type") === "org.lgna.project.ast.NamedUserType") {
+    const userTypeName = getPropertyText(resolved, "name");
+    const superTypeName = getSuperTypeName(resolved, keyMap);
+    return superTypeName ?? userTypeName ?? null;
+  }
+
+  return extractResolvedTypeName(resolved, keyMap);
+}
+
+function extractResourceType(field: Element, keyMap: Map<string, Element>): string | null {
+  const initNode = getPropertyNode(field, "initializer", keyMap);
+  if (!initNode) return null;
+  const refs = initNode.getElementsByTagName("resourceReference");
+  if (refs.length === 0) return null;
+  return refs[0].getAttribute("name") ?? null;
+}
+
 function parseUserField(field: Element, keyMap: Map<string, Element>): AliceObject | null {
   const name = getPropertyText(field, "name");
   if (!name) return null;
 
-  let typeName = "unknown";
-  const vtProp = getProperty(field, "valueType");
-  if (vtProp) {
-    let vtNode = directChild(vtProp, "node");
-    if (vtNode) {
-      vtNode = resolve(vtNode, keyMap);
-      const te = directChild(vtNode, "type");
-      if (te) {
-        typeName = te.getAttribute("name") ?? "unknown";
-      } else {
-        // Inline NamedUserType – grab its name + superType
-        const utName = getPropertyText(vtNode, "name");
-        const superName = getSuperTypeName(vtNode, keyMap);
-        typeName = superName ?? `User:${utName ?? "unknown"}`;
-      }
+  let typeName = extractFieldValueType(field, keyMap) ?? "unknown";
+  const valueTypeNode = getPropertyNode(field, "valueType", keyMap);
+  if (valueTypeNode?.getAttribute("type") === "org.lgna.project.ast.NamedUserType") {
+    const superTypeName = getSuperTypeName(valueTypeNode, keyMap);
+    if (superTypeName) {
+      typeName = superTypeName;
     }
   }
 
-  let resourceType: string | null = null;
-  const initProp = getProperty(field, "initializer");
-  if (initProp) {
-    let initNode = directChild(initProp, "node");
-    if (initNode) {
-      initNode = resolve(initNode, keyMap);
-      const allRefs = initNode.getElementsByTagName("resourceReference");
-      if (allRefs.length > 0) {
-        resourceType = allRefs[0].getAttribute("name") ?? null;
-      }
-    }
-  }
-
+  const resourceType = extractResourceType(field, keyMap);
   return { name, typeName, resourceType, position: null, orientation: null, size: null };
 }
 
@@ -398,25 +525,20 @@ function enrichFromMethods(sceneType: Element, objects: AliceObject[], keyMap: M
     const n = allMethods[i];
     if (n.getAttribute("type") !== "org.lgna.project.ast.MethodInvocation") continue;
 
-    const methodProp = getProperty(n, "method");
-    if (!methodProp) continue;
-    let methodNode = directChild(methodProp, "node");
+    const methodNode = getPropertyNode(n, "method", keyMap);
     if (!methodNode) continue;
-    methodNode = resolve(methodNode, keyMap);
     const methodEl = directChild(methodNode, "method");
     if (!methodEl) continue;
 
     const methodName = methodEl.getAttribute("name") ?? "";
-
-    // Try to find which field this invocation is on via expression > FieldAccess > field
     const exprProp = getProperty(n, "expression");
     const fieldName = resolveFieldAccessName(exprProp, keyMap);
     if (!fieldName) continue;
+
     const obj = byName.get(fieldName);
     if (!obj) continue;
 
     const doubles = extractDoubleArgs(n);
-
     if (methodName === "setPositionRelativeToVehicle" && doubles.length >= 3) {
       obj.position = { x: doubles[0], y: doubles[1], z: doubles[2] };
     } else if (methodName === "setOrientationRelativeToVehicle" && doubles.length >= 4) {
@@ -433,12 +555,8 @@ function resolveFieldAccessName(prop: Element | null, keyMap: Map<string, Elemen
   if (!exprNode) return null;
   exprNode = resolve(exprNode, keyMap);
   if (exprNode.getAttribute("type") !== "org.lgna.project.ast.FieldAccess") return null;
-  const fieldProp = getProperty(exprNode, "field");
-  if (!fieldProp) return null;
-  let fieldNode = directChild(fieldProp, "node");
-  if (!fieldNode) return null;
-  fieldNode = resolve(fieldNode, keyMap);
-  return getPropertyText(fieldNode, "name");
+  const fieldNode = getPropertyNode(exprNode, "field", keyMap);
+  return fieldNode ? getPropertyText(fieldNode, "name") : null;
 }
 
 function extractDoubleArgs(methodInvocation: Element): number[] {
@@ -446,7 +564,6 @@ function extractDoubleArgs(methodInvocation: Element): number[] {
   const reqArgs = getProperty(methodInvocation, "requiredArguments");
   if (!reqArgs) return doubles;
 
-  // Walk into the argument's expression tree and collect DoubleLiteral values in order
   const allNodes = reqArgs.getElementsByTagName("node");
   for (let i = 0; i < allNodes.length; i++) {
     const n = allNodes[i];
@@ -462,65 +579,57 @@ function extractDoubleArgs(methodInvocation: Element): number[] {
 // Method / procedure / function extraction
 // ---------------------------------------------------------------------------
 
-function extractMethods(userMethods: Element[], keyMap: Map<string, Element>): AliceMethod[] {
+function extractMethods(
+  methodNodes: Element[],
+  keyMap: Map<string, Element>,
+  options: { includeMain: boolean },
+): AliceMethod[] {
   const methods: AliceMethod[] = [];
 
-  for (const node of userMethods) {
+  for (const node of methodNodes) {
     const name = getPropertyText(node, "name");
-    if (!name || name === "main") continue;
+    if (!name) continue;
+    if (!options.includeMain && name === "main") continue;
 
     const returnType = extractReturnType(node, keyMap);
-    const isFunction = returnType !== "void" && returnType !== "";
-    const parameters = extractParameters(node, keyMap);
-    const statements = extractStatements(node, keyMap);
-
-    methods.push({ name, isFunction, returnType, parameters, statements });
+    methods.push({
+      name,
+      isFunction: returnType !== "void" && returnType !== "",
+      returnType,
+      parameters: extractParameters(node, keyMap),
+      statements: extractStatements(node, keyMap),
+    });
   }
 
   return methods;
 }
 
 function extractReturnType(methodNode: Element, keyMap: Map<string, Element>): string {
-  const rtProp = getProperty(methodNode, "returnType");
-  if (!rtProp) return "void";
-  let rtNode = directChild(rtProp, "node");
+  const rtNode = getPropertyNode(methodNode, "returnType", keyMap);
   if (!rtNode) return "void";
-  rtNode = resolve(rtNode, keyMap);
-  const rtType = rtNode.getAttribute("type") ?? "";
-  if (rtType === "org.lgna.project.ast.JavaType") {
-    const cls = getPropertyText(rtNode, "class");
-    if (cls === "void" || cls === "java.lang.Void") return "void";
-    return cls ?? "void";
-  }
-  return "void";
+  return extractResolvedTypeName(rtNode, keyMap) ?? "void";
 }
 
 function extractParameters(methodNode: Element, keyMap: Map<string, Element>): Array<{ name: string; type: string }> {
   const params: Array<{ name: string; type: string }> = [];
-  const paramNodes = getCollectionNodes(methodNode, "requiredParameters", "org.lgna.project.ast.UserParameter");
-  for (const p of paramNodes) {
-    const resolved = resolve(p, keyMap);
+  const paramNodes = getCollectionNodesResolved(methodNode, "requiredParameters", keyMap)
+    .filter((child) => child.getAttribute("type") === "org.lgna.project.ast.UserParameter");
+
+  for (const resolved of paramNodes) {
     const pName = getPropertyText(resolved, "name") ?? "unknown";
-    const vtProp = getProperty(resolved, "valueType");
-    let pType = "Object";
-    if (vtProp) {
-      let vtNode = directChild(vtProp, "node");
-      if (vtNode) {
-        vtNode = resolve(vtNode, keyMap);
-        pType = getPropertyText(vtNode, "class") ?? "Object";
-      }
-    }
-    params.push({ name: pName, type: pType });
+    const typeNode = getPropertyNode(resolved, "valueType", keyMap);
+    params.push({
+      name: pName,
+      type: typeNode ? extractResolvedTypeName(typeNode, keyMap) ?? "Object" : "Object",
+    });
   }
+
   return params;
 }
 
 function extractStatements(methodNode: Element, keyMap: Map<string, Element>): AliceStatement[] {
-  const bodyProp = getProperty(methodNode, "body");
-  if (!bodyProp) return [];
-  let bodyNode = directChild(bodyProp, "node");
+  const bodyNode = getPropertyNode(methodNode, "body", keyMap);
   if (!bodyNode) return [];
-  bodyNode = resolve(bodyNode, keyMap);
 
   const stmtsProp = getProperty(bodyNode, "statements");
   if (!stmtsProp) return [];
@@ -543,30 +652,23 @@ function parseStatement(node: Element, keyMap: Map<string, Element>): AliceState
   const nodeType = node.getAttribute("type") ?? "";
 
   if (nodeType === "org.lgna.project.ast.ExpressionStatement") {
-    const exprProp = getProperty(node, "expression");
-    if (!exprProp) return null;
-    let exprNode = directChild(exprProp, "node");
+    const exprNode = getPropertyNode(node, "expression", keyMap);
     if (!exprNode) return null;
-    exprNode = resolve(exprNode, keyMap);
     const exprType = exprNode.getAttribute("type") ?? "";
 
     if (exprType === "org.lgna.project.ast.MethodInvocation") {
-      const methodProp = getProperty(exprNode, "method");
-      let methodName = "unknown";
-      if (methodProp) {
-        let mn = directChild(methodProp, "node");
-        if (mn) {
-          mn = resolve(mn, keyMap);
-          methodName = getPropertyText(mn, "name") ?? "unknown";
-        }
-      }
-      return { kind: "MethodCall", method: methodName, object: "this", arguments: [] };
+      const methodNode = getPropertyNode(exprNode, "method", keyMap);
+      return {
+        kind: "MethodCall",
+        method: methodNode ? getPropertyText(methodNode, "name") ?? "unknown" : "unknown",
+        object: "this",
+        arguments: [],
+      };
     }
   }
 
   if (nodeType === "org.lgna.project.ast.Comment") {
-    const text = getPropertyText(node, "text") ?? "";
-    return { kind: "Comment", expression: text };
+    return { kind: "Comment", expression: getPropertyText(node, "text") ?? "" };
   }
 
   if (nodeType === "org.lgna.project.ast.CountLoop") {
@@ -592,7 +694,6 @@ function parseStatement(node: Element, keyMap: Map<string, Element>): AliceState
 // Numeric safety
 // ---------------------------------------------------------------------------
 
-/** Parse a float, coercing NaN/Infinity to a fallback (default 0). */
 function safeFloat(text: string | null, fallback = 0): number {
   const n = parseFloat(text ?? String(fallback));
   return Number.isFinite(n) ? n : fallback;
@@ -615,14 +716,12 @@ function extractJointHierarchy(jointNodes: Element[]): JointNode[] {
   const joints: JointData[] = [];
 
   for (const n of jointNodes) {
-
     const name = getPropertyText(n, "jointName");
     if (!name) continue;
 
-    const parentName = getPropertyText(n, "parent") ?? null;
     joints.push({
       name,
-      parentName: parentName || null,
+      parentName: getPropertyText(n, "parent") ?? null,
       position: {
         x: safeFloat(getPropertyText(n, "positionX")),
         y: safeFloat(getPropertyText(n, "positionY")),
@@ -637,28 +736,23 @@ function extractJointHierarchy(jointNodes: Element[]): JointNode[] {
     });
   }
 
-  // Group children by parent name
   const childrenMap = new Map<string, JointData[]>();
   const roots: JointData[] = [];
 
-  for (const j of joints) {
-    if (j.parentName) {
-      let siblings = childrenMap.get(j.parentName);
-      if (!siblings) {
-        siblings = [];
-        childrenMap.set(j.parentName, siblings);
-      }
-      siblings.push(j);
+  for (const joint of joints) {
+    if (joint.parentName) {
+      const siblings = childrenMap.get(joint.parentName) ?? [];
+      siblings.push(joint);
+      childrenMap.set(joint.parentName, siblings);
     } else {
-      roots.push(j);
+      roots.push(joint);
     }
   }
 
   function buildNode(data: JointData, depth: number): JointNode {
-    const children =
-      depth < MAX_JOINT_DEPTH
-        ? (childrenMap.get(data.name) ?? []).map((c) => buildNode(c, depth + 1))
-        : [];
+    const children = depth < MAX_JOINT_DEPTH
+      ? (childrenMap.get(data.name) ?? []).map((child) => buildNode(child, depth + 1))
+      : [];
 
     return {
       name: data.name,
@@ -671,7 +765,7 @@ function extractJointHierarchy(jointNodes: Element[]): JointNode[] {
     };
   }
 
-  return roots.map((r) => buildNode(r, 1));
+  return roots.map((root) => buildNode(root, 1));
 }
 
 // ---------------------------------------------------------------------------
@@ -682,7 +776,6 @@ function extractBoundingBoxes(resourceInfoNodes: Element[]): Record<string, Boun
   const boxes: Record<string, BoundingBox> = {};
 
   for (const n of resourceInfoNodes) {
-
     const name = getPropertyText(n, "resourceName");
     if (!name) continue;
 
@@ -711,7 +804,6 @@ const IMAGE_EXTENSIONS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tga", ".webp",
 ]);
 
-/** Reject paths with traversal sequences, null bytes, or non-printable characters. */
 function isSafeTexturePath(p: string): boolean {
   if (p.includes("..") || p.startsWith("/") || p.includes("\0")) return false;
   // eslint-disable-next-line no-control-regex
@@ -724,13 +816,11 @@ function isSafeTexturePath(p: string): boolean {
 function extractTextureRefs(textureNodes: Element[], zip: JSZip): string[] {
   const refs = new Set<string>();
 
-  // Source 1: TextureReference nodes in XML
   for (const n of textureNodes) {
     const texPath = getPropertyText(n, "texturePath");
     if (texPath && isSafeTexturePath(texPath)) refs.add(texPath);
   }
 
-  // Source 2: Image files in ZIP directory
   for (const zipPath of Object.keys(zip.files)) {
     if (zip.files[zipPath].dir) continue;
     if (isSafeTexturePath(zipPath)) refs.add(zipPath);
