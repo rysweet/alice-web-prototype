@@ -15,6 +15,7 @@ import {
   ExpressionStatement,
   FieldAccess,
   ForEachInArrayLoop,
+  ConstructorInvocationStatement,
   ForEachInIterableLoop,
   ForEachLoop,
   LocalDeclarationStatement,
@@ -195,6 +196,7 @@ export class StatementListModel {
   }
 
   insert(index: number, statement: Statement): number {
+    assertEditableStatement(statement);
     const normalizedIndex = clampIndex(index, this.statements.length);
     attachToOwner(this.owner, statement);
     this.statements.splice(normalizedIndex, 0, statement);
@@ -240,11 +242,29 @@ function getBodyStatements(owner: AbstractCode | BlockStatement): Statement[] {
   return (owner as BlockStatement & { body: Statement[] }).body;
 }
 
+function assertEditableStatement(statement: Statement): void {
+  if (statement instanceof ConstructorInvocationStatement) {
+    throw new TypeError("constructor invocations are pinned to constructor headers; use setLeadingConstructorInvocation()");
+  }
+}
+
 export class CodeEditor {
   readonly rootList: StatementListModel;
 
   constructor(public readonly code: AbstractCode | BlockStatement) {
     this.rootList = new StatementListModel(code, getBodyStatements(code), "body", 0, null, null);
+  }
+
+  getLeadingConstructorInvocation(): ConstructorInvocationStatement | null {
+    return this.code instanceof ConstructorBlockStatement ? this.code.constructorInvocationStatement : null;
+  }
+
+  setLeadingConstructorInvocation(invocation: ConstructorInvocationStatement): void {
+    if (!(this.code instanceof ConstructorBlockStatement)) {
+      throw new TypeError("leading constructor invocations can only be set on constructor bodies");
+    }
+    attachToOwner(this.code, invocation);
+    this.code.constructorInvocationStatement = invocation;
   }
 
   getStatementLists(): StatementListModel[] {

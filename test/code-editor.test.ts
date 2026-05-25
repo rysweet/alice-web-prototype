@@ -3,12 +3,15 @@ import {
   BooleanLiteral,
   CommentStatement,
   ConditionalStatement,
+  ConstructorBlockStatement,
   ExpressionStatement,
   IntegerLiteral,
   LocalVariableDeclarationStatement,
   MethodDeclaration,
   ReturnStatement,
   StringLiteral,
+  SuperConstructorInvocationStatement,
+  ThisConstructorInvocationStatement,
   simpleTypeRef,
 } from "../src/ast-nodes.js";
 import { CodeEditor } from "../src/code-editor.js";
@@ -28,6 +31,13 @@ describe("code-editor", () => {
         ),
       ],
       false,
+    );
+  }
+
+  function createConstructorBody(): ConstructorBlockStatement {
+    return new ConstructorBlockStatement(
+      new SuperConstructorInvocationStatement(null),
+      [new CommentStatement("body")],
     );
   }
 
@@ -96,5 +106,25 @@ describe("code-editor", () => {
       "else@0",
       "else@1",
     ]);
+  });
+
+  it("keeps constructor invocations pinned outside the editable body list", () => {
+    const constructorBody = createConstructorBody();
+    const editor = new CodeEditor(constructorBody);
+
+    expect(editor.getLeadingConstructorInvocation()).toBe(constructorBody.constructorInvocationStatement);
+    expect(editor.rootList.list().map((statement) => statement.type)).toEqual(["Comment"]);
+
+    editor.setLeadingConstructorInvocation(new ThisConstructorInvocationStatement(null));
+
+    expect(editor.getLeadingConstructorInvocation()).toBeInstanceOf(ThisConstructorInvocationStatement);
+    expect(editor.rootList.list().map((statement) => statement.type)).toEqual(["Comment"]);
+  });
+
+  it("rejects constructor invocations inside editable statement lists", () => {
+    const editor = new CodeEditor(createMethod());
+
+    expect(() => editor.rootList.insert(0, new SuperConstructorInvocationStatement(null))).toThrow(/constructor headers/);
+    expect(() => editor.setLeadingConstructorInvocation(new ThisConstructorInvocationStatement(null))).toThrow(/constructor bodies/);
   });
 });
