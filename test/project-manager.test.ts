@@ -168,6 +168,27 @@ describe("ProjectManager — save", () => {
     expect(saved.length).toBeGreaterThan(0);
   });
 
+  it("saveAs assigns a new file name and updates recent files", async () => {
+    const pm = new ProjectManager();
+    const data = await buildSyntheticZip("RenamedProject");
+    await pm.open(data, "original.a3p");
+    pm.markDirty();
+
+    const saved = await pm.saveAs("renamed.a3p");
+
+    expect(saved).toBeInstanceOf(Uint8Array);
+    expect(pm.fileName).toBe("renamed.a3p");
+    expect(pm.isDirty).toBe(false);
+    expect(pm.recentFiles[0]?.fileName).toBe("renamed.a3p");
+  });
+
+  it("saveAs rejects blank file names", async () => {
+    const pm = new ProjectManager();
+    pm.create();
+
+    await expect(pm.saveAs("   ")).rejects.toThrow("non-empty file name");
+  });
+
   it("save can synthesize a brand-new empty project", async () => {
     const pm = new ProjectManager();
     pm.create();

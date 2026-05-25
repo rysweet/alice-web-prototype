@@ -162,14 +162,30 @@ export class ProjectManager {
     if (this._fileName && this._lastSavedData) {
       this._addBackup(this._fileName, this._lastSavedData);
     }
-    const result = await writeProject(this._archive, {
-      generateThumbnailFromScene: this._archive.thumbnail == null,
-    });
+    const result = await this._serializeCurrentArchive();
     this._dirty = false;
     this._lastSavedData = new Uint8Array(result);
     if (this._fileName) {
       this._addRecentFile(this._fileName, this._archive);
     }
+    return result;
+  }
+
+  async saveAs(fileName: string): Promise<Uint8Array> {
+    if (!this._archive) {
+      throw new Error(
+        "No project is loaded. Open or create a project before saving.",
+      );
+    }
+    const normalizedFileName = fileName.trim();
+    if (!normalizedFileName) {
+      throw new Error("A non-empty file name is required for Save As.");
+    }
+    const result = await this._serializeCurrentArchive();
+    this._fileName = normalizedFileName;
+    this._dirty = false;
+    this._lastSavedData = new Uint8Array(result);
+    this._addRecentFile(this._fileName, this._archive);
     return result;
   }
 
@@ -268,6 +284,12 @@ export class ProjectManager {
     this._backupHistory = this._backupHistory.filter(
       (backup) => backup.fileName !== fileName,
     );
+  }
+
+  private async _serializeCurrentArchive(): Promise<Uint8Array> {
+    return writeProject(this._archive!, {
+      generateThumbnailFromScene: this._archive!.thumbnail == null,
+    });
   }
 
   getBackups(fileName?: string): ProjectBackup[] {
