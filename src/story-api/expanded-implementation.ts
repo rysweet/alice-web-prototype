@@ -905,6 +905,7 @@ export class ModelImp extends TransformableImp {
       equals: sameTextBubbleEntity,
     }),
   );
+  readonly speechBubbleProgress = this.registerProperty(new NumberProperty(this, "speechBubbleProgress", 0, { min: 0, max: 1 }));
   readonly lastSpokenText = this.registerProperty(new StringProperty<string | null>(this, "lastSpokenText", null, true));
   readonly lastThoughtText = this.registerProperty(new StringProperty<string | null>(this, "lastThoughtText", null, true));
 
@@ -1027,28 +1028,51 @@ export class ModelImp extends TransformableImp {
     };
   }
 
-  say(text: string, duration = 0): void {
+  #animateSpeechBubble(
+    kind: "say" | "think",
+    text: string,
+    duration: number,
+    lastText: Property<string | null>,
+  ): AnimationClip | null {
     if (typeof text !== "string") {
       throw new TypeError("text must be a string");
     }
     if (!Number.isFinite(duration) || duration < 0) {
       throw new TypeError("duration must be a non-negative finite number");
     }
-    this.lastSpokenText.setValue(text);
-    this.speechBubble.setValue({ kind: "say", text, duration });
-    this.speechBubbleEntity.setValue(this.#createBubbleEntity("say", text, duration));
+    lastText.setValue(text);
+    this.speechBubbleProgress.setValue(0);
+    this.speechBubble.setValue({ kind, text, duration });
+    this.speechBubbleEntity.setValue(this.#createBubbleEntity(kind, text, duration));
+
+    const adjustedDuration = this.adjustDurationIfNecessary(duration);
+    if (adjustedDuration <= 0) {
+      this.speechBubbleProgress.setValue(1);
+      return null;
+    }
+
+    return new PropertyAnimation<number>({
+      from: 0,
+      to: 1,
+      durationMs: adjustedDuration * 1000,
+      easing: DEFAULT_STYLE,
+      interpolate: interpolateNumber,
+      setValue: (value) => {
+        this.speechBubbleProgress.setValue(value);
+        if (value >= 1) {
+          this.speechBubble.setValue(null);
+          this.speechBubbleEntity.setValue(null);
+        }
+      },
+    });
   }
 
-  think(text: string, duration = 0): void {
-    if (typeof text !== "string") {
-      throw new TypeError("text must be a string");
-    }
-    if (!Number.isFinite(duration) || duration < 0) {
-      throw new TypeError("duration must be a non-negative finite number");
-    }
-    this.lastThoughtText.setValue(text);
-    this.speechBubble.setValue({ kind: "think", text, duration });
-    this.speechBubbleEntity.setValue(this.#createBubbleEntity("think", text, duration));
+  say(text: string, duration = 0): AnimationClip | null {
+    return this.#animateSpeechBubble("say", text, duration, this.lastSpokenText);
+  }
+
+  think(text: string, duration = 0): AnimationClip | null {
+    return this.#animateSpeechBubble("think", text, duration, this.lastThoughtText);
   }
 }
 

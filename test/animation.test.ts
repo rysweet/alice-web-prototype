@@ -19,6 +19,7 @@ import {
   type TweenConfig,
 } from "../src/animation";
 import {
+  ModelImp,
   MoveDirection,
   NumberProperty,
   PropertyOwnerImp,
@@ -615,7 +616,7 @@ describe("faithful animation extensions", () => {
     expect(events.filter((event) => event === "updated").length).toBeGreaterThanOrEqual(2);
   });
 
-  it("animates entity move and resize operations with duration and style", () => {
+  it("animates entity move, turn, and resize operations with duration and style", () => {
     const box = new SBox();
 
     const move = box.move(MoveDirection.FORWARD, 4, 2, new AbruptStyle());
@@ -625,11 +626,40 @@ describe("faithful animation extensions", () => {
     move!.update(1000);
     expect(box.position.z).toBeCloseTo(-4, 10);
 
+    const turn = box.turn("LEFT", 0.25, 2, new AbruptStyle());
+    expect(turn).not.toBeNull();
+    turn!.update(1000);
+    expect(box.orientation).not.toEqual({ x: 0, y: 0, z: 0, w: 1 });
+    turn!.update(1000);
+    expect(box.orientation.y).toBeCloseTo(Math.sqrt(0.5), 6);
+    expect(box.orientation.w).toBeCloseTo(Math.sqrt(0.5), 6);
+
     const resize = box.resize(2, 2, new AbruptStyle());
     expect(resize).not.toBeNull();
     resize!.update(1000);
     expect(box.size.width).toBeCloseTo(1.5, 10);
     resize!.update(1000);
     expect(box.size.width).toBeCloseTo(2, 10);
+  });
+
+  it("animates speech bubbles over time and clears them when complete", () => {
+    const box = new SBox();
+    const modelImp = box.imp as ModelImp;
+    const speech = modelImp.say("Hello", 2);
+
+    expect(speech).not.toBeNull();
+    expect(box.speechBubble).toEqual({ kind: "say", text: "Hello", duration: 2 });
+    expect(box.speechBubbleEntity).toMatchObject({ kind: "say", text: "Hello", duration: 2 });
+    expect(modelImp.getProperty<number>("speechBubbleProgress")?.value).toBe(0);
+
+    speech!.update(1000);
+    expect(modelImp.getProperty<number>("speechBubbleProgress")?.value).toBeCloseTo(0.4666666667, 6);
+    expect(box.speechBubble?.text).toBe("Hello");
+
+    speech!.update(1000);
+    expect(modelImp.getProperty<number>("speechBubbleProgress")?.value).toBe(1);
+    expect(box.speechBubble).toBeNull();
+    expect(box.speechBubbleEntity).toBeNull();
+    expect(box.lastSpokenText).toBe("Hello");
   });
 });
