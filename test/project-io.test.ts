@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import JSZip from "jszip";
 import {
+  generateThumbnailFromProjectScene,
   readProject,
   writeProject,
   ProjectIoError,
@@ -329,7 +330,7 @@ describe("project-io", () => {
       expect(bytes).toEqual(thumbnail);
     });
 
-    it("omits thumbnail.png when thumbnail is null", async () => {
+    it("omits thumbnail.png when thumbnail is null and generation is disabled", async () => {
       const data = await createSyntheticArchive();
       const archive = await readProject(data);
       archive.thumbnail = null;
@@ -337,6 +338,39 @@ describe("project-io", () => {
 
       const zip = await JSZip.loadAsync(output);
       expect(zip.file("thumbnail.png")).toBeNull();
+    });
+
+    it("generates thumbnail.png from scene contents when requested", async () => {
+      const data = await createSyntheticArchive();
+      const archive = await readProject(data);
+      archive.thumbnail = null;
+      archive.project.sceneObjects.push({
+        name: "hero",
+        typeName: "org.lgna.story.SBiped",
+        resourceType: "org.lgna.story.resources.biped.BunnyResource",
+        position: { x: 2, y: 0, z: -1 },
+        orientation: { x: 0, y: 0, z: 0, w: 1 },
+        size: { width: 1.5, height: 2, depth: 1 },
+      });
+
+      const output = await writeProject(archive, { generateThumbnailFromScene: true });
+      const zip = await JSZip.loadAsync(output);
+      const thumbEntry = zip.file("thumbnail.png");
+      expect(thumbEntry).not.toBeNull();
+      const bytes = await thumbEntry!.async("uint8array");
+      expect(bytes[0]).toBe(0x89);
+      expect(bytes[1]).toBe(0x50);
+      expect(bytes.length).toBeGreaterThan(100);
+    });
+
+    it("preserves legacy program.xml entry names when round-tripping", async () => {
+      const data = await createSyntheticArchive({ xmlEntryName: "program.xml" });
+      const archive = await readProject(data);
+      const output = await writeProject(archive);
+
+      const zip = await JSZip.loadAsync(output);
+      expect(zip.file("program.xml")).not.toBeNull();
+      expect(zip.file("programType.xml")).toBeNull();
     });
 
     it("writes all resource entries", async () => {
@@ -362,6 +396,28 @@ describe("project-io", () => {
       const output = await writeProject(archive);
       const roundTripped = await readProject(output);
       expect(roundTripped.project.projectName).toBe(archive.project.projectName);
+    });
+  });
+
+  describe("thumbnail generation", () => {
+    it("renders a deterministic PNG from the parsed project scene", async () => {
+      const data = await createSyntheticArchive();
+      const archive = await readProject(data);
+      archive.project.sceneObjects.push({
+        name: "hero",
+        typeName: "org.lgna.story.SBiped",
+        resourceType: "org.lgna.story.resources.biped.BunnyResource",
+        position: { x: 1, y: 0, z: -2 },
+        orientation: { x: 0, y: 0, z: 0, w: 1 },
+        size: { width: 1, height: 2, depth: 1 },
+      });
+
+      const thumbnail = await generateThumbnailFromProjectScene(archive.project);
+
+      expect(thumbnail).not.toBeNull();
+      expect(thumbnail![0]).toBe(0x89);
+      expect(thumbnail![1]).toBe(0x50);
+      expect(thumbnail!.length).toBeGreaterThan(100);
     });
   });
 

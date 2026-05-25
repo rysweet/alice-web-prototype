@@ -8,21 +8,44 @@ const EVIDENCE_DIR = "/tmp/hook-integration-test-evidence";
 let testProjectPath: string;
 
 beforeAll(async () => {
+  execSync("npm run build:server", { stdio: "inherit" });
+
   // Create a minimal test .a3p
   const zip = new JSZip();
   zip.file("version.txt", "3.10.0.0");
   zip.file(
     "programType.xml",
-    `<?xml version="1.0" encoding="UTF-8"?>
-<type key="0" type="org.lgna.project.ast.NamedUserType" name="Program">
-  <property name="managedFields">
-    <collection type="org.lgna.project.ast.UserField">
-      <node key="1" type="org.lgna.project.ast.UserField" name="scene">
-        <property name="valueType"><node key="2" type="org.lgna.project.ast.JavaType" javaType="org.lgna.story.SScene"/></property>
+    `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<node key="1" type="org.lgna.project.ast.NamedUserType" uuid="program" version="3.10062">
+  <property name="name"><value type="java.lang.String">Program</value></property>
+  <property name="superType">
+    <node key="2" type="org.lgna.project.ast.JavaType" uuid="program-super">
+      <type name="org.lgna.story.SProgram"/>
+    </node>
+  </property>
+  <property name="fields">
+    <collection type="java.util.ArrayList">
+      <node key="scene-field" type="org.lgna.project.ast.UserField" uuid="scene-field-uuid">
+        <property name="name"><value type="java.lang.String">myScene</value></property>
+        <property name="valueType">
+          <node key="scene-type" type="org.lgna.project.ast.NamedUserType" uuid="scene-type-uuid">
+            <property name="name"><value type="java.lang.String">Scene</value></property>
+            <property name="superType">
+              <node key="scene-super" type="org.lgna.project.ast.JavaType" uuid="scene-super-uuid">
+                <type name="org.lgna.story.SScene"/>
+              </node>
+            </property>
+            <property name="fields"><collection type="java.util.ArrayList"/></property>
+            <property name="methods"><collection type="java.util.ArrayList"/></property>
+            <property name="constructors"><collection type="java.util.ArrayList"/></property>
+          </node>
+        </property>
       </node>
     </collection>
   </property>
-</type>`,
+  <property name="methods"><collection type="java.util.ArrayList"/></property>
+  <property name="constructors"><collection type="java.util.ArrayList"/></property>
+</node>`,
   );
   const buf = await zip.generateAsync({ type: "nodebuffer" });
   testProjectPath = path.join(EVIDENCE_DIR, "test-input.a3p");

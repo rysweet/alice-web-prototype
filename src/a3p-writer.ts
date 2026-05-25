@@ -138,8 +138,11 @@ async function copySourceEntries(target: JSZip, sourceZip: JSZip, skip: Set<stri
 }
 
 function writeExplicitResources(zip: JSZip, resources: Map<string, Uint8Array>): void {
-  for (const [resourcePath, bytes] of resources) {
-    if (SPECIAL_RESOURCE_PATHS.has(resourcePath)) continue;
+  const orderedResources = [...resources.entries()]
+    .filter(([resourcePath]) => !SPECIAL_RESOURCE_PATHS.has(resourcePath))
+    .sort(([leftPath], [rightPath]) => leftPath.localeCompare(rightPath));
+
+  for (const [resourcePath, bytes] of orderedResources) {
     zip.file(resourcePath, bytes);
   }
 }

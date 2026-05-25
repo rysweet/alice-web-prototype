@@ -207,6 +207,29 @@ describe("ProjectManager — save", () => {
       pm.currentArchive!.project.sceneObjects.length,
     );
   });
+
+  it("save generates a thumbnail from scene contents when one is missing", async () => {
+    const pm = new ProjectManager();
+    const data = await buildSyntheticZip("ThumbnailRoundTrip");
+    await pm.open(data, "thumb.a3p");
+
+    pm.currentArchive!.project.sceneObjects.push({
+      name: "hero",
+      typeName: "org.lgna.story.SBiped",
+      resourceType: "org.lgna.story.resources.biped.BunnyResource",
+      position: { x: 2, y: 0, z: -1 },
+      orientation: { x: 0, y: 0, z: 0, w: 1 },
+      size: { width: 1.2, height: 2, depth: 1 },
+    });
+    pm.currentArchive!.thumbnail = null;
+
+    const saved = await pm.save();
+    const reopened = new ProjectManager();
+    await reopened.open(saved, "thumb-reopened.a3p");
+
+    expect(reopened.currentArchive!.thumbnail).not.toBeNull();
+    expect(reopened.currentArchive!.thumbnail![0]).toBe(0x89);
+  });
 });
 
 // ---------------------------------------------------------------------------

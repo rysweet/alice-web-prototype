@@ -174,7 +174,9 @@ export class ProjectManager {
     if (this._fileName && this._lastSavedData) {
       this._addBackup(this._fileName, this._lastSavedData);
     }
-    const result = await writeProject(this._archive);
+    const result = await writeProject(this._archive, {
+      generateThumbnailFromScene: this._archive.thumbnail == null,
+    });
     this._dirty = false;
     this._lastSavedData = new Uint8Array(result);
     if (this._fileName) {

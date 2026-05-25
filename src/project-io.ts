@@ -9,7 +9,7 @@ import {
   parseA3PFromZip,
   readA3PXmlEntry,
   type AliceProject,
-} from "./a3p-parser";
+} from "./a3p-parser.js";
 import {
   classifyProjectResource,
   detectProjectVersion,
@@ -17,8 +17,9 @@ import {
   synchronizeManifestVersion,
   type ProjectResourceKind,
   type ProjectVersionInfo,
-} from "./project-migration";
-import { writeA3P } from "./a3p-writer";
+} from "./project-migration.js";
+import { writeA3P } from "./a3p-writer.js";
+import { renderSceneToPng } from "./scene-renderer.js";
 
 export type ProjectIoErrorCode =
   | "corrupted-archive"
@@ -142,12 +143,27 @@ export async function readProject(
   };
 }
 
+export interface WriteProjectOptions {
+  generateThumbnailFromScene?: boolean;
+}
+
+export async function generateThumbnailFromProjectScene(
+  project: AliceProject,
+): Promise<Uint8Array | null> {
+  if (project.sceneObjects.length === 0) {
+    return null;
+  }
+  const rendered = await renderSceneToPng(project, { width: 640, height: 480 });
+  return new Uint8Array(rendered.png);
+}
+
 /**
  * Write an AliceProjectArchive back to .a3p ZIP format (Uint8Array).
  * Uses migrated XML when available, but can synthesize XML for brand-new/empty projects too.
  */
 export async function writeProject(
   archive: AliceProjectArchive,
+  options: WriteProjectOptions = {},
 ): Promise<Uint8Array> {
   for (const resourcePath of archive.resources.keys()) {
     if (resourcePath === "__original_xml__") continue;
@@ -173,11 +189,19 @@ export async function writeProject(
     baseXmlText = new TextDecoder().decode(explicitLegacyXml);
   }
 
+  const thumbnail = archive.thumbnail
+    ?? (options.generateThumbnailFromScene
+      ? await generateThumbnailFromProjectScene(archive.project)
+      : null);
+  if (thumbnail !== null && archive.thumbnail == null) {
+    archive.thumbnail = thumbnail;
+  }
+
   return writeA3P(archive.project, {
     xmlEntryName,
     baseXmlText,
     manifest: archive.manifest,
-    thumbnail: archive.thumbnail,
+    thumbnail,
     resources: archive.resources,
     preserveSourceEntries: false,
   });
