@@ -42,6 +42,101 @@ describe("EventSystem", () => {
     ]);
   });
 
+  it("accepts Java-style key event types alongside the legacy alias", () => {
+    const events = createEventSystem();
+    events.register({ eventType: "keyPressed", handlerName: "jump", key: "Space" });
+
+    expect(events.fire("keyPress", { key: "Space" }).triggered).toEqual([
+      { id: "evt-1", eventType: "keyPressed", handlerName: "jump" },
+    ]);
+    expect(events.fire("keyPressed", { key: "Space" }).triggered).toEqual([
+      { id: "evt-1", eventType: "keyPressed", handlerName: "jump" },
+    ]);
+  });
+
+  it("queues events and drains them in FIFO order", () => {
+    const events = createEventSystem();
+    events.register({ eventType: "sceneActivated", handlerName: "onStart" });
+    events.register({ eventType: "keyPressed", handlerName: "jump", key: "Space" });
+
+    const first = events.enqueue("sceneActivated");
+    const second = events.enqueue("keyPressed", { key: "Space" });
+    const drained = events.drainQueue();
+
+    expect(first.id).toBe("qevt-1");
+    expect(second.id).toBe("qevt-2");
+    expect(events.queueSize).toBe(0);
+    expect(drained).toEqual([
+      {
+        queuedEventId: "qevt-1",
+        registrationsEvaluated: 1,
+        triggered: [{ id: "evt-1", eventType: "sceneActivated", handlerName: "onStart" }],
+      },
+      {
+        queuedEventId: "qevt-2",
+        registrationsEvaluated: 1,
+        triggered: [{ id: "evt-2", eventType: "keyPressed", handlerName: "jump" }],
+      },
+    ]);
+  });
+
+  it("bubbles mouse events from target to ancestors and honors capture listeners", () => {
+    const events = new EventSystem({
+      hasObject: (name) => ["scene", "panel", "button"].includes(name),
+      getParentObject: (name) => ({ button: "panel", panel: "scene" }[name] ?? null),
+    });
+    events.register({ eventType: "mouseClicked", handlerName: "sceneCapture", target: "scene", useCapture: true });
+    events.register({ eventType: "mouseClicked", handlerName: "panelCapture", target: "panel", useCapture: true });
+    events.register({ eventType: "mouseClicked", handlerName: "buttonClick", target: "button" });
+    events.register({ eventType: "mouseClicked", handlerName: "panelBubble", target: "panel" });
+    events.register({ eventType: "mouseClicked", handlerName: "sceneBubble", target: "scene" });
+
+    const fired = events.fire("mouseClicked", { target: "button" });
+
+    expect(fired.triggered).toEqual([
+      {
+        id: "evt-1",
+        eventType: "mouseClicked",
+        handlerName: "sceneCapture",
+        phase: "capture",
+        currentTarget: "scene",
+        target: "button",
+      },
+      {
+        id: "evt-2",
+        eventType: "mouseClicked",
+        handlerName: "panelCapture",
+        phase: "capture",
+        currentTarget: "panel",
+        target: "button",
+      },
+      {
+        id: "evt-3",
+        eventType: "mouseClicked",
+        handlerName: "buttonClick",
+        phase: "target",
+        currentTarget: "button",
+        target: "button",
+      },
+      {
+        id: "evt-4",
+        eventType: "mouseClicked",
+        handlerName: "panelBubble",
+        phase: "bubble",
+        currentTarget: "panel",
+        target: "button",
+      },
+      {
+        id: "evt-5",
+        eventType: "mouseClicked",
+        handlerName: "sceneBubble",
+        phase: "bubble",
+        currentTarget: "scene",
+        target: "button",
+      },
+    ]);
+  });
+
   it("validates proximity registrations against known scene objects", () => {
     const events = createEventSystem();
 
@@ -76,13 +171,16 @@ describe("EventSystem", () => {
     ]);
   });
 
-  it("reset clears registrations and restarts ids", () => {
+  it("reset clears registrations, queue state, and restarts ids", () => {
     const events = createEventSystem();
     events.register({ eventType: "sceneActivated", handlerName: "first" });
+    events.enqueue("sceneActivated");
     events.reset();
 
     const registration = events.register({ eventType: "sceneActivated", handlerName: "second" });
+    const queued = events.enqueue("sceneActivated");
     expect(registration.id).toBe("evt-1");
+    expect(queued.id).toBe("qevt-1");
     expect(events.fire("sceneActivated").triggered).toHaveLength(1);
   });
 });

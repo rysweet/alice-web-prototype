@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
+  CLIPBOARD_FORMATS,
   Clipboard,
   type ClipboardBuffer,
 } from "../src/clipboard";
 import { Scene } from "../src/story-api/scene";
 import { SModel, SProp, SBiped, SCamera } from "../src/story-api/entities";
-import type { AliceObject } from "../src/a3p-parser";
+import type { AliceObject, AliceStatement } from "../src/a3p-parser";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -49,6 +50,16 @@ function makeSceneWithEntities(): { scene: Scene; objects: AliceObject[] } {
   scene.addEntity("hero", hero);
 
   return { scene, objects };
+}
+
+function makeStatement(overrides: Partial<AliceStatement> = {}): AliceStatement {
+  return {
+    kind: "methodCall",
+    object: "this.hero",
+    method: "move",
+    arguments: ["FORWARD", "1.0"],
+    ...overrides,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +131,9 @@ describe("Clipboard — copy code", () => {
     expect(cb.isEmpty).toBe(false);
     expect(cb.hasCode).toBe(true);
     expect(cb.hasEntity).toBe(false);
+    expect(cb.formats).toEqual([CLIPBOARD_FORMATS.code]);
+    expect(cb.hasFormat(CLIPBOARD_FORMATS.code)).toBe(true);
+    expect(cb.read(CLIPBOARD_FORMATS.code)).toBe("this.hero.move(FORWARD, 1.0);");
   });
 
   it("pasteCode returns the stored code", () => {
@@ -225,6 +239,49 @@ describe("Clipboard — paste entity with unique names", () => {
 // ---------------------------------------------------------------------------
 // Clipboard — clear
 // ---------------------------------------------------------------------------
+
+describe("Clipboard — AST nodes", () => {
+  it("copyAstNode stores a deep-cloned AST statement with Alice-specific format", () => {
+    const cb = new Clipboard();
+    const statement = makeStatement();
+    cb.copyAstNode(statement);
+    statement.arguments![1] = "999.0";
+
+    expect(cb.hasAstNode).toBe(true);
+    expect(cb.formats).toEqual([CLIPBOARD_FORMATS.astNode]);
+    expect(cb.pasteAstNode()).toEqual(makeStatement());
+    expect((cb.contents as Extract<ClipboardBuffer, { kind: "ast-node" }>).operation).toBe("copy");
+  });
+
+  it("cutAstNode preserves cut semantics and pastes an independent clone", () => {
+    const cb = new Clipboard();
+    const statement = makeStatement({ value: "speed" });
+    cb.cutAstNode(statement);
+
+    const pasted = cb.pasteAstNode();
+    pasted!.value = "velocity";
+
+    expect((cb.contents as Extract<ClipboardBuffer, { kind: "ast-node" }>).operation).toBe("cut");
+    expect(cb.pasteAstNode()).toEqual(makeStatement({ value: "speed" }));
+  });
+
+  it("copyAstNodes pastes whole statement lists for block-level clipboard flows", () => {
+    const cb = new Clipboard();
+    const statements = [
+      makeStatement(),
+      makeStatement({ kind: "comment", value: "hello" }),
+    ];
+    cb.copyAstNodes(statements);
+    statements[0].arguments![1] = "7.0";
+
+    expect(cb.hasFormat(CLIPBOARD_FORMATS.astNodeList)).toBe(true);
+    expect(cb.pasteAstNode()).toBeNull();
+    expect(cb.pasteAstNodes()).toEqual([
+      makeStatement(),
+      makeStatement({ kind: "comment", value: "hello" }),
+    ]);
+  });
+});
 
 describe("Clipboard — clear", () => {
   it("clear() empties the clipboard", () => {
