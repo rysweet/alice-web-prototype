@@ -164,6 +164,7 @@ src/
   tweedle-vm.ts         — Tweedle VM: executeProject(), VMScope, 7 handlers
   scene-builder.ts      — Three.js scene builder (existing)
   scene-renderer.ts     — PNG scene renderer (existing)
+  image-editor.ts       — RGBA crop/resize/rotate/flip/PNG editing subsystem
   story-api/
     index.ts            — Barrel exports for typed scene/entity model
     types.ts            — Position, Orientation, Size, JointId, Vec3, BoundingBox, JointNode
@@ -184,6 +185,7 @@ docs/
   statement-execution.md — Full statement execution documentation
   event-system.md        — Event system & object interaction documentation
   story-api.md           — Scene/entity model: types, hierarchy, Scene container
+  image-editor.md        — Image editing subsystem: crop, resize, rotate, flip, PNG
   animation.md           — Animation system: tweens, easings, interpolation
   model-resources.md     — Joint hierarchy, bounding boxes, texture extraction
   project-io.md          — Full .a3p archive read/write with round-trip support
