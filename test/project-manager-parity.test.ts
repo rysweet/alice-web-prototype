@@ -104,10 +104,13 @@ describe("ProjectManager parity operations", () => {
 
     expect(exported.packageName).toBe("org.alice.demo");
     expect(exported.files.has("pom.xml")).toBe(true);
+    expect(exported.files.has("build.gradle")).toBe(true);
+    expect(exported.files.has("settings.gradle")).toBe(true);
     expect(typeof mainSource).toBe("string");
     expect(String(mainSource)).toContain("package org.alice.demo;");
     expect(String(mainSource)).toContain("public static String sayHello(String name)");
     expect(exported.files.has("src/main/resources/programType.xml")).toBe(true);
     expect(exported.files.has("src/main/resources/resources/example.txt")).toBe(true);
+    expect(exported.files.has("src/main/resources/standalone-project.json")).toBe(true);
   });
 });

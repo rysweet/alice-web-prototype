@@ -4,7 +4,10 @@
 import { readProject, writeProject, type AliceProjectArchive } from "./project-io";
 import type { AliceProject } from "./a3p-parser";
 import { getCurrentAliceVersion } from "./project-migration";
-import { sanitizeJavaIdentifier, sanitizePackageName } from "./naming.js";
+import {
+  generateStandaloneJavaProject,
+  type StandaloneJavaProject,
+} from "./standalone-project.js";
 
 export interface RecentFile {
   fileName: string;
@@ -28,12 +31,7 @@ export interface RecoveryResult {
   backup: ProjectBackup | null;
 }
 
-export interface StandaloneJavaProject {
-  projectName: string;
-  packageName: string;
-  mainClassName: string;
-  files: Map<string, string | Uint8Array>;
-}
+export type { StandaloneJavaProject } from "./standalone-project.js";
 
 const MAX_RECENT_FILES = 10;
 const MAX_BACKUPS_PER_FILE = 10;
@@ -196,62 +194,10 @@ export class ProjectManager {
       throw new Error("No project is open. Cannot export a Java project.");
     }
 
-    const safePackageName = sanitizePackageName(packageName);
-    const packagePath = safePackageName.replace(/\./g, "/");
-    const mainClassName = sanitizeJavaIdentifier(
-      this._archive.project.projectName || "AliceProject",
-      "AliceProject",
-    );
-    const files = new Map<string, string | Uint8Array>();
-    const methods = this._archive.project.methods
-      .map((method) => {
-        const returnType = method.isFunction ? mapJavaType(method.returnType) : "void";
-        const parameters = method.parameters
-          .map((parameter) => `${mapJavaType(parameter.type)} ${sanitizeJavaIdentifier(parameter.name, "arg")}`)
-          .join(", ");
-        const defaultReturn = method.isFunction ? `\n    return ${defaultJavaValue(method.returnType)};` : "";
-        return `  public static ${returnType} ${sanitizeJavaIdentifier(method.name, "method")}` +
-          `(${parameters}) {${defaultReturn}\n  }`;
-      })
-      .join("\n\n");
-
-    const javaSource = `package ${safePackageName};\n\npublic final class ${mainClassName} {\n  private ${mainClassName}() {}\n\n  public static void main(String[] args) {\n    System.out.println(\"Alice project: ${escapeJavaString(this._archive.project.projectName)}\");\n    System.out.println(\"Scene objects: ${this._archive.project.sceneObjects.length}\");\n    System.out.println(\"Methods: ${this._archive.project.methods.length}\");\n  }${methods ? `\n\n${methods}` : ""}\n}\n`;
-
-    files.set(
-      `src/main/java/${packagePath}/${mainClassName}.java`,
-      javaSource,
-    );
-    files.set(
-      "pom.xml",
-      buildPomXml(this._archive.project.projectName, safePackageName, mainClassName),
-    );
-
-    if (this._archive.manifest) {
-      files.set(
-        "src/main/resources/manifest.json",
-        JSON.stringify(this._archive.manifest, null, 2),
-      );
-    }
-
-    const originalXml = this._archive.resources.get("__original_xml__");
-    if (originalXml) {
-      files.set(
-        "src/main/resources/programType.xml",
-        new TextDecoder().decode(originalXml),
-      );
-    }
-
-    for (const [path, bytes] of this._archive.resources) {
-      if (path === "__original_xml__") continue;
-      files.set(`src/main/resources/${path}`, new Uint8Array(bytes));
-    }
-
-    return {
-      projectName: this._archive.project.projectName,
-      packageName: safePackageName,
-      mainClassName,
-      files,
-    };
+    return generateStandaloneJavaProject(this._archive, {
+      packageName,
+      buildSystem: "both",
+    });
   }
 
   close(): void {
@@ -338,48 +284,4 @@ export class ProjectManager {
       this._recentFiles = this._recentFiles.slice(0, MAX_RECENT_FILES);
     }
   }
-}
-
-function escapeJavaString(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-}
-
-function mapJavaType(typeName: string): string {
-  switch (typeName) {
-    case "WholeNumber":
-      return "int";
-    case "DecimalNumber":
-      return "double";
-    case "Boolean":
-      return "boolean";
-    case "TextString":
-      return "String";
-    case "void":
-      return "void";
-    default:
-      return sanitizeJavaIdentifier(typeName, "Object");
-  }
-}
-
-function defaultJavaValue(typeName: string): string {
-  switch (typeName) {
-    case "WholeNumber":
-      return "0";
-    case "DecimalNumber":
-      return "0.0";
-    case "Boolean":
-      return "false";
-    case "TextString":
-      return '""';
-    default:
-      return "null";
-  }
-}
-
-function buildPomXml(
-  projectName: string,
-  packageName: string,
-  mainClassName: string,
-): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>${packageName}</groupId>\n  <artifactId>${sanitizeJavaIdentifier(projectName.toLowerCase() || "alice-project", "alice-project")}</artifactId>\n  <version>1.0.0-SNAPSHOT</version>\n  <properties>\n    <maven.compiler.source>17</maven.compiler.source>\n    <maven.compiler.target>17</maven.compiler.target>\n    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>\n  </properties>\n  <build>\n    <plugins>\n      <plugin>\n        <groupId>org.codehaus.mojo</groupId>\n        <artifactId>exec-maven-plugin</artifactId>\n        <version>3.5.0</version>\n        <configuration>\n          <mainClass>${packageName}.${mainClassName}</mainClass>\n        </configuration>\n      </plugin>\n    </plugins>\n  </build>\n</project>\n`;
 }

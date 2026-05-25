@@ -29,8 +29,9 @@ navigation/import (`TypeBrowser`), expression cascade construction
 
 `ProjectManager` now keeps a capped backup history per file, can recover from a
 corrupted archive by reopening the latest known-good backup, and can export the
-current archive as a standalone Java project skeleton (`pom.xml`, Java entry
-point, and resource files).
+current archive as a standalone Java project via `src/standalone-project.ts`
+with Maven and Gradle build files, generated Java sources, and packaged
+resource files.
 
 ---
 
