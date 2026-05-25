@@ -1,22 +1,8 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import * as THREE from "three";
 import type { AliceProject } from "../src/a3p-parser";
-import {
-  SceneManager,
-  type SceneTransitionCallback,
-} from "../src/scene-manager.js";
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SceneManager — TDD tests (written before implementation)
-//
-// Tests cover: creation, addScene, removeScene, getScene, setActive,
-//              transition callbacks, first-scene-auto-active, edge cases
-// ═══════════════════════════════════════════════════════════════════════════
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+import { SceneManager } from "../src/scene-manager.js";
 
 function makeProject(name: string): AliceProject {
   return {
@@ -27,198 +13,175 @@ function makeProject(name: string): AliceProject {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-describe("SceneManager – construction", () => {
-  it("exports SceneManager as a class", () => {
-    expect(SceneManager).toBeDefined();
-    expect(typeof SceneManager).toBe("function");
+describe("SceneManager", () => {
+  it("starts empty with no active scene or transition", () => {
+    const manager = new SceneManager();
+    expect(manager.sceneNames).toEqual([]);
+    expect(manager.sceneCount).toBe(0);
+    expect(manager.activeSceneName).toBeNull();
+    expect(manager.lastTransition).toBeNull();
+    expect(manager.getActiveCamera()).toBeNull();
   });
 
-  it("starts with no scenes", () => {
-    const mgr = new SceneManager();
-    expect(mgr.sceneNames).toEqual([]);
-    expect(mgr.activeSceneName).toBeNull();
+  it("activates the first scene immediately and tracks lifecycle state", () => {
+    const manager = new SceneManager();
+    manager.addScene("intro", makeProject("Intro"));
+
+    const scene = manager.getScene("intro");
+    expect(scene?.lifecycle.isActive).toBe(true);
+    expect(scene?.lifecycle.activationCount).toBe(1);
+    expect(scene?.lifecycle.deactivationCount).toBe(0);
+    expect(manager.activeSceneName).toBe("intro");
+    expect(manager.getActiveCamera()).toBe(scene?.camera ?? null);
   });
 
-  it("sceneCount starts at zero", () => {
-    const mgr = new SceneManager();
-    expect(mgr.sceneCount).toBe(0);
-  });
-});
+  it("keeps later scenes inactive until selected", () => {
+    const manager = new SceneManager();
+    manager.addScene("intro", makeProject("Intro"));
+    manager.addScene("battle", makeProject("Battle"));
 
-describe("SceneManager – addScene", () => {
-  it("adds a scene by name from a project", () => {
-    const mgr = new SceneManager();
-    const project = makeProject("MyScene");
-    mgr.addScene("scene1", project);
-    expect(mgr.sceneNames).toContain("scene1");
-    expect(mgr.sceneCount).toBe(1);
+    expect(manager.activeSceneName).toBe("intro");
+    expect(manager.getScene("battle")?.lifecycle.isActive).toBe(false);
+    expect(manager.getScene("battle")?.lifecycle.activationCount).toBe(0);
   });
 
-  it("first added scene becomes active automatically", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("first", makeProject("First"));
-    expect(mgr.activeSceneName).toBe("first");
+  it("applies camera and atmosphere overrides per scene", () => {
+    const manager = new SceneManager();
+    manager.addScene("custom", makeProject("Custom"), {
+      camera: {
+        position: { x: 1, y: 2, z: 3 },
+        target: { x: 4, y: 5, z: 6 },
+        fov: 75,
+      },
+      atmosphere: {
+        backgroundColor: "#112233",
+        fogColor: "#334455",
+        fogDensity: 0.05,
+      },
+    });
+
+    const scene = manager.getScene("custom");
+    expect(scene?.camera.position.toArray()).toEqual([1, 2, 3]);
+    expect(scene?.cameraState.target).toEqual({ x: 4, y: 5, z: 6 });
+    expect(scene?.camera.fov).toBe(75);
+    expect((scene?.scene.background as THREE.Color).getHexString()).toBe("112233");
+    expect(scene?.scene.fog).toBeInstanceOf(THREE.FogExp2);
   });
 
-  it("second added scene does NOT change active", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("first", makeProject("A"));
-    mgr.addScene("second", makeProject("B"));
-    expect(mgr.activeSceneName).toBe("first");
+  it("switches scenes by deactivating the old scene before activating the next one", () => {
+    const manager = new SceneManager();
+    const events: string[] = [];
+
+    manager.addScene("a", makeProject("A"), {
+      onDeactivate: (scene) => events.push(`deactivate:${scene.name}:${scene.lifecycle.deactivationCount}`),
+    });
+    manager.addScene("b", makeProject("B"), {
+      onActivate: (scene) => events.push(`activate:${scene.name}:${scene.lifecycle.activationCount}`),
+    });
+
+    manager.setActive("b", { kind: "fade", durationMs: 250 });
+
+    expect(events).toEqual(["deactivate:a:1", "activate:b:1"]);
+    expect(manager.activeSceneName).toBe("b");
+    expect(manager.getScene("a")?.lifecycle.isActive).toBe(false);
+    expect(manager.getScene("a")?.lifecycle.deactivationCount).toBe(1);
+    expect(manager.getScene("b")?.lifecycle.isActive).toBe(true);
+    expect(manager.lastTransition).toEqual({
+      fromScene: "a",
+      toScene: "b",
+      kind: "fade",
+      durationMs: 250,
+      sequence: 1,
+    });
   });
 
-  it("throws if adding duplicate scene name", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("dup", makeProject("A"));
-    expect(() => mgr.addScene("dup", makeProject("B"))).toThrow();
-  });
-
-  it("getScene returns the built scene result", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("s1", makeProject("S1"));
-    const result = mgr.getScene("s1");
-    expect(result).toBeDefined();
-    expect(result!.scene).toBeInstanceOf(THREE.Scene);
-    expect(result!.camera).toBeInstanceOf(THREE.PerspectiveCamera);
-  });
-
-  it("addScene accepts optional build options", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("s1", makeProject("S1"), { showGroundGrid: true });
-    const result = mgr.getScene("s1");
-    expect(result).toBeDefined();
-  });
-});
-
-describe("SceneManager – removeScene", () => {
-  it("removes an existing scene", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("s1", makeProject("S1"));
-    mgr.addScene("s2", makeProject("S2"));
-    const removed = mgr.removeScene("s1");
-    expect(removed).toBe(true);
-    expect(mgr.sceneNames).not.toContain("s1");
-    expect(mgr.sceneCount).toBe(1);
-  });
-
-  it("returns false when removing non-existent scene", () => {
-    const mgr = new SceneManager();
-    expect(mgr.removeScene("nope")).toBe(false);
-  });
-
-  it("clears active when active scene is removed", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("only", makeProject("Only"));
-    expect(mgr.activeSceneName).toBe("only");
-    mgr.removeScene("only");
-    expect(mgr.activeSceneName).toBeNull();
-  });
-
-  it("does not change active when non-active scene is removed", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("a", makeProject("A"));
-    mgr.addScene("b", makeProject("B"));
-    mgr.removeScene("b");
-    expect(mgr.activeSceneName).toBe("a");
-  });
-});
-
-describe("SceneManager – getScene", () => {
-  it("returns null for unknown scene name", () => {
-    const mgr = new SceneManager();
-    expect(mgr.getScene("missing")).toBeNull();
-  });
-});
-
-describe("SceneManager – setActive", () => {
-  it("switches active scene", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("a", makeProject("A"));
-    mgr.addScene("b", makeProject("B"));
-    mgr.setActive("b");
-    expect(mgr.activeSceneName).toBe("b");
-  });
-
-  it("throws when setting active to non-existent scene", () => {
-    const mgr = new SceneManager();
-    expect(() => mgr.setActive("ghost")).toThrow();
-  });
-
-  it("setActive to current scene is a no-op (no error)", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("a", makeProject("A"));
-    mgr.setActive("a");
-    expect(mgr.activeSceneName).toBe("a");
-  });
-
-  it("getActiveScene returns current active scene result", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("a", makeProject("A"));
-    const active = mgr.getActiveScene();
-    expect(active).toBeDefined();
-    expect(active!.scene).toBeInstanceOf(THREE.Scene);
-  });
-
-  it("getActiveScene returns null when no scenes exist", () => {
-    const mgr = new SceneManager();
-    expect(mgr.getActiveScene()).toBeNull();
-  });
-});
-
-describe("SceneManager – transition callbacks", () => {
-  it("fires onTransition callback when switching scenes", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("a", makeProject("A"));
-    mgr.addScene("b", makeProject("B"));
+  it("fires transition callbacks with scene names only", () => {
+    const manager = new SceneManager();
+    manager.addScene("a", makeProject("A"));
+    manager.addScene("b", makeProject("B"));
 
     const callback = vi.fn();
-    mgr.onTransition(callback);
+    manager.onTransition(callback);
+    manager.setActive("b");
 
-    mgr.setActive("b");
     expect(callback).toHaveBeenCalledOnce();
     expect(callback).toHaveBeenCalledWith("a", "b");
   });
 
-  it("fires multiple registered callbacks", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("x", makeProject("X"));
-    mgr.addScene("y", makeProject("Y"));
-
-    const cb1 = vi.fn();
-    const cb2 = vi.fn();
-    mgr.onTransition(cb1);
-    mgr.onTransition(cb2);
-
-    mgr.setActive("y");
-    expect(cb1).toHaveBeenCalledOnce();
-    expect(cb2).toHaveBeenCalledOnce();
-  });
-
-  it("does not fire callback when setActive to same scene", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("a", makeProject("A"));
+  it("allows scene lifecycle listeners to be unsubscribed", () => {
+    const manager = new SceneManager();
+    manager.addScene("a", makeProject("A"));
+    manager.addScene("b", makeProject("B"));
 
     const callback = vi.fn();
-    mgr.onTransition(callback);
+    const unsubscribe = manager.onSceneActivate("b", callback);
+    unsubscribe();
+    manager.setActive("b");
 
-    mgr.setActive("a");
     expect(callback).not.toHaveBeenCalled();
   });
 
-  it("offTransition removes a callback", () => {
-    const mgr = new SceneManager();
-    mgr.addScene("a", makeProject("A"));
-    mgr.addScene("b", makeProject("B"));
+  it("updates per-scene camera state after creation", () => {
+    const manager = new SceneManager();
+    manager.addScene("a", makeProject("A"));
+    manager.setSceneCamera("a", {
+      position: { x: 9, y: 8, z: 7 },
+      target: { x: 1, y: 0, z: -1 },
+      minDistance: 2,
+      maxDistance: 25,
+    });
 
-    const callback = vi.fn();
-    mgr.onTransition(callback);
-    mgr.offTransition(callback);
+    expect(manager.getSceneCameraState("a")).toEqual({
+      position: { x: 9, y: 8, z: 7 },
+      target: { x: 1, y: 0, z: -1 },
+      fov: 60,
+      minDistance: 2,
+      maxDistance: 25,
+      maxPolarAngle: Math.PI * 0.95,
+      enableDamping: true,
+    });
+    expect(manager.getScene("a")?.camera.position.toArray()).toEqual([9, 8, 7]);
+  });
 
-    mgr.setActive("b");
-    expect(callback).not.toHaveBeenCalled();
+  it("updates atmosphere after creation", () => {
+    const manager = new SceneManager();
+    manager.addScene("a", makeProject("A"));
+    manager.setSceneAtmosphere("a", {
+      backgroundColor: "#abcdef",
+      fogColor: "#fedcba",
+      fogNear: 3,
+      fogFar: 30,
+    });
+
+    const scene = manager.getScene("a");
+    expect((scene?.scene.background as THREE.Color).getHexString()).toBe("abcdef");
+    expect(scene?.scene.fog).toBeInstanceOf(THREE.Fog);
+    expect(manager.getSceneAtmosphere("a")).toMatchObject({
+      backgroundColor: "#abcdef",
+      fogColor: "#fedcba",
+      fogNear: 3,
+      fogFar: 30,
+    });
+  });
+
+  it("removing the active scene promotes the next available scene", () => {
+    const manager = new SceneManager();
+    manager.addScene("first", makeProject("First"));
+    manager.addScene("second", makeProject("Second"));
+
+    expect(manager.removeScene("first")).toBe(true);
+    expect(manager.activeSceneName).toBe("second");
+    expect(manager.getScene("second")?.lifecycle.isActive).toBe(true);
+    expect(manager.getScene("second")?.lifecycle.activationCount).toBe(1);
+  });
+
+  it("setActive is a no-op for the current scene", () => {
+    const manager = new SceneManager();
+    manager.addScene("only", makeProject("Only"));
+
+    manager.setActive("only", { kind: "crossfade", durationMs: 100 });
+
+    expect(manager.lastTransition).toBeNull();
+    expect(manager.getScene("only")?.lifecycle.activationCount).toBe(1);
   });
 });

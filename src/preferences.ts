@@ -1,4 +1,4 @@
-/** User preferences with typed get/set, validation, clamping, and JSON serialization. */
+/** User preferences with typed get/set, validation, persistence, and change notifications. */
 
 export interface UserPreferences {
   theme: "dark" | "light";
@@ -6,6 +6,28 @@ export interface UserPreferences {
   snapToGrid: boolean;
   cameraFov: number;
   autoSaveInterval: number;
+}
+
+export interface PreferenceChangeEvent {
+  key: keyof UserPreferences;
+  oldValue: unknown;
+  newValue: unknown;
+  source: "set" | "reset" | "load";
+  snapshot: UserPreferences;
+}
+
+export interface PreferenceStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+export interface PreferencesOptions {
+  storage?: PreferenceStorage | null;
+  storageKey?: string;
+  autoLoad?: boolean;
+  autoSave?: boolean;
+  defaults?: Partial<UserPreferences>;
 }
 
 export const DEFAULT_PREFERENCES: Readonly<UserPreferences> = Object.freeze({
@@ -16,24 +38,105 @@ export const DEFAULT_PREFERENCES: Readonly<UserPreferences> = Object.freeze({
   autoSaveInterval: 60,
 });
 
+const DEFAULT_STORAGE_KEY = "alice-web.preferences";
+const KNOWN_KEYS = Object.keys(DEFAULT_PREFERENCES) as Array<keyof UserPreferences>;
+
 type ChangeListener = (
   key: keyof UserPreferences,
   oldValue: unknown,
   newValue: unknown,
 ) => void;
 
-const KNOWN_KEYS = new Set<string>(Object.keys(DEFAULT_PREFERENCES));
+type DetailedChangeListener = (event: PreferenceChangeEvent) => void;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-export class Preferences {
-  private _data: UserPreferences;
-  private _listeners: ChangeListener[] = [];
+function getDefaultStorage(): PreferenceStorage | null {
+  if (typeof globalThis === "undefined" || !("localStorage" in globalThis)) {
+    return null;
+  }
+  return globalThis.localStorage as PreferenceStorage;
+}
 
-  constructor() {
-    this._data = { ...DEFAULT_PREFERENCES };
+function createSnapshot(data: UserPreferences): UserPreferences {
+  return Object.assign(Object.create(null) as UserPreferences, data);
+}
+
+function validatePreference<K extends keyof UserPreferences>(
+  key: K,
+  value: UserPreferences[K],
+): void {
+  switch (key) {
+    case "theme":
+      if (value !== "dark" && value !== "light") {
+        throw new Error(`Invalid theme: "${value}". Must be "dark" or "light".`);
+      }
+      break;
+    case "gridVisible":
+    case "snapToGrid":
+      if (typeof value !== "boolean") {
+        throw new TypeError(`"${key}" must be a boolean, got ${typeof value}`);
+      }
+      break;
+    case "cameraFov":
+    case "autoSaveInterval":
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new TypeError(`"${key}" must be a finite number`);
+      }
+      break;
+  }
+}
+
+function processPreference<K extends keyof UserPreferences>(
+  key: K,
+  value: UserPreferences[K],
+): UserPreferences[K] {
+  switch (key) {
+    case "cameraFov":
+      return clamp(value as number, 1, 179) as UserPreferences[K];
+    case "autoSaveInterval":
+      return clamp(value as number, 0, 3600) as UserPreferences[K];
+    default:
+      return value;
+  }
+}
+
+function setPreferenceValue<K extends keyof UserPreferences>(
+  target: UserPreferences,
+  key: K,
+  value: UserPreferences[K],
+): void {
+  target[key] = value;
+}
+
+export class Preferences {
+  private readonly _defaults: UserPreferences;
+  private readonly _storage: PreferenceStorage | null;
+  private readonly _storageKey: string;
+  private readonly _autoSave: boolean;
+  private _data: UserPreferences;
+  private readonly _listeners: ChangeListener[] = [];
+  private readonly _eventListeners: DetailedChangeListener[] = [];
+
+  constructor(options: PreferencesOptions = {}) {
+    this._defaults = Preferences._sanitizeObject(
+      options.defaults ?? {},
+      createSnapshot(DEFAULT_PREFERENCES),
+    );
+    this._storage = options.storage ?? getDefaultStorage();
+    this._storageKey = options.storageKey ?? DEFAULT_STORAGE_KEY;
+    this._autoSave = options.autoSave ?? true;
+    this._data = createSnapshot(this._defaults);
+
+    if (options.autoLoad ?? true) {
+      this.load();
+    }
+  }
+
+  get storageKey(): string {
+    return this._storageKey;
   }
 
   get<K extends keyof UserPreferences>(key: K): UserPreferences[K] {
@@ -41,13 +144,20 @@ export class Preferences {
   }
 
   set<K extends keyof UserPreferences>(key: K, value: UserPreferences[K]): void {
-    this._validate(key, value);
-    const processed = this._process(key, value);
+    validatePreference(key, value);
+    const processed = processPreference(key, value);
     const old = this._data[key];
     if (old === processed) return;
-    (this._data as unknown as Record<string, unknown>)[key] = processed;
-    for (const listener of this._listeners) {
-      listener(key, old, processed);
+    setPreferenceValue(this._data, key, processed);
+    this._emit(key, old, processed, "set");
+    this.save(false);
+  }
+
+  update(values: Partial<UserPreferences>): void {
+    for (const key of KNOWN_KEYS) {
+      if (key in values) {
+        this.set(key, values[key] as UserPreferences[typeof key]);
+      }
     }
   }
 
@@ -56,82 +166,120 @@ export class Preferences {
   }
 
   toJSON(): UserPreferences {
-    return { ...this._data };
+    return createSnapshot(this._data);
   }
 
-  static fromJSON(data: UserPreferences): Preferences {
-    const prefs = new Preferences();
-    for (const key of KNOWN_KEYS) {
-      const k = key as keyof UserPreferences;
-      if (k in data) {
-        try {
-          prefs.set(k, (data as unknown as Record<string, unknown>)[k] as never);
-        } catch {
-          // invalid value — keep default
+  load(): UserPreferences {
+    const raw = this._storage?.getItem(this._storageKey);
+    if (!raw) {
+      return this.getAll();
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<UserPreferences>;
+      const sanitized = Preferences._sanitizeObject(parsed, this._defaults);
+      for (const key of KNOWN_KEYS) {
+        const previous = this._data[key];
+        const next = sanitized[key];
+        if (previous !== next) {
+          setPreferenceValue(this._data, key, next);
+          this._emit(key, previous, next, "load");
         }
       }
+    } catch {
+      this._data = createSnapshot(this._defaults);
     }
+
+    return this.getAll();
+  }
+
+  save(force = true): void {
+    if ((!force && !this._autoSave) || !this._storage) {
+      return;
+    }
+    this._storage.setItem(this._storageKey, JSON.stringify(this.toJSON()));
+  }
+
+  hasPersistedState(): boolean {
+    return this._storage?.getItem(this._storageKey) != null;
+  }
+
+  clearPersisted(): void {
+    this._storage?.removeItem(this._storageKey);
+  }
+
+  static fromJSON(data: Partial<UserPreferences>, options: PreferencesOptions = {}): Preferences {
+    const prefs = new Preferences({ ...options, autoLoad: false });
+    prefs._data = Preferences._sanitizeObject(data, prefs._defaults);
     return prefs;
   }
 
   reset(key?: keyof UserPreferences): void {
     if (key !== undefined) {
       const old = this._data[key];
-      const def = DEFAULT_PREFERENCES[key];
+      const def = this._defaults[key];
       if (old === def) return;
-      (this._data as unknown as Record<string, unknown>)[key] = def;
-      for (const listener of this._listeners) {
-        listener(key, old, def);
-      }
-    } else {
-      for (const k of Object.keys(DEFAULT_PREFERENCES) as Array<keyof UserPreferences>) {
-        this.reset(k);
-      }
+      setPreferenceValue(this._data, key, def);
+      this._emit(key, old, def, "reset");
+      this.save(false);
+      return;
+    }
+
+    for (const knownKey of KNOWN_KEYS) {
+      this.reset(knownKey);
     }
   }
 
-  onChange(listener: ChangeListener): void {
+  onChange(listener: ChangeListener): () => void {
     this._listeners.push(listener);
+    return () => {
+      const index = this._listeners.indexOf(listener);
+      if (index !== -1) {
+        this._listeners.splice(index, 1);
+      }
+    };
   }
 
-  private _validate<K extends keyof UserPreferences>(
+  subscribe(listener: DetailedChangeListener): () => void {
+    this._eventListeners.push(listener);
+    return () => {
+      const index = this._eventListeners.indexOf(listener);
+      if (index !== -1) {
+        this._eventListeners.splice(index, 1);
+      }
+    };
+  }
+
+  private _emit<K extends keyof UserPreferences>(
     key: K,
-    value: UserPreferences[K],
+    oldValue: UserPreferences[K],
+    newValue: UserPreferences[K],
+    source: PreferenceChangeEvent["source"],
   ): void {
-    switch (key) {
-      case "theme":
-        if (value !== "dark" && value !== "light") {
-          throw new Error(
-            `Invalid theme: "${value}". Must be "dark" or "light".`,
-          );
-        }
-        break;
-      case "gridVisible":
-      case "snapToGrid":
-        if (typeof value !== "boolean") {
-          throw new TypeError(`"${key}" must be a boolean, got ${typeof value}`);
-        }
-        break;
-      case "cameraFov":
-      case "autoSaveInterval":
-        if (typeof value !== "number" || !Number.isFinite(value as number)) {
-          throw new TypeError(`"${key}" must be a finite number`);
-        }
-        break;
+    for (const listener of this._listeners) {
+      listener(key, oldValue, newValue);
+    }
+    const snapshot = this.toJSON();
+    for (const listener of this._eventListeners) {
+      listener({ key, oldValue, newValue, source, snapshot });
     }
   }
 
-  private _process<K extends keyof UserPreferences>(
-    key: K,
-    value: UserPreferences[K],
-  ): UserPreferences[K] {
-    switch (key) {
-      case "cameraFov":
-        return clamp(value as number, 1, 179) as UserPreferences[K];
-      case "autoSaveInterval":
-        return clamp(value as number, 0, 3600) as UserPreferences[K];
-      default:
-        return value;
+  private static _sanitizeObject(
+    data: Partial<UserPreferences>,
+    defaults: UserPreferences,
+  ): UserPreferences {
+    const next = createSnapshot(defaults);
+    for (const key of KNOWN_KEYS) {
+      if (!(key in data)) continue;
+      try {
+        const value = data[key] as UserPreferences[typeof key];
+        validatePreference(key, value);
+        setPreferenceValue(next, key, processPreference(key, value));
+      } catch {
+        setPreferenceValue(next, key, defaults[key]);
+      }
     }
+    return next;
   }
 }
