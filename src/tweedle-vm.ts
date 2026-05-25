@@ -17,6 +17,14 @@ import {
 import { generateExpression } from "./tweedle-codegen.js";
 import { ExpressionEvaluator } from "./expression-evaluator.js";
 import { StatementExecutor } from "./statement-executor.js";
+import {
+  createTweedleRuntimeEnvironment,
+  registerRuntimeObject,
+  resolveRuntimeClassMethod,
+  resolveTopLevelRuntimeMethod,
+  type TweedleRuntimeClass,
+  type TweedleRuntimeEnvironment,
+} from "./tweedle-runtime.js";
 import { parseTweedle, type ClassDecl, type ConstructorDecl, type Expression, type FieldDecl, type MethodDecl, type Statement, type TypeRef } from "./tweedle-parser.js";
 import { VirtualMachine } from "./virtual-machine.js";
 
@@ -57,13 +65,7 @@ interface RuntimeObject {
   source: AliceObject;
 }
 
-interface RuntimeType {
-  name: string;
-  superTypeName: string | null;
-  methods: AliceMethod[];
-  constructors: AliceMethod[];
-  fields: AliceFieldDefinition[];
-}
+type RuntimeType = TweedleRuntimeClass;
 
 interface VMException {
   typeName: string;
@@ -101,6 +103,7 @@ interface VMState {
   returned: boolean;
   returnValue: unknown;
   scopes: Map<string, unknown>[];
+  runtime: TweedleRuntimeEnvironment<RuntimeObject>;
   methodMap: Map<string, AliceMethod[]>;
   typeMap: Map<string, RuntimeType>;
   objectMap: Map<string, RuntimeObject>;
@@ -113,6 +116,7 @@ interface VMState {
 interface VMEnvironment {
   log: LogEntry[];
   returnValues: Map<string, unknown>;
+  runtime: TweedleRuntimeEnvironment<RuntimeObject>;
   methodMap: Map<string, AliceMethod[]>;
   typeMap: Map<string, RuntimeType>;
   objectMap: Map<string, RuntimeObject>;
@@ -139,7 +143,7 @@ function scopeLookup(state: VMState, name: string): unknown {
       return state.scopes[i].get(name);
     }
   }
-  return undefined;
+  return state.runtime.globalScope.get(name);
 }
 
 /** Write to the innermost (current) scope frame, respecting per-frame cap. */
@@ -546,26 +550,11 @@ function valueToString(value: unknown): string {
   return String(value);
 }
 
-function buildRuntimeTypes(project: AliceProject): Map<string, RuntimeType> {
-  const typeMap = new Map<string, RuntimeType>();
-  for (const type of project.types ?? []) {
-    typeMap.set(type.name, {
-      name: type.name,
-      superTypeName: type.superTypeName ?? null,
-      methods: [...(type.methods ?? [])],
-      constructors: [...(type.constructors ?? [])],
-      fields: [...(type.fields ?? [])],
-    });
-  }
-  return typeMap;
-}
-
 function instantiateSceneObjects(
   project: AliceProject,
-  typeMap: Map<string, RuntimeType>,
+  runtime: TweedleRuntimeEnvironment<RuntimeObject>,
   log: LogEntry[],
   returnValues: Map<string, unknown>,
-  methodMap: Map<string, AliceMethod[]>,
   listenerMap: Map<string, RuntimeLambda[]>,
 ): Map<string, RuntimeObject> {
   const objectMap = new Map<string, RuntimeObject>();
@@ -577,6 +566,7 @@ function instantiateSceneObjects(
       source,
     };
     objectMap.set(source.name, runtimeObject);
+    registerRuntimeObject(runtime, runtimeObject);
   }
 
   let bootstrapStep = 0;
@@ -588,8 +578,9 @@ function instantiateSceneObjects(
       returned: false,
       returnValue: undefined,
       scopes: [new Map()],
-      methodMap,
-      typeMap,
+      runtime,
+      methodMap: runtime.methodTable,
+      typeMap: runtime.classRegistry,
       objectMap,
       currentSelf: runtimeObject,
       returnValues,
@@ -843,22 +834,15 @@ function createExecutionEnvironment(project: AliceProject): VMEnvironment {
   const returnValues = new Map<string, unknown>();
   const log: LogEntry[] = [];
   const listenerMap = new Map<string, RuntimeLambda[]>();
-
-  const methodMap = new Map<string, AliceMethod[]>();
-  for (const method of project.methods) {
-    const methods = methodMap.get(method.name) ?? [];
-    methods.push(method);
-    methodMap.set(method.name, methods);
-  }
-
-  const typeMap = buildRuntimeTypes(project);
-  const objectMap = instantiateSceneObjects(project, typeMap, log, returnValues, methodMap, listenerMap);
+  const runtime = createTweedleRuntimeEnvironment<RuntimeObject>(project);
+  const objectMap = instantiateSceneObjects(project, runtime, log, returnValues, listenerMap);
 
   return {
     log,
     returnValues,
-    methodMap,
-    typeMap,
+    runtime,
+    methodMap: runtime.methodTable,
+    typeMap: runtime.classRegistry,
     objectMap,
     listenerMap,
     stepCounter: 0,
@@ -873,6 +857,7 @@ function createState(environment: VMEnvironment, currentSelf: RuntimeObject | nu
     returned: false,
     returnValue: undefined,
     scopes: [new Map()],
+    runtime: environment.runtime,
     methodMap: environment.methodMap,
     typeMap: environment.typeMap,
     objectMap: environment.objectMap,
@@ -1100,26 +1085,11 @@ function parseLambdaParameterName(paramsSource: string): string | null {
 }
 
 function resolveRuntimeMethod(state: VMState, typeName: string, methodName: string, argCount: number): AliceMethod | null {
-  let current = state.typeMap.get(typeName) ?? null;
-  while (current) {
-    for (const method of current.methods) {
-      if (method.name === methodName && method.parameters.length === argCount) {
-        return method;
-      }
-    }
-    current = current.superTypeName ? state.typeMap.get(current.superTypeName) ?? null : null;
-  }
-  return null;
+  return resolveRuntimeClassMethod(state.runtime, typeName, methodName, argCount);
 }
 
 function resolveTopLevelMethod(state: VMState, methodName: string, argCount: number): AliceMethod | null {
-  const methods = state.methodMap.get(methodName) ?? [];
-  for (const method of methods) {
-    if (method.parameters.length === argCount) {
-      return method;
-    }
-  }
-  return methods[0] ?? null;
+  return resolveTopLevelRuntimeMethod(state.runtime, methodName, argCount);
 }
 
 function dispatchMethod(
@@ -1224,6 +1194,7 @@ function execDoTogether(stmt: AliceStatement, state: VMState): void {
       returned: false,
       returnValue: undefined,
       scopes: cloneScopes(scopeSnapshot),
+      runtime: state.runtime,
       methodMap: state.methodMap,
       typeMap: state.typeMap,
       objectMap: branchObjectMap,
