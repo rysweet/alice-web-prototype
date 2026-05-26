@@ -50,6 +50,7 @@ export * as ProjectStatistics from "./project-statistics";
 export * as ProjectTemplate from "./project-template";
 export * as ProjectValidation from "./project-validation";
 export * as Refactoring from "./refactoring";
+export * as RenderMesh from "./render-mesh";
 export * as RenderText from "./render-text";
 export * as ResourceManager from "./resource-manager";
 export * as RunSystem from "./run-system";

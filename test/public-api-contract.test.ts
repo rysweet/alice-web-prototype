@@ -86,6 +86,9 @@ function buildFactoryCases() {
     ["PrintSystem.createPrintableDocument", () => PublicApi.PrintSystem.createPrintableDocument(parsedScript)],
     ["ProjectTemplate.createEmptyWorldProject", () => PublicApi.ProjectTemplate.createEmptyWorldProject({ projectName: "FactoryWorld" })],
     ["ProjectTemplate.createProjectFromTemplate", () => contractArchive],
+    ["RenderMesh.createBoxMesh", () => PublicApi.RenderMesh.createBoxMesh({ width: 2, height: 4, depth: 6 })],
+    ["RenderMesh.createSphereMesh", () => PublicApi.RenderMesh.createSphereMesh({ radius: 2, widthSegments: 8, heightSegments: 4 })],
+    ["RenderMesh.createCylinderMesh", () => PublicApi.RenderMesh.createCylinderMesh({ radiusTop: 1, radiusBottom: 0.5, height: 4, radialSegments: 8 })],
     ["ResourceManager.createResourceManager", () => PublicApi.ResourceManager.createResourceManager(() => new Uint8Array([1, 2, 3]))],
     ["SceneLayout.createViewingPerspective", () => PublicApi.SceneLayout.createViewingPerspective(contractBounds, currentCamera)],
     ["SceneLayout.createTopCamera", () => PublicApi.SceneLayout.createTopCamera(contractBounds)],
@@ -187,6 +190,21 @@ function assertFactoryResult(key: string, value: unknown): void {
       return;
     case "ProjectTemplate.createProjectFromTemplate":
       expectKeys(value, ["project", "resources", "resourceEntries", "versionInfo"]);
+      return;
+    case "RenderMesh.createBoxMesh":
+      expectKeys(value, ["vertices", "normals", "uvs", "indices", "bounds"]);
+      expect((value as { vertices: unknown[] }).vertices).toHaveLength(24);
+      expect((value as { indices: unknown[] }).indices).toHaveLength(36);
+      return;
+    case "RenderMesh.createSphereMesh":
+      expectKeys(value, ["vertices", "normals", "uvs", "indices", "bounds"]);
+      expect((value as { vertices: unknown[] }).vertices.length).toBeGreaterThan(0);
+      expect((value as { normals: unknown[] }).normals.length).toBe((value as { vertices: unknown[] }).vertices.length);
+      return;
+    case "RenderMesh.createCylinderMesh":
+      expectKeys(value, ["vertices", "normals", "uvs", "indices", "bounds"]);
+      expect((value as { vertices: unknown[] }).vertices.length).toBeGreaterThan(0);
+      expect((value as { indices: unknown[] }).indices.length).toBeGreaterThan(0);
       return;
     case "ResourceManager.createResourceManager":
       expectKeys(value, ["register", "get", "acquire", "stats"]);
