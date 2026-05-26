@@ -80,6 +80,13 @@ function buildFactoryCases() {
     ["Formatters.createDefaultFormatterRegistry", () => PublicApi.Formatters.createDefaultFormatterRegistry()],
     ["ImageEditor.createImage", () => PublicApi.ImageEditor.createImage(2, 3)],
     ["InstanceFactory.createFactoryFromTypeSelection", () => PublicApi.InstanceFactory.createFactoryFromTypeSelection("Object")],
+    ["JointSystem.createJointedModelResource", () => PublicApi.JointSystem.createJointedModelResource("ContractRig", [{
+      name: "ROOT",
+      parentName: null,
+      localTransform: { position: PublicApi.StoryApi.createPosition(), orientation: PublicApi.StoryApi.createOrientation() },
+      children: [],
+    }])],
+    ["JointSystem.createJointedModelResourceFromModel", () => PublicApi.JointSystem.createJointedModelResourceFromModel("HeroRig", new PublicApi.BipedQuadruped.SBiped("Hero"))],
     ["Localization.createFormatter", () => PublicApi.Localization.createFormatter("en")],
     ["Materials.createMaterialDefinition", () => PublicApi.Materials.createMaterialDefinition({ opacity: 2 })],
     ["Materials.createAppearanceFromMaterial", () => PublicApi.Materials.createAppearanceFromMaterial(PublicApi.Materials.createMaterialDefinition())],
@@ -169,6 +176,11 @@ function assertFactoryResult(key: string, value: unknown): void {
       return;
     case "InstanceFactory.createFactoryFromTypeSelection":
       expectKeys(value, ["createExpression", "createTransientExpression"]);
+      return;
+    case "JointSystem.createJointedModelResource":
+    case "JointSystem.createJointedModelResourceFromModel":
+      expect(value).toBeInstanceOf(PublicApi.JointSystem.JointedModelResource);
+      expect((value as { listJointIds: () => unknown[] }).listJointIds().length).toBeGreaterThan(0);
       return;
     case "Localization.createFormatter":
       expect(value).toBeInstanceOf(PublicApi.Localization.LocalizedFormatter);
