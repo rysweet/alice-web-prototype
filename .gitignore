@@ -7,3 +7,4 @@ dist-server/
 .test-events-evidence/
 .claude/runtime/
 results.json
+worktrees/
