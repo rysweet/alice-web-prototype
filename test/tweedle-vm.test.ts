@@ -1030,6 +1030,23 @@ describe("tweedle-vm", () => {
       expect(result.returnValues.get("getScore")).toBe("100");
     });
 
+    it("returns an unresolved variable name instead of crashing", () => {
+      const p = project([], [
+        func("getMissing", "Object", [
+          { kind: "ReturnStatement", expression: "missingValue" },
+        ]),
+      ]);
+      const result = executeProject(p);
+
+      expect(result.returnValues.get("getMissing")).toBe("missingValue");
+      expect(result.execution_log).toContainEqual(
+        expect.objectContaining({
+          kind: "ReturnStatement",
+          detail: "return missingValue",
+        }),
+      );
+    });
+
     it("dispatched function call log entries appear before caller continues", () => {
       const doubleFunc: AliceMethod = {
         name: "double",

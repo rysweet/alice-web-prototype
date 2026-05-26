@@ -380,6 +380,18 @@ describe("entity AABB integration", () => {
     expect(aabbIntersects(aabbFromEntity(a), aabbFromEntity(b))).toBe(true);
   });
 
+  it("detects collision when entities completely overlap at the same position", () => {
+    const a = new SModel();
+    a.position = { x: 2, y: 1, z: -3 };
+    a.size = { width: 4, height: 4, depth: 4 };
+
+    const b = new SModel();
+    b.position = { x: 2, y: 1, z: -3 };
+    b.size = { width: 4, height: 4, depth: 4 };
+
+    expect(aabbIntersects(aabbFromEntity(a), aabbFromEntity(b))).toBe(true);
+  });
+
   it("detects no collision between separated models", () => {
     const a = new SModel();
     a.position = { x: 0, y: 0, z: 0 };

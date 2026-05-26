@@ -642,6 +642,21 @@ describe("faithful animation extensions", () => {
     expect(box.size.width).toBeCloseTo(2, 10);
   });
 
+  it("applies zero-duration moves immediately and still notifies observers", () => {
+    const box = new SBox();
+    const events: string[] = [];
+    const move = box.move(MoveDirection.FORWARD, 4, 0, new AbruptStyle(), {
+      started: () => events.push("started"),
+      updated: () => events.push("updated"),
+      finished: () => events.push("finished"),
+      completed: () => events.push("completed"),
+    });
+
+    expect(move).toBeNull();
+    expect(box.position.z).toBeCloseTo(-4, 10);
+    expect(events).toEqual(["started", "updated", "finished", "completed"]);
+  });
+
   it("animates speech bubbles over time and clears them when complete", () => {
     const box = new SBox();
     const modelImp = box.imp as ModelImp;

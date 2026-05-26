@@ -767,6 +767,36 @@ describe("Edge cases", () => {
     expect(xmlResult.projectName).toBe(p.projectName);
   });
 
+  it("preserves Unicode characters across JSON and XML round-trips", () => {
+    const p: AliceProject = {
+      ...minimalProject(),
+      projectName: "こんにちは 🌍",
+      sceneObjects: [{
+        name: "café猫",
+        typeName: "SBiped",
+        resourceType: "org.lgna.story.resources.biped.BunnyResource",
+        position: null,
+        orientation: null,
+        size: null,
+      }],
+      methods: [{
+        name: "saludar",
+        isFunction: false,
+        returnType: "void",
+        parameters: [],
+        statements: [{
+          kind: "MethodCall",
+          object: "this.café猫",
+          method: "say",
+          arguments: ["¡Hola, 世界! 👋"],
+        }],
+      }],
+    };
+
+    expect(deserializeFromJson(serializeToJson(p))).toEqual(p);
+    expect(deserializeFromXml(serializeToXml(p))).toEqual(p);
+  });
+
   it("handles MethodCall with empty arguments", () => {
     const p: AliceProject = {
       ...minimalProject(),

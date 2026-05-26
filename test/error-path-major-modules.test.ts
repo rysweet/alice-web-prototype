@@ -66,6 +66,10 @@ describe("major module error paths", () => {
     })).toThrowError(new TypeError("null reference: target"));
   });
 
+  it("a3p parser rejects empty input with the same parse-focused error shape", async () => {
+    await expect(parseA3P(new Uint8Array())).rejects.toThrow(/Failed to parse \.a3p archive: corrupted ZIP data/);
+  });
+
   it("a3p parser rejects corrupt ZIP input with a parse-focused error", async () => {
     const corrupted = new Uint8Array([0, 1, 2, 3, 4, 5]);
     await expect(parseA3P(corrupted)).rejects.toThrow(/Failed to parse \.a3p archive: corrupted ZIP data/);
