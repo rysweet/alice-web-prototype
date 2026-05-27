@@ -1,6 +1,7 @@
 export * as A3pParser from "./a3p-parser";
 export * as A3pWriter from "./a3p-writer";
 export * as Accessibility from "./accessibility";
+export * as AliceIdeState from "./alice-ide-state";
 export * as AliceProgram from "./alice-program";
 export * as Analytics from "./analytics";
 export * as Animation from "./animation";
@@ -25,6 +26,7 @@ export * as CollisionDetection from "./collision-detection";
 export * as ClassSystem from "./class-system";
 export * as CommonComponents from "./common-components";
 export * as Croquet from "./croquet";
+export * as CroquetOperations from "./croquet-operations";
 export * as CroquetStateMachine from "./croquet-state-machine";
 export * as Curriculum from "./curriculum";
 export * as Debugging from "./debugging";
