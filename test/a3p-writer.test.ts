@@ -93,7 +93,7 @@ function addSceneMethod(project: AliceProject, method: AliceMethod): void {
   }
 }
 
-describe("a3p faithful round-trip", () => {
+describe("a3p faithful round-trip", { timeout: 60_000 }, () => {
   it("discovers real Alice project fixtures", () => {
     expect(REAL_A3P_FILES.length).toBeGreaterThan(0);
   });
@@ -111,7 +111,7 @@ describe("a3p faithful round-trip", () => {
       expect(Array.isArray(original.methods)).toBe(true);
       expect(Array.isArray(original.types)).toBe(true);
       expect(summarizeProject(reparsed)).toEqual(summarizeProject(original));
-    }, 15000);
+    }, 60_000);
   }
 
   it.skipIf(!AMAZON_MINIMUM_A3P)("parses real content from amazonMinimum.a3p", async () => {

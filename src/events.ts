@@ -2,6 +2,9 @@ import type { Position } from "./story-api/types.js";
 
 export const VALID_EVENT_TYPES = [
   "sceneActivated",
+  "collision",
+  "collisionStart",
+  "collisionEnd",
   "keyPress",
   "keyPressed",
   "keyReleased",
@@ -15,6 +18,12 @@ export const VALID_EVENT_TYPES = [
   "mouseDragged",
   "mouseWheel",
   "proximity",
+  "proximityEnter",
+  "proximityExit",
+  "occlusion",
+  "viewEnter",
+  "viewExit",
+  "transformChanged",
 ] as const;
 export type EventType = (typeof VALID_EVENT_TYPES)[number];
 type InternalEventType = Exclude<EventType, "keyPress">;

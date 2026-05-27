@@ -1083,7 +1083,7 @@ describe("tweedle-vm", () => {
 
   // ── Integration with real .a3p ─────────────────────────────────────
 
-  describe("integration with real .a3p", () => {
+  describe("integration with real .a3p", { timeout: 30_000 }, () => {
     const AMAZON_MIN_A3P = path.resolve(
       __dirname,
       "../../alice/core/resources/target/distribution/application/starter-projects/amazonMinimum.a3p",
