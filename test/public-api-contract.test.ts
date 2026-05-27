@@ -105,6 +105,7 @@ function buildFactoryCases() {
     ["SceneLayout.createObjectOutline", () => PublicApi.SceneLayout.createObjectOutline(contractBounds)],
     ["SceneLayout.createTransformHandles", () => PublicApi.SceneLayout.createTransformHandles(contractBounds)],
     ["SceneLayout.createSceneEditorLayout", () => PublicApi.SceneLayout.createSceneEditorLayout(contractBounds, currentCamera)],
+    ["SceneSetupMethods.createDefaultScene", () => PublicApi.SceneSetupMethods.createDefaultScene()],
     ["Scenegraph.createModel", () => PublicApi.Scenegraph.createModel({
       name: "contract-model",
       geometry: new PublicApi.Scenegraph.Box(1, 2, 3),
@@ -243,6 +244,9 @@ function assertFactoryResult(key: string, value: unknown): void {
       return;
     case "SceneLayout.createSceneEditorLayout":
       expectKeys(value, ["cameras", "handles", "outline"]);
+      return;
+    case "SceneSetupMethods.createDefaultScene":
+      expectKeys(value, ["scene", "ground", "camera", "sun", "propertyManager"]);
       return;
     case "Scenegraph.createModel":
       expect(value).toBeInstanceOf(PublicApi.Scenegraph.Model);
