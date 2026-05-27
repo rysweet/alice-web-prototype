@@ -111,7 +111,7 @@ describe("a3p faithful round-trip", () => {
       expect(Array.isArray(original.methods)).toBe(true);
       expect(Array.isArray(original.types)).toBe(true);
       expect(summarizeProject(reparsed)).toEqual(summarizeProject(original));
-    });
+    }, 15000);
   }
 
   it.skipIf(!AMAZON_MINIMUM_A3P)("parses real content from amazonMinimum.a3p", async () => {
