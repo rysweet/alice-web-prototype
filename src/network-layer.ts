@@ -364,6 +364,8 @@ export class WebSocketClient {
     this.reconnectAttempt = 0;
     void this.outboundQueue.flush(async (message) => {
       this.socket?.send(MessageProtocol.encode(message));
+    }).catch((error: unknown) => {
+      console.warn("Failed to flush outbound queue after reconnect.", error);
     });
   }
 

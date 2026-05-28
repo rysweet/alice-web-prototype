@@ -36,7 +36,7 @@ let nextNodeId = 0;
 // Quaternion math utilities
 // ---------------------------------------------------------------------------
 
-export const quaternionIdentity: Orientation = { x: 0, y: 0, z: 0, w: 1 };
+export const quaternionIdentity: Orientation = Object.freeze({ x: 0, y: 0, z: 0, w: 1 });
 
 export function quaternionFromAxisAngle(axis: Vec3, angle: number): Orientation {
   const half = angle / 2;

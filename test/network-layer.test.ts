@@ -190,4 +190,38 @@ describe("network-layer", () => {
     expect(sockets[1].closeCode).toBe(1000);
     expect(sockets[1].closeReason).toBe("done");
   });
+
+  it("warns when queued websocket messages fail to flush on connect", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      class ThrowingSocket extends FakeSocket {
+        send(_data: string): void {
+          throw new Error("flush failed");
+        }
+      }
+
+      const sockets: ThrowingSocket[] = [];
+      const client = new WebSocketClient({
+        url: "wss://alice.example.test/collaboration",
+        socketFactory: () => {
+          const socket = new ThrowingSocket();
+          sockets.push(socket);
+          return socket;
+        },
+        retryPolicy: new RetryPolicy({ baseDelayMs: 25, maxDelayMs: 100 }),
+      });
+
+      client.send("presence:update", { selected: "hero" }, { id: "queued-1", timestamp: 1 });
+      client.connect();
+      sockets[0].open();
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(warn).toHaveBeenCalledWith(
+        "Failed to flush outbound queue after reconnect.",
+        expect.any(Error),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });

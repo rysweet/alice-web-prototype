@@ -101,6 +101,7 @@ describe("Quaternion math utilities", () => {
   describe("quaternionIdentity", () => {
     it("is { x: 0, y: 0, z: 0, w: 1 }", () => {
       expect(quaternionIdentity).toEqual({ x: 0, y: 0, z: 0, w: 1 });
+      expect(Object.isFrozen(quaternionIdentity)).toBe(true);
     });
   });
 
