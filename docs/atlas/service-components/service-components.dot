@@ -112,8 +112,8 @@ gallery", fillcolor="#ECFDF5"];
     subgraph cluster_infra {
         label="Infrastructure";
         color="#E9D5FF";
-        infra_a3p [label="a3p
-a3p-parser / a3p-writer", fillcolor="#F5F3FF"];
+        infra_a3p [label="a3p hub
+a3p-parser / a3p-writer", fillcolor="#F5F3FF", color="#8B5CF6", penwidth=2];
         infra_project [label="project-system
 project-system / manager / template", fillcolor="#F5F3FF"];
         infra_persist [label="persistence
@@ -121,16 +121,16 @@ project-io / persistence", fillcolor="#F5F3FF"];
         infra_sync [label="state sync
 state-synchronization", fillcolor="#F5F3FF"];
         infra_collab [label="collaboration
-collaboration", fillcolor="#F5F3FF"];
+collaboration (in-memory)", fillcolor="#F5F3FF"];
         infra_server [label="server
 server / cli", fillcolor="#F5F3FF"];
         infra_a3p -> infra_project;
+        infra_a3p -> infra_persist;
         infra_project -> infra_persist;
         infra_persist -> infra_sync;
         infra_sync -> infra_collab;
         infra_project -> infra_server;
         infra_a3p -> infra_server;
-        infra_collab -> infra_server;
     }
 
     ast_editor -> tw_parser [label="AST -> source"];
@@ -140,6 +140,10 @@ server / cli", fillcolor="#F5F3FF"];
     ide_code -> ast_editor [label="edit AST"];
     ide_scene -> story_entities [label="place entities"];
     ide_code -> tw_compiler [label="run / debug"];
+    infra_a3p -> tw_vm [label="project model"];
+    infra_a3p -> story_entities [label="story/object data"];
+    infra_a3p -> ren_scene [label="scene graph input"];
+    infra_a3p -> ide_persp [label="load / inspect projects"];
     infra_server -> tw_vm [label="/api/world/run"];
     infra_server -> ren_scene [label="/api/screenshot"];
     infra_server -> infra_a3p [label="/api/launch"];

@@ -40,8 +40,10 @@ Representative files: `ide-perspectives.ts`, `workspace.ts`, `gallery.ts`, `scen
 
 Representative files: `a3p-parser.ts`, `a3p-writer.ts`, `project-system.ts`, `project-manager.ts`, `project-io.ts`, `persistence.ts`, `state-synchronization.ts`, `collaboration.ts`, `server.ts`.
 
+`a3p-parser` / `a3p-writer` is a shared project-model hub used by the server, project-system, renderer, runtime hooks, and IDE/workspace code. `collaboration.ts` stays in-memory; it is not wired into `src/server.ts` or exposed as a REST surface.
+
 ## Cross-subsystem coupling notes
 
 - IDE editing flows into AST manipulation, then into Tweedle compile / run paths.
 - Story entities and properties are the semantic layer the renderer turns into meshes, materials, text, and effects.
-- Infrastructure owns project archives, persistence, and collaboration, then exposes those capabilities through the REST server and CLI.
+- Infrastructure owns project archives, persistence, and in-memory collaboration; the REST server only wires the launch / run / screenshot API paths shown in `src/server.ts`.

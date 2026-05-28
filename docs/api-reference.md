@@ -226,9 +226,19 @@ Request body:
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `eventType` | `string` | yes | Event name such as `sceneActivated`, `keyPress`, or `proximity` |
+| `eventType` | `string` | yes | Event name such as `sceneActivated`, `keyPress`, `keyPressed`, `keyReleased`, `keyTyped`, or `proximity` |
 | `handlerName` | `string` | yes | Handler label stored in the registration |
-| `key` | `string` | no | Optional key name for key-press events |
+| `key` | `string` | conditional | Required for keyboard events: `keyPress`, `keyPressed`, `keyReleased`, and `keyTyped` |
+| `target` | `string` | no | Optional target object name for target-scoped listeners; if provided it must name a known object |
+| `useCapture` | `boolean` | no | Optional capture-phase flag; only valid for bubbling keyboard and mouse events |
+| `targetObjects` | `string[]` | conditional | Required for `proximity` registrations; must contain exactly 2 known object names |
+| `threshold` | `number` | no | Optional `proximity` distance override; must be greater than `0` and less than or equal to `1000` |
+
+Examples by event type:
+
+- `sceneActivated`: `{"eventType":"sceneActivated","handlerName":"setupScene"}`
+- Keyboard events: `{"eventType":"keyPress","handlerName":"jump","key":"SPACE"}`
+- Proximity events: `{"eventType":"proximity","handlerName":"onNear","targetObjects":["bunny","fox"],"threshold":2.5}`
 
 Example response:
 
