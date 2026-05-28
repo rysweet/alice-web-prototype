@@ -1,0 +1,92 @@
+digraph runtime_topology {
+    rankdir=LR;
+    graph [fontsize=10, fontname="Helvetica"];
+    node [shape=box, style="rounded,filled", fillcolor="#F8FAFC", color="#334155", fontname="Helvetica"];
+    edge [color="#475569", fontname="Helvetica"];
+
+    subgraph cluster_build {
+        label="Build system";
+        color="#C4B5FD";
+        style="rounded";
+        vite [label="Vite\nbuild client from src/", fillcolor="#F5F3FF"];
+        tsc_client [label="tsc (noEmit)\ntypecheck client + tests", fillcolor="#F5F3FF"];
+        tsc_server [label="tsc -p tsconfig.server.json\nemit server bundle", fillcolor="#F5F3FF"];
+        dist [label="dist/\nindex.html + browser JS", fillcolor="#F5F3FF"];
+        dist_server [label="dist-server/cli.js\nserve command", fillcolor="#F5F3FF"];
+    }
+
+    subgraph cluster_client {
+        label="Browser runtime";
+        color="#93C5FD";
+        style="rounded";
+        browser [label="Browser", fillcolor="#EFF6FF"];
+        index_html [label="src/index.html", fillcolor="#EFF6FF"];
+        main_ts [label="src/main.ts", fillcolor="#EFF6FF"];
+        scene_builder [label="scene-builder.ts", fillcolor="#EFF6FF"];
+        scenegraph [label="scenegraph* + materials", fillcolor="#EFF6FF"];
+        three [label="three + OrbitControls\nWebGL renderer", fillcolor="#EFF6FF"];
+    }
+
+    subgraph cluster_server {
+        label="Node runtime";
+        color="#86EFAC";
+        style="rounded";
+        cli [label="src/cli.ts\ndefault 127.0.0.1:3000", fillcolor="#F0FDF4"];
+        express [label="createServer()\nExpress JSON API", fillcolor="#F0FDF4"];
+        launch [label="POST /api/launch", fillcolor="#F0FDF4"];
+        health [label="GET /api/health", fillcolor="#F0FDF4"];
+        add_object [label="POST /api/scene/add-object", fillcolor="#F0FDF4"];
+        edit_procedure [label="POST /api/code/edit-procedure", fillcolor="#F0FDF4"];
+        save_project [label="POST /api/project/save", fillcolor="#F0FDF4"];
+        run_world [label="POST /api/world/run", fillcolor="#F0FDF4"];
+        screenshot [label="GET /api/screenshot", fillcolor="#F0FDF4"];
+        register_event [label="POST /api/events/register", fillcolor="#F0FDF4"];
+        fire_event [label="POST /api/events/fire", fillcolor="#F0FDF4"];
+    }
+
+    subgraph cluster_collaborators {
+        label="Server collaborators";
+        color="#FCA5A5";
+        style="rounded";
+        parser [label="a3p-parser.ts\nparse .a3p files", fillcolor="#FEF2F2"];
+        renderer [label="scene-renderer.ts\nPNG capture", fillcolor="#FEF2F2"];
+        vm [label="tweedle-vm.ts\nexecute world", fillcolor="#FEF2F2"];
+        events [label="events.ts\nevent registry/fire", fillcolor="#FEF2F2"];
+        evidence [label="evidence-writer.ts\nJSON proof artifacts", fillcolor="#FEF2F2"];
+        project_file [label="project .a3p file", shape=note, fillcolor="#FEF2F2"];
+        evidence_dir [label="evidence/ + project-save/", shape=folder, fillcolor="#FEF2F2"];
+        screenshot_file [label="screenshot.png", shape=note, fillcolor="#FEF2F2"];
+    }
+
+    vite -> dist;
+    tsc_client -> dist;
+    tsc_server -> dist_server;
+
+    dist -> browser;
+    browser -> index_html -> main_ts -> scene_builder -> scenegraph -> three;
+
+    dist_server -> cli -> express;
+    express -> launch;
+    express -> health;
+    express -> add_object;
+    express -> edit_procedure;
+    express -> save_project;
+    express -> run_world;
+    express -> screenshot;
+    express -> register_event;
+    express -> fire_event;
+
+    launch -> parser;
+    parser -> project_file;
+    add_object -> evidence;
+    edit_procedure -> evidence;
+    save_project -> evidence;
+    save_project -> evidence_dir;
+    run_world -> parser;
+    run_world -> vm;
+    screenshot -> renderer;
+    screenshot -> screenshot_file;
+    register_event -> events;
+    fire_event -> events;
+    evidence -> evidence_dir;
+}

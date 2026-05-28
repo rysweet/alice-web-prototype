@@ -1,0 +1,80 @@
+digraph ast_lsp_bindings {
+    rankdir=LR;
+    graph [fontsize=10, fontname="Helvetica"];
+    node [shape=record, style="rounded,filled", fillcolor="#F8FAFC", color="#334155", fontname="Helvetica"];
+    edge [color="#475569", fontname="Helvetica"];
+
+    barrel [label="{src/index.ts|165 namespace exports}", fillcolor="#DBEAFE"];
+    other_live [label="{other live exports|73 namespaces with 1-5 local consumers}"];
+
+    subgraph cluster_hot {
+        label="Most imported exported modules";
+        color="#93C5FD";
+        style="rounded";
+        a3p [label="{a3p-parser|49 consumers}"];
+        tweedle_parser [label="{tweedle-parser|34 consumers}"];
+        project_io [label="{project-io|15 consumers}"];
+        tweedle_vm [label="{tweedle-vm|14 consumers}"];
+        story_api [label="{story-api|13 consumers}"];
+        animation [label="{animation|11 consumers}"];
+        ast_nodes [label="{ast-nodes|9 consumers}"];
+        type_browser [label="{type-browser|9 consumers}"];
+        server [label="{server|7 consumers}"];
+        expr_eval [label="{expression-evaluator|6 consumers}"];
+        stmt_exec [label="{statement-executor|6 consumers}"];
+        tweedle_codegen [label="{tweedle-codegen|6 consumers}"];
+    }
+
+    subgraph cluster_consumers {
+        label="Representative consumers";
+        color="#86EFAC";
+        style="rounded";
+        scene_manager [shape=box, label="scene-manager.ts", fillcolor="#F0FDF4"];
+        project_system [shape=box, label="project-system.ts", fillcolor="#F0FDF4"];
+        type_system [shape=box, label="type-system.ts", fillcolor="#F0FDF4"];
+        cli [shape=box, label="cli.ts", fillcolor="#F0FDF4"];
+        vm_setup [shape=box, label="tweedle-vm-core-setup.ts", fillcolor="#F0FDF4"];
+        tests [shape=box, label="test/*.test.ts", fillcolor="#F0FDF4"];
+    }
+
+    subgraph cluster_dead {
+        label="Local dead-export candidates";
+        color="#FCA5A5";
+        style="rounded";
+        dead_summary [shape=box, label="80 namespaces have zero imports\nin src/ or test/", fillcolor="#FEF2F2"];
+        dead_ui [shape=box, label="IDE/UI examples:\naccessibility\nalice-ide-state\ndialog-system\nimage-editor\nworkspace", fillcolor="#FEF2F2"];
+        dead_scene [shape=box, label="Scene/runtime examples:\nscene-graph\nscene-layout\nscene-management\nrender-materials\nrender-picking", fillcolor="#FEF2F2"];
+        dead_api [shape=box, label="API/runtime examples:\nstory-api-events\nentity-lifecycle\ntweedle-runtime\nweb-runtime", fillcolor="#FEF2F2"];
+    }
+
+    barrel -> a3p;
+    barrel -> tweedle_parser;
+    barrel -> project_io;
+    barrel -> tweedle_vm;
+    barrel -> story_api;
+    barrel -> animation;
+    barrel -> ast_nodes;
+    barrel -> type_browser;
+    barrel -> server;
+    barrel -> expr_eval;
+    barrel -> stmt_exec;
+    barrel -> tweedle_codegen;
+    barrel -> other_live;
+
+    a3p -> scene_manager;
+    a3p -> tests;
+    tweedle_parser -> type_system;
+    tweedle_parser -> tests;
+    project_io -> project_system;
+    tweedle_vm -> vm_setup;
+    tweedle_vm -> tests;
+    server -> cli;
+    server -> tests;
+    story_api -> tests;
+    animation -> tests;
+
+    barrel -> dead_summary [style=dashed, color="#DC2626"];
+    dead_summary -> dead_ui [style=dashed, color="#DC2626"];
+    dead_summary -> dead_scene [style=dashed, color="#DC2626"];
+    dead_summary -> dead_api [style=dashed, color="#DC2626"];
+}

@@ -1,0 +1,64 @@
+graph TD
+  packageJson["package.json<br/>alice-web-prototype 0.10.0"]
+
+  subgraph runtime["Runtime dependencies"]
+    express["express<br/>^5.2.1"]
+    three["three<br/>^0.170.0"]
+    canvas["canvas<br/>^3.2.3"]
+    jszip["jszip<br/>^3.10.1"]
+    xmldom["@xmldom/xmldom<br/>^0.9.10"]
+  end
+
+  subgraph dev["Dev / build dependencies"]
+    typescript["typescript<br/>^5.7.0"]
+    vite["vite<br/>^6.0.0"]
+    vitest["vitest<br/>^3.0.0"]
+    coverage["@vitest/coverage-v8<br/>^3.2.4"]
+    jsdom["jsdom<br/>^29.1.1"]
+    supertest["supertest<br/>^7.2.2"]
+    typePkgs["@types/*<br/>node, express, jsdom, supertest, three"]
+  end
+
+  subgraph internal["Internal module dependency clusters"]
+    entries["Entry points<br/>index.ts, main.ts, cli.ts, server.ts"]
+    parsing["Parsing + serialization<br/>a3p-parser, a3p-writer, serialization"]
+    astTweedle["AST + Tweedle<br/>ast-*, tweedle-*"]
+    projectIde["Project + IDE<br/>project-*, type-browser, code-editor, menubar, workspace"]
+    runtimeApi["Story API + runtime<br/>story-api*, animation, events, entity-*"]
+    rendering["Scene + rendering<br/>scene-*, render-*, scenegraph*, materials"]
+    testHarness["Test harness<br/>test/*.test.ts"]
+  end
+
+  packageJson --> express
+  packageJson --> three
+  packageJson --> canvas
+  packageJson --> jszip
+  packageJson --> xmldom
+  packageJson --> typescript
+  packageJson --> vite
+  packageJson --> vitest
+  packageJson --> coverage
+  packageJson --> jsdom
+  packageJson --> supertest
+  packageJson --> typePkgs
+
+  entries --> parsing
+  entries --> runtimeApi
+  entries --> rendering
+  entries --> projectIde
+  projectIde --> parsing
+  projectIde --> astTweedle
+  runtimeApi --> rendering
+  runtimeApi --> astTweedle
+  parsing --> xmldom
+  parsing --> jszip
+  rendering --> three
+  rendering --> canvas
+  entries --> express
+  testHarness --> vitest
+  testHarness --> coverage
+  testHarness --> jsdom
+  testHarness --> supertest
+  testHarness --> entries
+  testHarness --> astTweedle
+  testHarness --> projectIde

@@ -1,0 +1,62 @@
+graph TD
+  root["alice-web-prototype/"]
+
+  subgraph source["src/"]
+    indexTs["index.ts<br/>public barrel"]
+    mainTs["main.ts<br/>browser entry"]
+    serverTs["server.ts<br/>Express API"]
+    cliTs["cli.ts<br/>Node CLI entry"]
+    indexHtml["index.html<br/>Vite HTML entry"]
+
+    subgraph srcDirs["first-level subdirectories"]
+      parseDirs["a3p-parser/ | a3p-writer/ | ast-serialization/ | serialization/"]
+      runtimeDirs["animation/ | entity-impls/ | render-animation/ | story-api/ | story-api-events/"]
+      toolingDirs["code-generation/ | grading-pipeline/ | hooks/ | model-resources/ | project-properties/"]
+      infraDirs["project-validation/ | refactoring/ | search/ | tweedle-compiler/ | type-browser/"]
+    end
+  end
+
+  subgraph tests["test/"]
+    unitTests["226 Vitest files<br/>unit + integration + e2e"]
+  end
+
+  subgraph docsCluster["docs/"]
+    docsIndex["topic guides + docs/index.md"]
+    atlasDocs["atlas/<br/>existing index + subsystem-map"]
+  end
+
+  subgraph build["build + config"]
+    packageJson["package.json<br/>npm scripts + deps"]
+    tsconfig["tsconfig.json<br/>client + tests"]
+    tsconfigServer["tsconfig.server.json<br/>server emit"]
+    vite["vite.config.ts<br/>root=src, outDir=dist"]
+    mkdocs["mkdocs.yml<br/>docs site"]
+    lockfile["package-lock.json"]
+  end
+
+  subgraph outputs["generated outputs"]
+    dist["dist/<br/>Vite client bundle"]
+    distServer["dist-server/<br/>CLI/server JS"]
+    coverage["coverage/"]
+    evidence["evidence/"]
+    site["site/"]
+  end
+
+  root --> source
+  root --> tests
+  root --> docsCluster
+  root --> build
+  root --> outputs
+
+  packageJson --> vite
+  packageJson --> tsconfig
+  packageJson --> tsconfigServer
+  packageJson --> lockfile
+  source --> dist
+  source --> distServer
+  tests --> coverage
+  docsCluster --> site
+  serverTs --> distServer
+  cliTs --> distServer
+  mainTs --> dist
+  indexHtml --> dist

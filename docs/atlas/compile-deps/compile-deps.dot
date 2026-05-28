@@ -1,0 +1,79 @@
+digraph compile_deps {
+    rankdir=LR;
+    graph [fontsize=10, fontname="Helvetica"];
+    node [shape=box, style="rounded,filled", fillcolor="#F8FAFC", color="#334155", fontname="Helvetica"];
+    edge [color="#475569", fontname="Helvetica"];
+
+    package_json [label="package.json\nalice-web-prototype 0.10.0", fillcolor="#DBEAFE"];
+
+    subgraph cluster_runtime {
+        label="Runtime dependencies";
+        color="#93C5FD";
+        style="rounded";
+        express [label="express\n^5.2.1"];
+        three [label="three\n^0.170.0"];
+        canvas [label="canvas\n^3.2.3"];
+        jszip [label="jszip\n^3.10.1"];
+        xmldom [label="@xmldom/xmldom\n^0.9.10"];
+    }
+
+    subgraph cluster_dev {
+        label="Dev / build dependencies";
+        color="#C4B5FD";
+        style="rounded";
+        typescript [label="typescript\n^5.7.0", fillcolor="#F5F3FF"];
+        vite [label="vite\n^6.0.0", fillcolor="#F5F3FF"];
+        vitest [label="vitest\n^3.0.0", fillcolor="#F5F3FF"];
+        coverage [label="@vitest/coverage-v8\n^3.2.4", fillcolor="#F5F3FF"];
+        jsdom [label="jsdom\n^29.1.1", fillcolor="#F5F3FF"];
+        supertest [label="supertest\n^7.2.2", fillcolor="#F5F3FF"];
+        type_pkgs [label="@types/*\nnode, express, jsdom, supertest, three", fillcolor="#F5F3FF"];
+    }
+
+    subgraph cluster_internal {
+        label="Internal module dependency clusters";
+        color="#86EFAC";
+        style="rounded";
+        entries [label="Entry points\nindex.ts, main.ts, cli.ts, server.ts", fillcolor="#F0FDF4"];
+        parsing [label="Parsing + serialization\na3p-parser, a3p-writer, serialization", fillcolor="#F0FDF4"];
+        ast_tweedle [label="AST + Tweedle\nast-*, tweedle-*", fillcolor="#F0FDF4"];
+        project_ide [label="Project + IDE\nproject-*, type-browser, code-editor, menubar, workspace", fillcolor="#F0FDF4"];
+        runtime_api [label="Story API + runtime\nstory-api*, animation, events, entity-*", fillcolor="#F0FDF4"];
+        rendering [label="Scene + rendering\nscene-*, render-*, scenegraph*, materials", fillcolor="#F0FDF4"];
+        test_harness [label="Test harness\ntest/*.test.ts", fillcolor="#F0FDF4"];
+    }
+
+    package_json -> express;
+    package_json -> three;
+    package_json -> canvas;
+    package_json -> jszip;
+    package_json -> xmldom;
+    package_json -> typescript;
+    package_json -> vite;
+    package_json -> vitest;
+    package_json -> coverage;
+    package_json -> jsdom;
+    package_json -> supertest;
+    package_json -> type_pkgs;
+
+    entries -> parsing [label="imports"];
+    entries -> runtime_api [label="imports"];
+    entries -> rendering [label="imports"];
+    entries -> project_ide [label="imports"];
+    project_ide -> parsing [label="project I/O"];
+    project_ide -> ast_tweedle [label="editor/compiler"];
+    runtime_api -> rendering [label="scene/render"];
+    runtime_api -> ast_tweedle [label="runtime types"];
+    parsing -> xmldom [label="XML DOM"];
+    parsing -> jszip [label="ZIP/A3P"];
+    rendering -> three [label="3D engine"];
+    rendering -> canvas [label="offscreen render"];
+    entries -> express [label="HTTP server"];
+    test_harness -> vitest [label="runner"];
+    test_harness -> coverage [label="coverage"];
+    test_harness -> jsdom [label="DOM emulation"];
+    test_harness -> supertest [label="API tests"];
+    test_harness -> entries [label="API/public surface"];
+    test_harness -> ast_tweedle [label="compiler/runtime"];
+    test_harness -> project_ide [label="workflow tests"];
+}

@@ -1,0 +1,78 @@
+digraph repo_surface {
+    rankdir=TB;
+    graph [fontsize=10, fontname="Helvetica"];
+    node [shape=box, style="rounded,filled", fillcolor="#F8FAFC", color="#334155", fontname="Helvetica"];
+    edge [color="#475569", fontname="Helvetica"];
+
+    root [label="alice-web-prototype/", shape=folder, fillcolor="#DBEAFE"];
+
+    subgraph cluster_src {
+        label="src/";
+        color="#93C5FD";
+        style="rounded";
+        index_ts [label="index.ts\npublic barrel"];
+        main_ts [label="main.ts\nbrowser entry"];
+        server_ts [label="server.ts\nExpress API"];
+        cli_ts [label="cli.ts\nNode CLI entry"];
+        index_html [label="index.html\nVite HTML entry"];
+        src_parse [label="a3p-parser/\na3p-writer/\nast-serialization/\nserialization/"];
+        src_runtime [label="animation/\nentity-impls/\nrender-animation/\nstory-api/\nstory-api-events/"];
+        src_tooling [label="code-generation/\ngrading-pipeline/\nhooks/\nmodel-resources/\nproject-properties/"];
+        src_infra [label="project-validation/\nrefactoring/\nsearch/\ntweedle-compiler/\ntype-browser/"];
+    }
+
+    subgraph cluster_test {
+        label="test/";
+        color="#86EFAC";
+        style="rounded";
+        tests [label="226 Vitest files\nunit + integration + e2e", fillcolor="#F0FDF4"];
+    }
+
+    subgraph cluster_docs {
+        label="docs/";
+        color="#FCD34D";
+        style="rounded";
+        docs_index [label="topic guides\n+ docs/index.md", fillcolor="#FFFBEB"];
+        atlas_docs [label="atlas/\nexisting index + subsystem-map", fillcolor="#FFFBEB"];
+    }
+
+    subgraph cluster_build {
+        label="build + config";
+        color="#C4B5FD";
+        style="rounded";
+        package_json [label="package.json\nnpm scripts + deps", fillcolor="#F5F3FF"];
+        tsconfig [label="tsconfig.json\nclient + tests", fillcolor="#F5F3FF"];
+        tsconfig_server [label="tsconfig.server.json\nserver emit", fillcolor="#F5F3FF"];
+        vite_config [label="vite.config.ts\nroot=src\noutDir=dist", fillcolor="#F5F3FF"];
+        mkdocs [label="mkdocs.yml\ndocs site", fillcolor="#F5F3FF"];
+        lockfile [label="package-lock.json", fillcolor="#F5F3FF"];
+    }
+
+    subgraph cluster_outputs {
+        label="generated outputs";
+        color="#FCA5A5";
+        style="rounded";
+        dist [label="dist/\nVite client bundle", fillcolor="#FEF2F2"];
+        dist_server [label="dist-server/\nCLI/server JS", fillcolor="#FEF2F2"];
+        coverage [label="coverage/", fillcolor="#FEF2F2"];
+        evidence [label="evidence/", fillcolor="#FEF2F2"];
+        site [label="site/", fillcolor="#FEF2F2"];
+    }
+
+    root -> index_ts;
+    root -> tests;
+    root -> docs_index;
+    root -> package_json;
+    root -> dist;
+
+    package_json -> vite_config;
+    package_json -> tsconfig;
+    package_json -> tsconfig_server;
+    package_json -> lockfile;
+    docs_index -> site;
+    tests -> coverage;
+    main_ts -> dist;
+    index_html -> dist;
+    server_ts -> dist_server;
+    cli_ts -> dist_server;
+}

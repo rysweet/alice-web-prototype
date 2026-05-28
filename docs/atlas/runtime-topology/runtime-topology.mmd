@@ -1,0 +1,77 @@
+flowchart LR
+  subgraph build["Build system"]
+    vite["Vite<br/>build client from src/"]
+    tscClient["tsc (noEmit)<br/>typecheck client + tests"]
+    tscServer["tsc -p tsconfig.server.json<br/>emit server bundle"]
+    dist["dist/<br/>index.html + browser JS"]
+    distServer["dist-server/cli.js<br/>serve command"]
+  end
+
+  subgraph client["Browser runtime"]
+    browser["Browser"]
+    indexHtml["src/index.html"]
+    mainTs["src/main.ts"]
+    sceneBuilder["scene-builder.ts"]
+    scenegraph["scenegraph* + materials"]
+    three["three + OrbitControls<br/>WebGL renderer"]
+  end
+
+  subgraph server["Node runtime"]
+    cli["src/cli.ts<br/>default 127.0.0.1:3000"]
+    express["createServer()\nExpress JSON API"]
+
+    subgraph routes["REST endpoints"]
+      launch["POST /api/launch"]
+      health["GET /api/health"]
+      addObject["POST /api/scene/add-object"]
+      editProcedure["POST /api/code/edit-procedure"]
+      saveProject["POST /api/project/save"]
+      runWorld["POST /api/world/run"]
+      screenshot["GET /api/screenshot"]
+      registerEvent["POST /api/events/register"]
+      fireEvent["POST /api/events/fire"]
+    end
+  end
+
+  subgraph collaborators["Server collaborators"]
+    parser["a3p-parser.ts<br/>parse .a3p files"]
+    renderer["scene-renderer.ts<br/>PNG capture"]
+    vm["tweedle-vm.ts<br/>execute world"]
+    events["events.ts<br/>event registry/fire"]
+    evidence["evidence-writer.ts<br/>JSON proof artifacts"]
+    projectFile["project .a3p file"]
+    evidenceDir["evidence/ + project-save/"]
+    screenshotFile["screenshot.png"]
+  end
+
+  vite --> dist
+  tscClient --> dist
+  tscServer --> distServer
+
+  browser --> indexHtml --> mainTs --> sceneBuilder --> scenegraph --> three
+  dist --> browser
+
+  distServer --> cli --> express
+  express --> launch
+  express --> health
+  express --> addObject
+  express --> editProcedure
+  express --> saveProject
+  express --> runWorld
+  express --> screenshot
+  express --> registerEvent
+  express --> fireEvent
+
+  launch --> parser --> projectFile
+  addObject --> evidence
+  editProcedure --> evidence
+  saveProject --> evidence
+  runWorld --> vm
+  runWorld --> parser
+  screenshot --> renderer
+  registerEvent --> events
+  fireEvent --> events
+
+  evidence --> evidenceDir
+  saveProject --> evidenceDir
+  screenshot --> screenshotFile

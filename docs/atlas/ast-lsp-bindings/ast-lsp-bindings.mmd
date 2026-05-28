@@ -1,0 +1,64 @@
+graph LR
+  barrel["src/index.ts<br/>165 namespace exports"]
+
+  subgraph hot["Most imported exported modules<br/>(static import-only consumers; src/index.ts excluded)"]
+    a3p["a3p-parser<br/>49 consumers"]
+    twParser["tweedle-parser<br/>34 consumers"]
+    projIo["project-io<br/>15 consumers"]
+    twVm["tweedle-vm<br/>14 consumers"]
+    story["story-api<br/>13 consumers"]
+    anim["animation<br/>11 consumers"]
+    ast["ast-nodes<br/>9 consumers"]
+    typeBrowser["type-browser<br/>9 consumers"]
+    server["server<br/>7 consumers"]
+    expr["expression-evaluator<br/>6 consumers"]
+    stmt["statement-executor<br/>6 consumers"]
+    codegen["tweedle-codegen<br/>6 consumers"]
+  end
+
+  otherLive["73 other live exports<br/>1-5 local consumers each"]
+
+  subgraph consumers["Representative consumers"]
+    sceneMgr["scene-manager.ts"]
+    projectSystem["project-system.ts"]
+    typeSystem["type-system.ts"]
+    cli["cli.ts"]
+    vmSetup["tweedle-vm-core-setup.ts"]
+    tests["test/*.test.ts"]
+  end
+
+  deadSummary["80 local dead-export candidates<br/>zero imports in src/ or test/"]
+  deadUi["IDE/UI examples<br/>accessibility, alice-ide-state,<br/>dialog-system, image-editor, workspace"]
+  deadScene["Scene/runtime examples<br/>scene-graph, scene-layout, scene-management,<br/>render-materials, render-picking"]
+  deadApi["API/runtime examples<br/>story-api-events, entity-lifecycle,<br/>tweedle-runtime, web-runtime"]
+
+  barrel --> a3p
+  barrel --> twParser
+  barrel --> projIo
+  barrel --> twVm
+  barrel --> story
+  barrel --> anim
+  barrel --> ast
+  barrel --> typeBrowser
+  barrel --> server
+  barrel --> expr
+  barrel --> stmt
+  barrel --> codegen
+  barrel --> otherLive
+
+  a3p --> sceneMgr
+  a3p --> tests
+  twParser --> typeSystem
+  twParser --> tests
+  projIo --> projectSystem
+  twVm --> vmSetup
+  twVm --> tests
+  server --> cli
+  server --> tests
+  story --> tests
+  anim --> tests
+
+  barrel -.-> deadSummary
+  deadSummary -.-> deadUi
+  deadSummary -.-> deadScene
+  deadSummary -.-> deadApi
