@@ -11,7 +11,7 @@ import {
 export type AstRoot = AbstractNode | readonly AbstractNode[];
 export type TrackableDeclaration = AbstractField | AbstractMethod;
 
-type StatementConstructor<T extends Statement> = abstract new (...args: any[]) => T;
+type StatementConstructor<T extends Statement> = abstract new (...args: never[]) => T;
 
 export interface CircularReferenceCycle {
   readonly declarations: readonly TrackableDeclaration[];

@@ -120,67 +120,97 @@ body[data-preview-mode="true"] .alice-export__tweedle { background: #f8fafc; col
 }
 
 function buildBootstrapScript(): string {
-  return `const readText = (id) => document.getElementById(id)?.textContent ?? "";
-const config = JSON.parse(readText("alice-export-config") || "{}");
-const project = JSON.parse(readText("alice-project-data") || "{}");
-const sceneHost = document.querySelector("[data-alice-scene]");
-const status = document.querySelector("[data-alice-status]");
-const details = document.querySelector("[data-alice-details]");
-const tweedleOutput = document.querySelector("[data-alice-tweedle]");
-if (tweedleOutput) tweedleOutput.textContent = readText("alice-tweedle-source");
-const writeText = (node, message) => { if (node instanceof HTMLElement) node.textContent = message; };
-const embeddedThreeSource = readText("alice-embedded-three-source");
-const threeUrl = URL.createObjectURL(new Blob([embeddedThreeSource], { type: "text/javascript" }));
-try {
-  const THREE = await import(threeUrl);
-  if (!(sceneHost instanceof HTMLElement)) throw new Error("Missing scene host");
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: Boolean(config.previewMode) });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.shadowMap.enabled = true;
-  sceneHost.replaceChildren(renderer.domElement);
-  const nextViewport = () => ({ width: Number(config.viewport?.width) || Math.max(sceneHost.clientWidth || 960, 1), height: Number(config.viewport?.height) || Math.max(sceneHost.clientHeight || 540, 1) });
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color(config.previewMode ? 0xf5f7fb : 0x0b1120);
-  const camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 1000);
-  camera.position.set(12, 9, 16); camera.lookAt(0, 1, 0);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.95));
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.2); keyLight.position.set(10, 18, 12); keyLight.castShadow = true; scene.add(keyLight);
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x2d6a4f, 0.6));
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x4a7c3f, roughness: 1 }));
-  ground.rotation.x = -Math.PI / 2; ground.position.y = -0.01; ground.receiveShadow = true; scene.add(ground);
-  scene.add(new THREE.GridHelper(60, 30, 0x8b949e, 0x3d444d));
-  const createObjectMesh = (object) => {
-    const sizeSpec = object.size || {}; const width = Math.max(Number(sizeSpec.width) || 1, 0.5); const height = Math.max(Number(sizeSpec.height) || 1, 0.5); const depth = Math.max(Number(sizeSpec.depth) || 1, 0.5);
-    const typeName = String(object.typeName || "");
-    let geometry;
-    if (typeName.includes("SBall") || typeName.includes("Sphere")) geometry = new THREE.SphereGeometry(Math.max(width, height, depth) / 2, 24, 24);
-    else if (typeName.includes("SCylinder")) geometry = new THREE.CylinderGeometry(width / 2, width / 2, height, 24);
-    else if (typeName.includes("SCone")) geometry = new THREE.ConeGeometry(width / 2, height, 24);
-    else geometry = new THREE.BoxGeometry(width, height, depth);
-    let color = 0x8888cc;
-    if (typeName.includes("SProp")) color = 0xb5651d; else if (typeName.includes("SModel") || typeName.includes("SJointedModel")) color = 0xcc7722; else if (typeName.includes("SCamera")) color = 0x64748b;
-    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.08 }));
-    const position = object.position || {};
-    mesh.position.set(Number(position.x) || 0, Number(position.y) || height / 2, Number(position.z) || 0);
-    mesh.castShadow = true; mesh.receiveShadow = true; return mesh;
-  };
-  const sceneObjects = Array.isArray(project.sceneObjects) ? project.sceneObjects : [];
-  const visibleObjects = sceneObjects.filter((object) => { const typeName = String(object.typeName || ""); return !typeName.includes("SGround") && !typeName.includes("SCamera"); });
-  for (const object of visibleObjects) scene.add(createObjectMesh(object));
-  const bounds = new THREE.Box3().setFromObject(scene);
-  const center = bounds.isEmpty() ? new THREE.Vector3(0, 1, 0) : bounds.getCenter(new THREE.Vector3());
-  const sizeVector = bounds.isEmpty() ? new THREE.Vector3(8, 4, 8) : bounds.getSize(new THREE.Vector3());
-  const radius = Math.max(sizeVector.x, sizeVector.y, sizeVector.z, 6);
-  camera.position.set(center.x + radius, center.y + radius * 0.7, center.z + radius * 1.1); camera.lookAt(center);
-  const render = () => { const viewport = nextViewport(); renderer.setSize(viewport.width, viewport.height, false); camera.aspect = viewport.width / viewport.height; camera.updateProjectionMatrix(); renderer.render(scene, camera); };
-  render(); if (!config.previewMode) window.addEventListener("resize", render);
-  writeText(status, "Loaded " + String(project.projectName || "Alice Project") + " into an embedded Three.js scene.");
-  writeText(details, String(visibleObjects.length) + " scene objects and embedded Tweedle source are available offline.");
-} catch (error) {
-  console.error(error);
-  writeText(status, "Preview unavailable: " + (error instanceof Error ? error.message : String(error)));
-  writeText(details, "This export remains self-contained; open it in a WebGL-capable browser.");
-} finally { URL.revokeObjectURL(threeUrl); }`;
+  return [
+    buildBootstrapPrelude(),
+    "try {",
+    buildSceneSetup(),
+    buildObjectCreation(),
+    buildRenderLoop(),
+    buildErrorHandler(),
+  ].join("\n");
+}
+
+function buildBootstrapPrelude(): string {
+  return [
+    'const readText = (id) => document.getElementById(id)?.textContent ?? "";',
+    'const config = JSON.parse(readText("alice-export-config") || "{}");',
+    'const project = JSON.parse(readText("alice-project-data") || "{}");',
+    'const sceneHost = document.querySelector("[data-alice-scene]");',
+    'const status = document.querySelector("[data-alice-status]");',
+    'const details = document.querySelector("[data-alice-details]");',
+    'const tweedleOutput = document.querySelector("[data-alice-tweedle]");',
+    'if (tweedleOutput) tweedleOutput.textContent = readText("alice-tweedle-source");',
+    'const writeText = (node, message) => { if (node instanceof HTMLElement) node.textContent = message; };',
+    'const embeddedThreeSource = readText("alice-embedded-three-source");',
+    'const threeUrl = URL.createObjectURL(new Blob([embeddedThreeSource], { type: "text/javascript" }));',
+  ].join("\n");
+}
+
+function buildSceneSetup(): string {
+  return [
+    '  const THREE = await import(threeUrl);',
+    '  if (!(sceneHost instanceof HTMLElement)) throw new Error("Missing scene host");',
+    '  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: Boolean(config.previewMode) });',
+    '  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));',
+    '  renderer.shadowMap.enabled = true;',
+    '  sceneHost.replaceChildren(renderer.domElement);',
+    '  const nextViewport = () => ({ width: Number(config.viewport?.width) || Math.max(sceneHost.clientWidth || 960, 1), height: Number(config.viewport?.height) || Math.max(sceneHost.clientHeight || 540, 1) });',
+    '  const scene = new THREE.Scene();',
+    '  scene.background = new THREE.Color(config.previewMode ? 0xf5f7fb : 0x0b1120);',
+    '  const camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 1000);',
+    '  camera.position.set(12, 9, 16); camera.lookAt(0, 1, 0);',
+    '  scene.add(new THREE.AmbientLight(0xffffff, 0.95));',
+    '  const keyLight = new THREE.DirectionalLight(0xffffff, 1.2); keyLight.position.set(10, 18, 12); keyLight.castShadow = true; scene.add(keyLight);',
+    '  scene.add(new THREE.HemisphereLight(0xffffff, 0x2d6a4f, 0.6));',
+    '  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ color: 0x4a7c3f, roughness: 1 }));',
+    '  ground.rotation.x = -Math.PI / 2; ground.position.y = -0.01; ground.receiveShadow = true; scene.add(ground);',
+    '  scene.add(new THREE.GridHelper(60, 30, 0x8b949e, 0x3d444d));',
+  ].join("\n");
+}
+
+function buildObjectCreation(): string {
+  return [
+    '  const createObjectMesh = (object) => {',
+    '    const sizeSpec = object.size || {}; const width = Math.max(Number(sizeSpec.width) || 1, 0.5); const height = Math.max(Number(sizeSpec.height) || 1, 0.5); const depth = Math.max(Number(sizeSpec.depth) || 1, 0.5);',
+    '    const typeName = String(object.typeName || ""); let geometry;',
+    '    if (typeName.includes("SBall") || typeName.includes("Sphere")) geometry = new THREE.SphereGeometry(Math.max(width, height, depth) / 2, 24, 24);',
+    '    else if (typeName.includes("SCylinder")) geometry = new THREE.CylinderGeometry(width / 2, width / 2, height, 24); else if (typeName.includes("SCone")) geometry = new THREE.ConeGeometry(width / 2, height, 24); else geometry = new THREE.BoxGeometry(width, height, depth);',
+    '    let color = 0x8888cc;',
+    '    if (typeName.includes("SProp")) color = 0xb5651d; else if (typeName.includes("SModel") || typeName.includes("SJointedModel")) color = 0xcc7722; else if (typeName.includes("SCamera")) color = 0x64748b;',
+    '    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.08 }));',
+    '    const position = object.position || {}; mesh.position.set(Number(position.x) || 0, Number(position.y) || height / 2, Number(position.z) || 0);',
+    '    mesh.castShadow = true; mesh.receiveShadow = true; return mesh;',
+    '  };',
+    '  const sceneObjects = Array.isArray(project.sceneObjects) ? project.sceneObjects : [];',
+    '  const visibleObjects = sceneObjects.filter((object) => { const typeName = String(object.typeName || ""); return !typeName.includes("SGround") && !typeName.includes("SCamera"); });',
+    '  for (const object of visibleObjects) scene.add(createObjectMesh(object));',
+  ].join("\n");
+}
+
+function buildRenderLoop(): string {
+  return [
+    '  const bounds = new THREE.Box3().setFromObject(scene);',
+    '  const center = bounds.isEmpty() ? new THREE.Vector3(0, 1, 0) : bounds.getCenter(new THREE.Vector3());',
+    '  const sizeVector = bounds.isEmpty() ? new THREE.Vector3(8, 4, 8) : bounds.getSize(new THREE.Vector3());',
+    '  const radius = Math.max(sizeVector.x, sizeVector.y, sizeVector.z, 6);',
+    '  camera.position.set(center.x + radius, center.y + radius * 0.7, center.z + radius * 1.1); camera.lookAt(center);',
+    '  const render = () => { const viewport = nextViewport(); renderer.setSize(viewport.width, viewport.height, false); camera.aspect = viewport.width / viewport.height; camera.updateProjectionMatrix(); renderer.render(scene, camera); };',
+    '  render(); if (!config.previewMode) window.addEventListener("resize", render);',
+    '  writeText(status, "Loaded " + String(project.projectName || "Alice Project") + " into an embedded Three.js scene.");',
+    '  writeText(details, String(visibleObjects.length) + " scene objects and embedded Tweedle source are available offline.");',
+  ].join("\n");
+}
+
+function buildErrorHandler(): string {
+  return [
+    '} catch (error) {',
+    '  console.error(error);',
+    '  writeText(status, "Preview unavailable: " + (error instanceof Error ? error.message : String(error)));',
+    '  writeText(details, "This export remains self-contained; open it in a WebGL-capable browser.");',
+    '} finally {',
+    '  URL.revokeObjectURL(threeUrl);',
+    '}',
+  ].join("\n");
 }
 
 function escapeHtml(value: string): string {

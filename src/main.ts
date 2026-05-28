@@ -3,7 +3,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { parseA3P, type AliceObject, type AliceProject } from "./a3p-parser";
 import { buildScene } from "./scene-builder";
 
-function requireElement<T extends HTMLElement>(id: string, ctor: { new (...args: any[]): T }): T {
+function requireElement<T extends HTMLElement>(id: string, ctor: abstract new (...args: never[]) => T): T {
   const element = document.getElementById(id);
   if (!(element instanceof ctor)) {
     throw new Error(`Missing required element #${id}`);
