@@ -1,0 +1,34 @@
+digraph journey_student_rest {
+    rankdir=LR;
+    node [shape=box, style="rounded,filled", fillcolor="#F8F9FA", fontname="Helvetica"];
+    edge [fontname="Helvetica", color="#555555"];
+    student [label="Student", shape=oval, fillcolor="#DBEAFE"];
+    client [label="Browser / REST client"];
+    api [label="Express server"];
+    fs [label="filesystem", shape=cylinder, fillcolor="#FDE68A"];
+    parser [label="a3p-parser"];
+    vm [label="tweedle-vm"];
+    evidence [label="evidence files", fillcolor="#D1FAE5"];
+
+    student -> client [label="1 choose project"];
+    client -> api [label="2 POST /api/launch"];
+    api -> fs [label="3 read .a3p"];
+    fs -> parser [label="4 bytes"];
+    parser -> api [label="5 AliceProject"];
+    api -> client [label="6 launched"];
+    student -> client [label="7 edit procedure"];
+    client -> api [label="8 POST /api/code/edit-procedure"];
+    api -> evidence [label="9 proof + edited-project"];
+    api -> client [label="10 proved"];
+    student -> client [label="11 run world"];
+    client -> api [label="12 POST /api/world/run"];
+    api -> vm [label="13 executeProject"];
+    vm -> api [label="14 execution_log"];
+    api -> evidence [label="15 run-world-result.json"];
+    api -> client [label="16 completed"];
+    student -> client [label="17 save"];
+    client -> api [label="18 POST /api/project/save"];
+    api -> fs [label="19 copy or placeholder .a3p"];
+    api -> evidence [label="20 save proof"];
+    api -> client [label="21 saved"];
+}

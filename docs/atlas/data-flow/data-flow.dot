@@ -1,0 +1,66 @@
+digraph data_flow {
+    rankdir=LR;
+    graph [fontname="Helvetica", bgcolor="white"];
+    node [shape=box, style="rounded,filled", fillcolor="#F8F9FA", fontname="Helvetica"];
+    edge [fontname="Helvetica", color="#555555"];
+
+    subgraph cluster_upload {
+        label=".a3p load path";
+        color="#BFDBFE";
+        upload [label=".a3p path / bytes", fillcolor="#EFF6FF"];
+        launch [label="POST /api/launch", fillcolor="#EFF6FF"];
+        read_bytes [label="fs.readFileSync / readFile", fillcolor="#EFF6FF"];
+        parse [label="parseA3P(bytes)", fillcolor="#EFF6FF"];
+        project [label="AliceProject", fillcolor="#DBEAFE"];
+        cached [label="state.parsedProject / projectName", fillcolor="#DBEAFE"];
+        scene_graph [label="scene-builder.buildScene(project)
+or screenshot currentProject", fillcolor="#EFF6FF"];
+        renderer [label="scene-renderer / browser renderer", fillcolor="#EFF6FF"];
+        view [label="PNG / canvas scene", fillcolor="#DBEAFE"];
+        upload -> launch -> read_bytes -> parse -> project;
+        project -> cached;
+        project -> scene_graph -> renderer -> view;
+    }
+
+    subgraph cluster_edit {
+        label="Code edit path";
+        color="#C7D2FE";
+        edit_input [label="procedure edit request / IDE action", fillcolor="#EEF2FF"];
+        editor_state [label="ProcedureEditor / ASTEditor
+or state.procedures map", fillcolor="#EEF2FF"];
+        mutate [label="ASTManipulation / StatementListModel", fillcolor="#EEF2FF"];
+        codegen [label="tweedle-codegen / createTweedleSource", fillcolor="#EEF2FF"];
+        display [label="code view / preview / proof JSON", fillcolor="#E0E7FF"];
+        edit_input -> editor_state -> mutate -> codegen -> display;
+    }
+
+    subgraph cluster_rest {
+        label="REST mutation path";
+        color="#FDE68A";
+        action [label="user action", fillcolor="#FFFBEB"];
+        route [label="REST endpoint", fillcolor="#FFFBEB"];
+        validate [label="route guards + EventSystem validation", fillcolor="#FEF3C7"];
+        mutate_state [label="sceneObjects / procedures / parsedProject / eventSystem", fillcolor="#FEF3C7"];
+        evidence [label="JSON / PNG evidence artifact", fillcolor="#FEF3C7"];
+        response [label="HTTP JSON response", fillcolor="#FFFBEB"];
+        action -> route -> validate -> mutate_state;
+        mutate_state -> evidence;
+        mutate_state -> response;
+    }
+
+    subgraph cluster_save {
+        label="Project save path";
+        color="#A7F3D0";
+        save_input [label="project state / archive", fillcolor="#ECFDF5"];
+        save_route [label="POST /api/project/save
+or ProjectSaver.saveProject", fillcolor="#ECFDF5"];
+        write_archive [label="writeA3P / writeProject", fillcolor="#ECFDF5"];
+        zip [label="JSZip .a3p archive", fillcolor="#D1FAE5"];
+        sink [label="download / storage / saved-project.a3p", fillcolor="#D1FAE5"];
+        save_input -> save_route -> write_archive -> zip -> sink;
+    }
+
+    cached -> save_input [style=dashed, label="working project"];
+    mutate_state -> save_input [style=dashed, label="mutated state"];
+    cached -> mutate_state [style=dashed, label="run input"];
+}

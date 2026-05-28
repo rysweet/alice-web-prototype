@@ -1,0 +1,20 @@
+sequenceDiagram
+    actor Developer
+    participant Shell as npm / shell
+    participant Vitest as vitest
+    participant Suites as test/*.test.ts
+    participant Modules as parser / server / VM / IDE modules
+    participant Coverage as @vitest/coverage-v8
+
+    Developer->>Shell: npm test
+    Shell->>Vitest: vitest run
+    Vitest->>Suites: discover and execute suites
+    Suites->>Modules: import and exercise code
+    Modules-->>Suites: assertions / side effects
+    Suites-->>Vitest: pass/fail results
+    Vitest-->>Shell: summary
+
+    Developer->>Shell: npx vitest run --coverage
+    Shell->>Vitest: rerun with coverage enabled
+    Vitest->>Coverage: instrument execution
+    Coverage-->>Developer: text + html/lcov coverage report

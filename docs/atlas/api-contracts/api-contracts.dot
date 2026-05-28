@@ -1,0 +1,86 @@
+digraph api_contracts {
+    rankdir=LR;
+    graph [fontname="Helvetica", bgcolor="white"];
+    node [shape=box, style="rounded,filled", fontname="Helvetica", fillcolor="#F8F9FA"];
+    edge [fontname="Helvetica", color="#555555"];
+
+    client [label="Browser / tests / CLI"];
+    json [label="express.json\nlimit=1mb", fillcolor="#E8F0FE"];
+    auth [label="Auth\nnone", fillcolor="#E8F0FE"];
+    client -> json -> auth;
+
+    subgraph cluster_routes {
+        label="REST endpoints";
+        color="#CBD5E1";
+        health [label="GET /api/health\nreq: none\nres: running, launched, pid, uptime, runtime"];
+        launch [label="POST /api/launch\nreq: project?\nres: launched, project, projectName, sceneObjectCount"];
+        add_object [label="POST /api/scene/add-object\nreq: className, name?\nres: added, objectName, className, count, evidenceArtifact"];
+        edit_proc [label="POST /api/code/edit-procedure\nreq: procedureSelector?, editSpec?\nres: proved, edited_project_artifact, action_proof, evidenceArtifact"];
+        save_route [label="POST /api/project/save\nreq: saveSelector?, targetPath?\nres: saved, saved_project_artifact, save_artifact, evidenceArtifact"];
+        run_world [label="POST /api/world/run\nreq: {}\nres: completed, execution_log, run_duration_ms, evidenceArtifact"];
+        screenshot [label="GET /api/screenshot\nreq: none\nres: captured path/objectCount or placeholder+error"];
+        register [label="POST /api/events/register\nreq: eventType + optional handler/key/target/useCapture/targetObjects/threshold\nres: registrationId, eventType, handlerName, evidenceArtifact"];
+        fire [label="POST /api/events/fire\nreq: eventType + payload?\nres: triggered[], evidenceArtifact"];
+    }
+
+    auth -> health;
+    auth -> launch;
+    auth -> add_object;
+    auth -> edit_proc;
+    auth -> save_route;
+    auth -> run_world;
+    auth -> screenshot;
+    auth -> register;
+    auth -> fire;
+
+    subgraph cluster_guards {
+        label="Middleware / guards";
+        color="#FCD34D";
+        state [label="ServerState\nlaunched | projectPath | projectName\nsceneObjects | procedures | parsedProject | eventSystem", fillcolor="#FEF3C7"];
+        launch_guard [label="launch path suffix check\n400 if not .a3p", fillcolor="#FEF3C7"];
+        run_guard [label="launch required for /world/run and /events/*", fillcolor="#FEF3C7"];
+        event_validation [label="EventSystem validation\nunknown eventType / missing key / bad proximity", fillcolor="#FEF3C7"];
+    }
+
+    launch -> launch_guard -> state;
+    add_object -> state;
+    edit_proc -> state;
+    save_route -> state;
+    run_world -> run_guard -> state;
+    screenshot -> state;
+    register -> run_guard;
+    register -> event_validation;
+    fire -> run_guard;
+    fire -> event_validation;
+
+    subgraph cluster_internal {
+        label="Internal module contracts";
+        color="#A7F3D0";
+        parser [label="a3p-parser\nparseA3P(bytes) -> AliceProject", fillcolor="#ECFDF5"];
+        writer [label="a3p-writer\nwriteA3P(project) -> bytes", fillcolor="#ECFDF5"];
+        tweedle_parser [label="tweedle-parser\nparse(source) -> AST\nactual: parseTweedle", fillcolor="#ECFDF5"];
+        tweedle_vm [label="tweedle-vm\nexecute(program) -> result\nactual: executeProject", fillcolor="#ECFDF5"];
+        renderer [label="scene-renderer\nrenderSceneToPng(project) -> RenderResult", fillcolor="#ECFDF5"];
+        events [label="events\nEventSystem.register/fire", fillcolor="#ECFDF5"];
+        evidence [label="evidence-writer\nproof JSON files", fillcolor="#ECFDF5"];
+        project_io [label="project-io / project-system\nreadProject / writeProject", fillcolor="#ECFDF5"];
+        fs [label="filesystem\n.a3p / json / png", shape=cylinder, fillcolor="#FDE68A"];
+    }
+
+    launch -> fs [label="read .a3p"];
+    fs -> parser;
+    parser -> state;
+    edit_proc -> evidence;
+    edit_proc -> tweedle_parser [style=dashed, label="adjacent IDE path"];
+    save_route -> project_io [style=dashed, label="full archive path"];
+    project_io -> writer;
+    writer -> fs;
+    save_route -> evidence;
+    run_world -> tweedle_vm;
+    tweedle_vm -> evidence;
+    screenshot -> renderer;
+    renderer -> fs;
+    register -> events;
+    fire -> events;
+    events -> evidence;
+}

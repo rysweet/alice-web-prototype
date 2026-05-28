@@ -1,0 +1,27 @@
+digraph journey_student_new_project {
+    rankdir=LR;
+    node [shape=box, style="rounded,filled", fillcolor="#F8F9FA", fontname="Helvetica"];
+    edge [fontname="Helvetica", color="#555555"];
+    student [label="Student", shape=oval, fillcolor="#DBEAFE"];
+    ide [label="Browser IDE"];
+    templates [label="ProjectCreator / project-template"];
+    gallery [label="gallery / scene editor"];
+    ast [label="ProcedureEditor / AST modules"];
+    codegen [label="tweedle-codegen"];
+    runner [label="ProjectRunner / Tweedle VM"];
+    render [label="renderer"];
+
+    student -> ide [label="1 create new project"];
+    ide -> templates [label="2 createBlank / createEmptyWorldProject"];
+    templates -> ide [label="3 AliceProjectArchive"];
+    student -> gallery [label="4 add biped"];
+    gallery -> ide [label="5 append scene object"];
+    student -> ast [label="6 write walk procedure"];
+    ast -> ast [label="7 mutate AST"];
+    ast -> codegen [label="8 generate source preview"];
+    codegen -> ide [label="9 preview"];
+    student -> ide [label="10 run world"];
+    ide -> runner [label="11 loadProject / run"];
+    runner -> render [label="12 renderable state"];
+    render -> student [label="13 world preview"];
+}

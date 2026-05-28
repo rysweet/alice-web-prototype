@@ -1,0 +1,14 @@
+graph TD
+    A3P["A3P I/O
+a3p-parser / a3p-writer"] --> ProjectSystem["Project system
+project-system / project-manager / template"]
+    ProjectSystem --> Persistence["Persistence
+project-io / persistence"]
+    Persistence --> Sync["State sync
+state-synchronization"]
+    Sync --> Collaboration["Collaboration
+collaboration / mailboxes"]
+    A3P --> Server["REST server
+server / cli"]
+    ProjectSystem --> Server
+    Collaboration --> Server

@@ -1,0 +1,36 @@
+sequenceDiagram
+    actor Student
+    participant Client as Browser / REST client
+    participant API as Express server
+    participant FS as File system
+    participant A3P as a3p-parser
+    participant VM as tweedle-vm
+    participant Evidence as evidence files
+
+    Student->>Client: choose project
+    Client->>API: POST /api/launch { project }
+    API->>FS: read .a3p bytes
+    FS-->>API: bytes
+    API->>A3P: parseA3P(bytes)
+    A3P-->>API: AliceProject
+    API-->>Client: launched + projectName
+
+    Student->>Client: edit procedure marker
+    Client->>API: POST /api/code/edit-procedure
+    API->>API: mutate state.procedures
+    API->>Evidence: write edited-project + proof JSON
+    Evidence-->>API: artifact paths
+    API-->>Client: proved
+
+    Student->>Client: run world
+    Client->>API: POST /api/world/run
+    API->>VM: executeProject(parsedProject)
+    VM-->>API: execution_log
+    API->>Evidence: write run-world-result.json
+    API-->>Client: completed + evidence
+
+    Student->>Client: save project
+    Client->>API: POST /api/project/save
+    API->>FS: copy source or write placeholder .a3p
+    API->>Evidence: write desktop-save-operation-result.json
+    API-->>Client: saved

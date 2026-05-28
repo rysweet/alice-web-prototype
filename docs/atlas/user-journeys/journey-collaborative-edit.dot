@@ -1,0 +1,28 @@
+digraph journey_collaborative_edit {
+    rankdir=LR;
+    node [shape=box, style="rounded,filled", fillcolor="#F8F9FA", fontname="Helvetica"];
+    edge [fontname="Helvetica", color="#555555"];
+    a [label="Student A", shape=oval, fillcolor="#DBEAFE"];
+    b [label="Student B", shape=oval, fillcolor="#DBEAFE"];
+    session [label="CollaborationSession"];
+    sync [label="StateStore / StatePatch"];
+    mail [label="peer mailboxes", fillcolor="#D1FAE5"];
+
+    a -> session [label="1 join"];
+    b -> session [label="2 join"];
+    a -> session [label="3 applyChange alpha"];
+    session -> sync [label="4 compare timestamp/version"];
+    sync -> session [label="5 accepted"];
+    session -> mail [label="6 queue for B"];
+    b -> session [label="7 applyChange beta @ same time"];
+    session -> sync [label="8 conflict check"];
+    sync -> session [label="9 reject / supersede"];
+    b -> session [label="10 applyChange change-c"];
+    session -> sync [label="11 last-write-wins tie-break"];
+    sync -> session [label="12 document version++"];
+    session -> mail [label="13 queue for A"];
+    mail -> a [label="14 pull pending changes"];
+    mail -> b [label="15 pull pending changes"];
+    session -> a [label="16 synced state + presence"];
+    session -> b [label="17 synced state + presence"];
+}

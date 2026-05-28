@@ -1,0 +1,28 @@
+sequenceDiagram
+    actor A as Student A
+    actor B as Student B
+    participant Session as CollaborationSession
+    participant Sync as StateStore / StatePatch
+    participant Mail as peer mailboxes
+
+    A->>Session: join shared project
+    B->>Session: join shared project
+
+    A->>Session: applyChange(methods/main, say("alpha"), t=10)
+    Session->>Sync: compare timestamp + version
+    Sync-->>Session: accepted
+    Session->>Mail: queue change for B
+
+    B->>Session: applyChange(methods/main, say("beta"), t=10, change-a)
+    Session->>Sync: same-timestamp conflict
+    Sync-->>Session: reject / supersede
+
+    B->>Session: applyChange(methods/main, pointAt(target), t=10, change-c)
+    Session->>Sync: last-write-wins tie-break by changeId
+    Sync-->>Session: document version++
+    Session->>Mail: queue accepted change for A
+
+    A->>Mail: pull pending changes
+    B->>Mail: pull pending changes
+    Session-->>A: synced document + presence
+    Session-->>B: synced document + presence

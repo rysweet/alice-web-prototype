@@ -1,0 +1,12 @@
+graph TD
+    Entities["Entities
+entity-impls / lifecycle / registry"] --> Properties["Properties
+story-api-properties / bindings"]
+    Entities --> Animations["Animations
+story-api-animations / entity-animation"]
+    Entities --> Events["Events
+story-api-events / entity-events"]
+    Properties --> Behaviors["Behaviors
+entity-behaviors / movement"]
+    Animations --> Behaviors
+    Events --> Behaviors

@@ -1,0 +1,33 @@
+digraph journey_eatme {
+    rankdir=LR;
+    node [shape=box, style="rounded,filled", fillcolor="#F8F9FA", fontname="Helvetica"];
+    edge [fontname="Helvetica", color="#555555"];
+    eatme [label="Eatme test suite", shape=oval, fillcolor="#DBEAFE"];
+    harness [label="supertest / CLI harness"];
+    api [label="Express server"];
+    events [label="EventSystem"];
+    vm [label="tweedle-vm"];
+    evidence [label="evidence dir", fillcolor="#D1FAE5"];
+
+    eatme -> harness [label="1 run scenario"];
+    harness -> api [label="2 GET /api/health"];
+    api -> harness [label="3 running"];
+    harness -> api [label="4 POST /api/launch"];
+    api -> harness [label="5 launched"];
+    harness -> api [label="6 POST /api/scene/add-object xN"];
+    api -> evidence [label="7 scene-object-added.json"];
+    api -> harness [label="8 added"];
+    harness -> api [label="9 POST /api/events/register xN"];
+    api -> events [label="10 register"];
+    events -> api [label="11 registration"];
+    api -> evidence [label="12 event-register.json"];
+    harness -> api [label="13 POST /api/events/fire"];
+    api -> events [label="14 fire"];
+    events -> api [label="15 triggered handlers"];
+    api -> evidence [label="16 event-fire.json"];
+    harness -> api [label="17 POST /api/world/run"];
+    api -> vm [label="18 executeProject"];
+    vm -> api [label="19 execution_log"];
+    api -> evidence [label="20 run-world-result.json"];
+    evidence -> harness [label="21 verify artifacts"];
+}

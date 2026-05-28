@@ -1,0 +1,147 @@
+digraph service_components {
+    rankdir=LR;
+    graph [fontname="Helvetica", bgcolor="white"];
+    node [shape=box, style="rounded,filled", fillcolor="#F8F9FA", fontname="Helvetica"];
+    edge [fontname="Helvetica", color="#555555"];
+
+    subgraph cluster_tweedle {
+        label="Tweedle subsystem";
+        color="#BFDBFE";
+        tw_parser [label="parser
+parseTweedle", fillcolor="#EFF6FF"];
+        tw_compiler [label="compiler
+TweedleCompiler", fillcolor="#EFF6FF"];
+        tw_vm [label="vm
+executeProject", fillcolor="#EFF6FF"];
+        tw_types [label="type-system
+createTypeHierarchy", fillcolor="#EFF6FF"];
+        tw_stdlib [label="stdlib
+tweedle-stdlib", fillcolor="#EFF6FF"];
+        tw_parser -> tw_compiler;
+        tw_parser -> tw_types;
+        tw_types -> tw_compiler;
+        tw_compiler -> tw_vm;
+        tw_stdlib -> tw_vm;
+    }
+
+    subgraph cluster_ast {
+        label="AST subsystem";
+        color="#C7D2FE";
+        ast_nodes [label="nodes
+ast-nodes*", fillcolor="#EEF2FF"];
+        ast_ser [label="serialization
+ast-serialization", fillcolor="#EEF2FF"];
+        ast_man [label="manipulation
+ast-manipulation", fillcolor="#EEF2FF"];
+        ast_query [label="query
+ast-query", fillcolor="#EEF2FF"];
+        ast_editor [label="editor
+ast-editor / procedure-editor", fillcolor="#EEF2FF"];
+        ast_nodes -> ast_ser;
+        ast_nodes -> ast_man;
+        ast_nodes -> ast_query;
+        ast_ser -> ast_man;
+        ast_man -> ast_editor;
+        ast_query -> ast_editor;
+    }
+
+    subgraph cluster_story {
+        label="Story API";
+        color="#FBCFE8";
+        story_entities [label="entities
+entity-impls / lifecycle", fillcolor="#FDF2F8"];
+        story_anim [label="animations
+story-api-animations", fillcolor="#FDF2F8"];
+        story_events [label="events
+story-api-events", fillcolor="#FDF2F8"];
+        story_props [label="properties
+story-api-properties", fillcolor="#FDF2F8"];
+        story_beh [label="behaviors
+entity-behaviors", fillcolor="#FDF2F8"];
+        story_entities -> story_anim;
+        story_entities -> story_events;
+        story_entities -> story_props;
+        story_anim -> story_beh;
+        story_events -> story_beh;
+        story_props -> story_beh;
+    }
+
+    subgraph cluster_renderer {
+        label="Renderer";
+        color="#FDE68A";
+        ren_mesh [label="mesh
+render-mesh", fillcolor="#FFFBEB"];
+        ren_scene [label="scene
+scene-builder / scene-renderer", fillcolor="#FFFBEB"];
+        ren_mat [label="materials
+render-materials", fillcolor="#FFFBEB"];
+        ren_shader [label="shaders
+render-shader-system", fillcolor="#FFFBEB"];
+        ren_fx [label="effects
+render-effects", fillcolor="#FFFBEB"];
+        ren_text [label="text
+render-text", fillcolor="#FFFBEB"];
+        ren_mesh -> ren_scene;
+        ren_text -> ren_scene;
+        ren_mat -> ren_scene;
+        ren_shader -> ren_mat;
+        ren_scene -> ren_fx;
+    }
+
+    subgraph cluster_ide {
+        label="IDE";
+        color="#A7F3D0";
+        ide_persp [label="perspectives
+ide-perspectives / workspace", fillcolor="#ECFDF5"];
+        ide_gallery [label="gallery
+gallery", fillcolor="#ECFDF5"];
+        ide_scene [label="scene-editor", fillcolor="#ECFDF5"];
+        ide_code [label="code-editor / procedure-editor", fillcolor="#ECFDF5"];
+        ide_debug [label="debugging", fillcolor="#ECFDF5"];
+        ide_dialog [label="dialogs", fillcolor="#ECFDF5"];
+        ide_persp -> ide_gallery;
+        ide_persp -> ide_scene;
+        ide_persp -> ide_code;
+        ide_persp -> ide_debug;
+        ide_persp -> ide_dialog;
+        ide_gallery -> ide_scene;
+        ide_scene -> ide_code;
+        ide_code -> ide_debug;
+    }
+
+    subgraph cluster_infra {
+        label="Infrastructure";
+        color="#E9D5FF";
+        infra_a3p [label="a3p
+a3p-parser / a3p-writer", fillcolor="#F5F3FF"];
+        infra_project [label="project-system
+project-system / manager / template", fillcolor="#F5F3FF"];
+        infra_persist [label="persistence
+project-io / persistence", fillcolor="#F5F3FF"];
+        infra_sync [label="state sync
+state-synchronization", fillcolor="#F5F3FF"];
+        infra_collab [label="collaboration
+collaboration", fillcolor="#F5F3FF"];
+        infra_server [label="server
+server / cli", fillcolor="#F5F3FF"];
+        infra_a3p -> infra_project;
+        infra_project -> infra_persist;
+        infra_persist -> infra_sync;
+        infra_sync -> infra_collab;
+        infra_project -> infra_server;
+        infra_a3p -> infra_server;
+        infra_collab -> infra_server;
+    }
+
+    ast_editor -> tw_parser [label="AST -> source"];
+    ast_editor -> tw_compiler [label="authoring -> executable AST"];
+    tw_vm -> story_beh [label="runtime calls story ops"];
+    story_props -> ren_scene [label="scene/style data"];
+    ide_code -> ast_editor [label="edit AST"];
+    ide_scene -> story_entities [label="place entities"];
+    ide_code -> tw_compiler [label="run / debug"];
+    infra_server -> tw_vm [label="/api/world/run"];
+    infra_server -> ren_scene [label="/api/screenshot"];
+    infra_server -> infra_a3p [label="/api/launch"];
+    infra_project -> infra_collab [label="shared project state"];
+}

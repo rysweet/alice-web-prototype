@@ -1,0 +1,41 @@
+flowchart LR
+    subgraph Upload[".a3p load path"]
+        UploadInput[".a3p path / bytes"] --> Launch["POST /api/launch"]
+        Launch --> ReadBytes["fs.readFileSync / readFile"]
+        ReadBytes --> Parse["parseA3P(bytes)"]
+        Parse --> Project["AliceProject"]
+        Project --> Cached["state.parsedProject / projectName"]
+        Project --> SceneGraph["scene-builder.buildScene(project)
+ or screenshot currentProject"]
+        SceneGraph --> Renderer["scene-renderer / browser renderer"]
+        Renderer --> View["PNG / canvas scene"]
+    end
+
+    subgraph Edit["Code edit path"]
+        EditInput["procedure edit request / IDE action"] --> EditorState["ProcedureEditor / ASTEditor
+ or state.procedures map"]
+        EditorState --> Mutate["ASTManipulation / StatementListModel"]
+        Mutate --> Codegen["tweedle-codegen.generateTweedle
+createTweedleSource"]
+        Codegen --> Display["code view / procedure preview / proof JSON"]
+    end
+
+    subgraph REST["REST state mutation path"]
+        Action["user action"] --> Route["REST endpoint"]
+        Route --> Validate["route guards + EventSystem validation"]
+        Validate --> MutateState["sceneObjects / procedures / parsedProject / eventSystem"]
+        MutateState --> Evidence["JSON / PNG evidence artifact"]
+        MutateState --> Response["HTTP JSON response"]
+    end
+
+    subgraph Save["Project save path"]
+        SaveInput["project state / archive"] --> SaveRoute["POST /api/project/save
+or ProjectSaver.saveProject"]
+        SaveRoute --> WriteArchive["writeA3P / writeProject"]
+        WriteArchive --> Zip["JSZip .a3p archive"]
+        Zip --> Sink["download / storage / saved-project.a3p"]
+    end
+
+    Cached -. supplies current project .-> SaveInput
+    MutateState -. updates working data .-> SaveInput
+    Cached -. supplies execution input .-> MutateState

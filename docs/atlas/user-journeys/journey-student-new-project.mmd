@@ -1,0 +1,27 @@
+sequenceDiagram
+    actor Student
+    participant IDE as Browser IDE
+    participant Templates as ProjectCreator / project-template
+    participant Gallery as gallery / scene editor
+    participant AST as ProcedureEditor / AST modules
+    participant Codegen as tweedle-codegen
+    participant Runner as ProjectRunner / Tweedle VM
+    participant Render as renderer
+
+    Student->>IDE: create new project
+    IDE->>Templates: createBlank() / createEmptyWorldProject()
+    Templates-->>IDE: AliceProjectArchive
+
+    Student->>Gallery: add biped
+    Gallery->>IDE: append scene object / field
+    IDE-->>Student: scene updated
+
+    Student->>AST: write walk procedure
+    AST->>AST: insert / reorder statements
+    AST->>Codegen: generateTweedle(AST)
+    Codegen-->>IDE: source preview
+
+    Student->>IDE: run world
+    IDE->>Runner: loadProject() / run()
+    Runner->>Render: object + animation state
+    Render-->>Student: running world preview

@@ -1,0 +1,14 @@
+graph TD
+    Mesh["Mesh
+render-mesh / geometry"] --> Scene["Scene adapters
+scene-builder / scene-renderer"]
+    Text["Text
+render-text / speech bubbles"] --> Scene
+    Materials["Materials
+materials / render-materials"] --> Scene
+    Shaders["Shaders
+render-shader-system"] --> Materials
+    Scene --> Pipeline["Pipeline
+render-pipeline / render-scene-manager"]
+    Pipeline --> Effects["Effects
+render-effects / renderer-adapters"]

@@ -1,0 +1,12 @@
+graph TD
+    Nodes["Nodes
+ast-nodes*"] --> Serialization["Serialization
+encodeAstNode / decodeAstNode"]
+    Nodes --> Query["Query
+AstQuery / find*"]
+    Serialization --> Manipulation["Manipulation
+ASTInserter / ASTReplacer / ASTDiff"]
+    Nodes --> Manipulation
+    Manipulation --> Editor["Editors
+ASTEditor / ProcedureEditor / CodeEditor"]
+    Query --> Editor

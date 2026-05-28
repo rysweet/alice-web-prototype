@@ -1,0 +1,40 @@
+sequenceDiagram
+    actor Eatme
+    participant Test as supertest / CLI harness
+    participant API as Express server
+    participant Events as EventSystem
+    participant VM as tweedle-vm
+    participant Evidence as evidence dir
+
+    Eatme->>Test: run e2e scenario
+    Test->>API: GET /api/health
+    API-->>Test: running
+    Test->>API: POST /api/launch
+    API-->>Test: launched
+
+    loop add objects
+        Test->>API: POST /api/scene/add-object
+        API->>Evidence: scene-object-added.json
+        API-->>Test: added
+    end
+
+    loop register handlers
+        Test->>API: POST /api/events/register
+        API->>Events: register(...)
+        API->>Evidence: event-register.json
+        API-->>Test: registrationId
+    end
+
+    Test->>API: POST /api/events/fire
+    API->>Events: fire(...)
+    Events-->>API: triggered handlers
+    API->>Evidence: event-fire.json
+    API-->>Test: triggered[]
+
+    Test->>API: POST /api/world/run
+    API->>VM: executeProject(...)
+    VM-->>API: execution_log
+    API->>Evidence: run-world-result.json
+    API-->>Test: completed
+
+    Test->>Evidence: verify accumulated JSON artifacts

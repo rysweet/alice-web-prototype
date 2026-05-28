@@ -1,0 +1,15 @@
+graph TD
+    Parser["Parser
+parseTweedle / tweedle-parser-core*"] --> Compiler["Compiler
+TweedleCompiler / CompilationUnit"]
+    Parser --> TypeSystem["Type system
+createTypeHierarchy / typechecker"]
+    TypeSystem --> Compiler
+    Compiler --> VM["VM
+virtualMachine / executeProject"]
+    Runtime["Runtime
+createTweedleRuntimeEnvironment"] --> VM
+    Stdlib["Stdlib
+tweedle-stdlib / tweedle-stdlib-ext"] --> Runtime
+    Parser --> Codegen["Codegen
+generateTweedle"]

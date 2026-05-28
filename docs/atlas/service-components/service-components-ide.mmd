@@ -1,0 +1,16 @@
+graph TD
+    Perspectives["Perspectives
+ide-perspectives / workspace"] --> Gallery["Gallery
+gallery / gallery-browser"]
+    Perspectives --> SceneEditor["Scene editor
+scene-editor"]
+    Perspectives --> CodeEditor["Code editor
+code-editor / procedure-editor"]
+    Perspectives --> Dialogs["Dialogs
+dialog-system / composite-dialogs"]
+    Perspectives --> Debugging["Debugging
+debugging / tweedle-debugger"]
+    Gallery --> SceneEditor
+    SceneEditor --> CodeEditor
+    CodeEditor --> Debugging
+    Dialogs --> CodeEditor

@@ -1,0 +1,23 @@
+digraph journey_developer_test {
+    rankdir=LR;
+    node [shape=box, style="rounded,filled", fillcolor="#F8F9FA", fontname="Helvetica"];
+    edge [fontname="Helvetica", color="#555555"];
+    developer [label="Developer", shape=oval, fillcolor="#DBEAFE"];
+    shell [label="npm / shell"];
+    vitest [label="vitest"];
+    suites [label="test/*.test.ts"];
+    modules [label="parser / server / VM / IDE modules"];
+    coverage [label="@vitest/coverage-v8", fillcolor="#D1FAE5"];
+
+    developer -> shell [label="1 npm test"];
+    shell -> vitest [label="2 vitest run"];
+    vitest -> suites [label="3 execute suites"];
+    suites -> modules [label="4 import + exercise"];
+    modules -> suites [label="5 assertions"];
+    suites -> vitest [label="6 results"];
+    vitest -> shell [label="7 summary"];
+    developer -> shell [label="8 vitest --coverage"];
+    shell -> vitest [label="9 rerun with coverage"];
+    vitest -> coverage [label="10 instrument / aggregate"];
+    coverage -> developer [label="11 coverage report"];
+}
