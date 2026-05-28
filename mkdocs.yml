@@ -40,3 +40,13 @@ nav:
     - "VM scoping and functions": "vm-scoping-and-functions.md"
   - "Explanation":
     - "Architecture": "architecture.md"
+  - "Architecture Atlas":
+    - "Atlas Overview": "atlas/index.md"
+    - "Repository Surface": "atlas/repo-surface/README.md"
+    - "Symbol Bindings": "atlas/ast-lsp-bindings/README.md"
+    - "Compile Dependencies": "atlas/compile-deps/README.md"
+    - "Runtime Topology": "atlas/runtime-topology/README.md"
+    - "API Contracts": "atlas/api-contracts/README.md"
+    - "Data Flow": "atlas/data-flow/README.md"
+    - "Service Components": "atlas/service-components/README.md"
+    - "User Journeys": "atlas/user-journeys/README.md"
