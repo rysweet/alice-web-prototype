@@ -103,12 +103,12 @@ Four templates ship out of the box. We will use `snow` for this tutorial.
 
 ## Step 3 — Create a new project
 
-Create a project named "WinterStory" from the `snow` template:
+Create a project from the `snow` template:
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/project/new \
   -H 'Content-Type: application/json' \
-  -d '{"templateId": "snow", "projectName": "WinterStory"}'
+  -d '{"templateId": "snow"}'
 ```
 
 Response:
@@ -118,12 +118,15 @@ Response:
   "schema_version": "eatme.alice-project-new-result/v1",
   "status": "created",
   "templateId": "snow",
-  "projectName": "WinterStory",
-  "projectPath": "evidence/project-new/WinterStory.a3p",
+  "projectName": "Snow Project",
+  "projectPath": "evidence/project-new/Snow Project.a3p",
   "sceneObjectCount": 4,
-  "a3pSizeBytes": 1284
+  "a3pSizeBytes": 7251
 }
 ```
+
+> **Note:** You can optionally pass `"projectName": "WinterStory"` to
+> override the default name.
 
 The server created a valid `.a3p` archive on disk, initialized the scene
 with 4 objects (ground, camera, snowPerson, pineTree), and set the
@@ -153,15 +156,16 @@ Response:
 {
   "status": "captured",
   "path": "evidence/screenshot.png",
-  "objectCount": 4,
-  "sceneDescription": "WinterStory",
+  "objectCount": 2,
+  "sceneDescription": "snowPerson(SBiped), pineTree(STree)",
   "rendered": true
 }
 ```
 
 The server rendered the scene to `evidence/screenshot.png` using its
-built-in 2D scene renderer. Copy this file to your docs if you want to
-keep it:
+built-in 2D scene renderer. The `objectCount` reflects rendered objects
+(excluding camera and ground). Copy this file to your docs if you want
+to keep it:
 
 ```bash
 cp evidence/screenshot.png docs/screenshots/01-initial-snow-scene.png
@@ -176,7 +180,7 @@ Add a fox character to make the story more interesting:
 ```bash
 curl -X POST http://127.0.0.1:3000/api/scene/add-object \
   -H 'Content-Type: application/json' \
-  -d '{"className": "org.lgna.story.SQuadruped", "name": "fox"}'
+  -d '{"className": "Fox"}'
 ```
 
 Response:
@@ -185,7 +189,7 @@ Response:
 {
   "status": "added",
   "objectName": "fox",
-  "className": "org.lgna.story.SQuadruped",
+  "className": "Fox",
   "sceneFieldCountAfter": 5,
   "evidenceArtifact": "evidence/scene-object-added.json"
 }
@@ -249,12 +253,12 @@ Response:
 {
   "schema_version": "eatme.alice-run-world-result/v1",
   "status": "completed",
-  "project_name": "WinterStory",
+  "project_name": "Snow Project",
   "scene_object_count": 5,
   "procedure_count": 1,
   "statements_executed": 0,
   "execution_log": [],
-  "run_duration_ms": 3,
+  "run_duration_ms": 1,
   "errors": [],
   "doesNotClaim": [
     "visible rendering correctness",
@@ -285,20 +289,21 @@ Response:
 {
   "status": "captured",
   "path": "evidence/screenshot.png",
-  "objectCount": 5,
-  "sceneDescription": "WinterStory",
+  "objectCount": 2,
+  "sceneDescription": "snowPerson(SBiped), pineTree(STree)",
   "rendered": true
 }
 ```
 
 ```bash
-cp evidence/screenshot.png docs/screenshots/02-scene-with-fox.png
+cp evidence/screenshot.png docs/screenshots/03-scene-with-fox.png
 ```
 
-![Scene with fox added](screenshots/02-scene-with-fox.png)
+![Scene with fox added](screenshots/03-scene-with-fox.png)
 
-Notice `objectCount` increased from 4 to 5, confirming the fox is in the
-rendered scene.
+Notice the scene still renders the same visible objects via the server-side
+2D renderer. The fox was added to the scene graph but the renderer only
+draws objects with known resource types.
 
 ## Step 9 — Register an event handler
 
@@ -383,10 +388,10 @@ Take a final screenshot to document the completed state:
 
 ```bash
 curl http://127.0.0.1:3000/api/screenshot
-cp evidence/screenshot.png docs/screenshots/03-final-saved-project.png
+cp evidence/screenshot.png docs/screenshots/07-final-saved-project.png
 ```
 
-![Final saved project](screenshots/03-final-saved-project.png)
+![Final saved project](screenshots/07-final-saved-project.png)
 
 ## Complete workflow summary
 
@@ -423,7 +428,7 @@ curl -s "$BASE/api/project/templates" | jq .
 echo "=== Create project from snow template ==="
 curl -s -X POST "$BASE/api/project/new" \
   -H 'Content-Type: application/json' \
-  -d '{"templateId":"snow","projectName":"WinterStory"}' | jq .
+  -d '{"templateId":"snow"}' | jq .
 
 echo "=== Screenshot: initial scene ==="
 curl -s "$BASE/api/screenshot" | jq .
@@ -432,7 +437,7 @@ cp evidence/screenshot.png docs/screenshots/01-initial-snow-scene.png
 echo "=== Add fox ==="
 curl -s -X POST "$BASE/api/scene/add-object" \
   -H 'Content-Type: application/json' \
-  -d '{"className":"org.lgna.story.SQuadruped","name":"fox"}' | jq .
+  -d '{"className":"Fox"}' | jq .
 
 echo "=== Edit procedure ==="
 curl -s -X POST "$BASE/api/code/edit-procedure" \
@@ -445,7 +450,7 @@ curl -s -X POST "$BASE/api/world/run" \
 
 echo "=== Screenshot: with fox ==="
 curl -s "$BASE/api/screenshot" | jq .
-cp evidence/screenshot.png docs/screenshots/02-scene-with-fox.png
+cp evidence/screenshot.png docs/screenshots/03-scene-with-fox.png
 
 echo "=== Register event ==="
 curl -s -X POST "$BASE/api/events/register" \
@@ -464,7 +469,7 @@ curl -s -X POST "$BASE/api/project/save" \
 
 echo "=== Screenshot: final ==="
 curl -s "$BASE/api/screenshot" | jq .
-cp evidence/screenshot.png docs/screenshots/03-final-saved-project.png
+cp evidence/screenshot.png docs/screenshots/07-final-saved-project.png
 
 echo "Done! All 11 steps completed."
 ```
@@ -513,9 +518,11 @@ registering custom templates from existing projects.
 ### Scene objects
 
 Every visible entity in an Alice world is a scene object with a class
-name (e.g., `org.lgna.story.SBiped`, `org.lgna.story.SQuadruped`) and a
-position in 3D space. The `POST /api/scene/add-object` endpoint adds
-objects to the current scene.
+name (e.g., `SBiped`, `SQuadruped`, or the full form
+`org.lgna.story.SBiped`) and a position in 3D space. The
+`POST /api/scene/add-object` endpoint adds objects to the current
+scene — you can pass a short name like `"Fox"` or the fully qualified
+Java class name.
 
 ### Procedures and code editing
 
