@@ -207,6 +207,59 @@ describe("server API", () => {
       expect(res.body.error).toContain("nonexistent");
       expect(res.body.availableTemplates).toBeInstanceOf(Array);
     });
+
+    it("updates server state after creating a project", async () => {
+      await request(app)
+        .post("/api/project/new")
+        .send({ templateId: "snow", projectName: "StateTest" })
+        .expect(200);
+
+      // Health should show launched
+      const health = await request(app).get("/api/health").expect(200);
+      expect(health.body.launched).toBe(true);
+
+      // World/run should work (proving launched state)
+      const run = await request(app).post("/api/world/run").send({}).expect(200);
+      expect(run.body.status).toBe("completed");
+      expect(run.body.scene_object_count).toBeGreaterThanOrEqual(2);
+    });
+
+    it("sanitizes project name to prevent path traversal", async () => {
+      const res = await request(app)
+        .post("/api/project/new")
+        .send({ templateId: "blank", projectName: "../../evil" })
+        .expect(200);
+
+      expect(res.body.status).toBe("created");
+      // Verify the path stays within the evidence directory
+      expect(res.body.projectPath).toContain("project-new");
+      expect(res.body.projectPath).not.toContain("../../");
+    });
+  });
+
+  describe("POST /api/project/save after /api/project/new", () => {
+    it("saves a newly created project through the A3P pipeline", async () => {
+      await request(app)
+        .post("/api/project/new")
+        .send({ templateId: "snow", projectName: "SaveAfterNew" })
+        .expect(200);
+
+      const res = await request(app)
+        .post("/api/project/save")
+        .send({ saveSelector: "scene.myFirstMethod" })
+        .expect(200);
+
+      expect(res.body.status).toBe("saved");
+      expect(res.body.saved_project_artifact).toBeTruthy();
+
+      const savedPath = path.join(
+        TEST_EVIDENCE_DIR,
+        "project-save",
+        "saved-project.a3p",
+      );
+      expect(fs.existsSync(savedPath)).toBe(true);
+      expect(fs.statSync(savedPath).size).toBeGreaterThan(0);
+    });
   });
 
   describe("GET /api/screenshot", () => {

@@ -46,6 +46,22 @@ interface ServerState {
   templateLibrary: TemplateLibrary;
 }
 
+function buildCurrentProject(state: ServerState): AliceProject {
+  return state.parsedProject ?? {
+    version: "3.10",
+    projectName: state.projectName,
+    sceneObjects: Array.from(state.sceneObjects.values()).map((o) => ({
+      name: o.name,
+      typeName: o.className,
+      resourceType: null,
+      position: null,
+      orientation: null,
+      size: null,
+    })),
+    methods: [],
+  };
+}
+
 export function createServer(options: ServerOptions): express.Express {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
@@ -233,19 +249,7 @@ export function createServer(options: ServerOptions): express.Express {
     const savedProjectPath = path.join(saveDir, savedProjectFilename);
 
     // Build the current project model from server state
-    const currentProject: AliceProject = state.parsedProject ?? {
-      version: "3.10",
-      projectName: state.projectName,
-      sceneObjects: Array.from(state.sceneObjects.values()).map((o) => ({
-        name: o.name,
-        typeName: o.className,
-        resourceType: null,
-        position: null,
-        orientation: null,
-        size: null,
-      })),
-      methods: [],
-    };
+    const currentProject = buildCurrentProject(state);
 
     // Write through the A3P archive pipeline
     const a3pBytes = await writeA3P(currentProject);
@@ -295,7 +299,9 @@ export function createServer(options: ServerOptions): express.Express {
     // Write the new project as a proper A3P archive
     const newDir = path.join(options.evidenceDir, "project-new");
     fs.mkdirSync(newDir, { recursive: true });
-    const newProjectPath = path.join(newDir, `${project.projectName}.a3p`);
+    // Sanitize project name to prevent path traversal
+    const safeName = path.basename(project.projectName).replace(/[^a-zA-Z0-9_\- ]/g, "_") || "project";
+    const newProjectPath = path.join(newDir, `${safeName}.a3p`);
     const a3pBytes = await writeA3P(project);
     fs.writeFileSync(newProjectPath, a3pBytes);
 
@@ -395,19 +401,7 @@ export function createServer(options: ServerOptions): express.Express {
 
     try {
       // Use cached parse if available, otherwise build from server state
-      const currentProject: AliceProject = state.parsedProject ?? {
-        version: "3.10",
-        projectName: state.projectName,
-        sceneObjects: Array.from(state.sceneObjects.values()).map((o) => ({
-          name: o.name,
-          typeName: o.className,
-          resourceType: null,
-          position: null,
-          orientation: null,
-          size: null,
-        })),
-        methods: [],
-      };
+      const currentProject = buildCurrentProject(state);
 
       const result = await renderSceneToPng(currentProject, { width: 640, height: 480 });
       fs.writeFileSync(screenshotPath, result.png);
