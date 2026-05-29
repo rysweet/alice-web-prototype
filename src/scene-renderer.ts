@@ -24,6 +24,8 @@ export interface RenderResult {
   sceneDescription: string;
 }
 
+let cachedCreateCanvas: typeof import("canvas")["createCanvas"] | null = null;
+
 /**
  * Render the Alice scene to a PNG buffer using software rasterization.
  * This is a simplified 2D top-down projection — not full 3D — suitable
@@ -33,8 +35,11 @@ export async function renderSceneToPng(
   project: AliceProject,
   options: RenderOptions = { width: 640, height: 480 },
 ): Promise<RenderResult> {
-  const { createCanvas } = await import("canvas");
-  const canvas = createCanvas(options.width, options.height);
+  if (!cachedCreateCanvas) {
+    const canvasModule = await import("canvas");
+    cachedCreateCanvas = canvasModule.createCanvas;
+  }
+  const canvas = cachedCreateCanvas(options.width, options.height);
   const ctx = canvas.getContext("2d");
 
   // Sky background

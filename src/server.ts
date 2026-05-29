@@ -164,7 +164,7 @@ export function createServer(options: ServerOptions): express.Express {
   });
 
   // ── POST /api/code/edit-procedure ──────────────────────────────────
-  app.post("/api/code/edit-procedure", (req, res) => {
+  app.post("/api/code/edit-procedure", async (req, res) => {
     const {
       procedureSelector = "scene.myFirstMethod",
       editSpec = "append-comment:eatme first lesson edit proof",
@@ -195,11 +195,11 @@ export function createServer(options: ServerOptions): express.Express {
       options.evidenceDir,
       "edited-project.a3p",
     );
-    if (state.projectPath && fs.existsSync(state.projectPath)) {
-      fs.copyFileSync(state.projectPath, editedProjectPath);
-    } else {
-      // Write a minimal placeholder
-      fs.writeFileSync(editedProjectPath, createMinimalA3pBuffer());
+    try {
+      await fs.promises.access(state.projectPath ?? "");
+      await fs.promises.copyFile(state.projectPath!, editedProjectPath);
+    } catch {
+      await fs.promises.writeFile(editedProjectPath, MINIMAL_A3P_BUFFER);
     }
 
     // Write the proof artifact
@@ -244,7 +244,7 @@ export function createServer(options: ServerOptions): express.Express {
     } = req.body ?? {};
 
     const saveDir = path.join(options.evidenceDir, "project-save");
-    fs.mkdirSync(saveDir, { recursive: true });
+    await fs.promises.mkdir(saveDir, { recursive: true });
 
     const savedProjectFilename = "saved-project.a3p";
     const savedProjectPath = path.join(saveDir, savedProjectFilename);
@@ -253,15 +253,13 @@ export function createServer(options: ServerOptions): express.Express {
 
     // Write through the A3P archive pipeline
     const a3pBytes = await writeA3P(currentProject);
-    fs.writeFileSync(savedProjectPath, a3pBytes);
-
-    const savedStat = fs.statSync(savedProjectPath);
+    await fs.promises.writeFile(savedProjectPath, a3pBytes);
 
     // Write the save evidence artifact
     const saveArtifactFilename = "desktop-save-operation-result.json";
     const evidenceArtifact = writeSaveProof(saveDir, {
       savedFilePath: targetPath ?? savedProjectPath,
-      fileSizeBytes: savedStat.size,
+      fileSizeBytes: a3pBytes.length,
     });
 
     res.json({
@@ -298,10 +296,10 @@ export function createServer(options: ServerOptions): express.Express {
 
     // Write the new project as a proper A3P archive
     const newDir = path.join(options.evidenceDir, "project-new");
-    fs.mkdirSync(newDir, { recursive: true });
+    await fs.promises.mkdir(newDir, { recursive: true });
     const newProjectPath = path.join(newDir, `${project.projectName}.a3p`);
     const a3pBytes = await writeA3P(project);
-    fs.writeFileSync(newProjectPath, a3pBytes);
+    await fs.promises.writeFile(newProjectPath, a3pBytes);
 
     // Update server state to reflect the new project
     state.parsedProject = project;
@@ -348,7 +346,6 @@ export function createServer(options: ServerOptions): express.Express {
     // Parse project if not already cached
     if (!state.parsedProject && state.projectPath) {
       try {
-        await fs.promises.access(state.projectPath);
         const data = await fs.promises.readFile(state.projectPath);
         state.parsedProject = await parseA3P(data);
       } catch (err) {
@@ -400,7 +397,7 @@ export function createServer(options: ServerOptions): express.Express {
     try {
       const currentProject = buildCurrentProject(state);
       const result = await renderSceneToPng(currentProject, { width: 640, height: 480 });
-      fs.writeFileSync(screenshotPath, result.png);
+      await fs.promises.writeFile(screenshotPath, result.png);
 
       res.json({
         status: "captured",
@@ -411,7 +408,7 @@ export function createServer(options: ServerOptions): express.Express {
       });
     } catch (err) {
       // Fallback to placeholder
-      fs.writeFileSync(screenshotPath, createPlaceholderPng());
+      await fs.promises.writeFile(screenshotPath, PLACEHOLDER_PNG);
       res.json({
         status: "captured",
         path: screenshotPath,
@@ -485,17 +482,12 @@ export function createServer(options: ServerOptions): express.Express {
   return app;
 }
 
-/** Create a minimal valid buffer that can stand in as a .a3p file. */
-function createMinimalA3pBuffer(): Buffer {
-  return Buffer.from("PK\x03\x04" + "alice-web-prototype-placeholder", "binary");
-}
+/** Cached constant: minimal valid buffer that can stand in as a .a3p file. */
+const MINIMAL_A3P_BUFFER = Buffer.from("PK\x03\x04" + "alice-web-prototype-placeholder", "binary");
 
-/** Minimal valid 8x8 PNG (solid color). */
-function createPlaceholderPng(): Buffer {
-  // Smallest valid PNG: 1x1 pixel, RGB
-  return Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPj/HwADBwIAMCbH" +
-      "YQAAAABJRU5ErkJggg==",
-    "base64",
-  );
-}
+/** Cached constant: minimal valid 1×1 PNG (solid color). */
+const PLACEHOLDER_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPj/HwADBwIAMCbH" +
+    "YQAAAABJRU5ErkJggg==",
+  "base64",
+);

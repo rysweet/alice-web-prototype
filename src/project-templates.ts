@@ -15,7 +15,7 @@ export interface TemplateDescriptor {
 }
 
 function cloneProject(project: AliceProject): AliceProject {
-  return JSON.parse(JSON.stringify(project)) as AliceProject;
+  return structuredClone(project);
 }
 
 function createVersionInfo(version = getCurrentAliceVersion()): ProjectVersionInfo {
@@ -76,6 +76,8 @@ export class TemplatePreview {
 }
 
 export abstract class BaseProjectTemplate implements TemplateDescriptor {
+  private cachedPreview: TemplatePreview | null = null;
+
   constructor(
     readonly id: string,
     readonly name: string,
@@ -85,12 +87,15 @@ export abstract class BaseProjectTemplate implements TemplateDescriptor {
   ) {}
 
   createPreview(): TemplatePreview {
-    return new TemplatePreview(
-      this.id,
-      this.name,
-      this.description,
-      createTemplateThumbnail(this.accentColor, this.name, this.subtitle),
-    );
+    if (!this.cachedPreview) {
+      this.cachedPreview = new TemplatePreview(
+        this.id,
+        this.name,
+        this.description,
+        createTemplateThumbnail(this.accentColor, this.name, this.subtitle),
+      );
+    }
+    return this.cachedPreview;
   }
 
   createProject(options: TemplateInstantiationOptions = {}): AliceProject {
