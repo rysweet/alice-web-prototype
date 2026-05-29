@@ -9,9 +9,11 @@ import {
   writeEventFire,
 } from "./evidence-writer.js";
 import { parseA3P, type AliceProject } from "./a3p-parser.js";
+import { writeA3P } from "./a3p-writer/archive.js";
 import { renderSceneToPng } from "./scene-renderer.js";
 import { executeProject, type LogEntry } from "./tweedle-vm.js";
 import { EventSystem, EventSystemError } from "./events.js";
+import { TemplateLibrary } from "./project-templates.js";
 
 export interface ServerOptions {
   port: number;
@@ -41,6 +43,7 @@ interface ServerState {
   procedures: Map<string, string[]>; // methodName -> statements
   parsedProject: AliceProject | null;
   eventSystem: EventSystem;
+  templateLibrary: TemplateLibrary;
 }
 
 export function createServer(options: ServerOptions): express.Express {
@@ -58,6 +61,7 @@ export function createServer(options: ServerOptions): express.Express {
       hasObject: (name) => state.sceneObjects.has(name),
       getObjectPosition: (name) => state.sceneObjects.get(name)?.position ?? null,
     }),
+    templateLibrary: new TemplateLibrary(),
   };
 
   // Ensure evidence dir exists
@@ -216,7 +220,7 @@ export function createServer(options: ServerOptions): express.Express {
   });
 
   // ── POST /api/project/save ─────────────────────────────────────────
-  app.post("/api/project/save", (req, res) => {
+  app.post("/api/project/save", async (req, res) => {
     const {
       saveSelector = "scene.myFirstMethod",
       targetPath,
@@ -225,15 +229,27 @@ export function createServer(options: ServerOptions): express.Express {
     const saveDir = path.join(options.evidenceDir, "project-save");
     fs.mkdirSync(saveDir, { recursive: true });
 
-    // Write the saved project file
     const savedProjectFilename = "saved-project.a3p";
     const savedProjectPath = path.join(saveDir, savedProjectFilename);
 
-    if (state.projectPath && fs.existsSync(state.projectPath)) {
-      fs.copyFileSync(state.projectPath, savedProjectPath);
-    } else {
-      fs.writeFileSync(savedProjectPath, createMinimalA3pBuffer());
-    }
+    // Build the current project model from server state
+    const currentProject: AliceProject = state.parsedProject ?? {
+      version: "3.10",
+      projectName: state.projectName,
+      sceneObjects: Array.from(state.sceneObjects.values()).map((o) => ({
+        name: o.name,
+        typeName: o.className,
+        resourceType: null,
+        position: null,
+        orientation: null,
+        size: null,
+      })),
+      methods: [],
+    };
+
+    // Write through the A3P archive pipeline
+    const a3pBytes = await writeA3P(currentProject);
+    fs.writeFileSync(savedProjectPath, a3pBytes);
 
     const savedStat = fs.statSync(savedProjectPath);
 
@@ -251,6 +267,68 @@ export function createServer(options: ServerOptions): express.Express {
       saved_project_artifact: savedProjectFilename,
       save_artifact: saveArtifactFilename,
       evidenceArtifact,
+    });
+  });
+
+  // ── GET /api/project/templates ───────────────────────────────────
+  app.get("/api/project/templates", (_req, res) => {
+    res.json({
+      templates: state.templateLibrary.listTemplates(),
+    });
+  });
+
+  // ── POST /api/project/new ────────────────────────────────────────
+  app.post("/api/project/new", async (req, res) => {
+    const { templateId = "blank", projectName } = req.body ?? {};
+
+    const template = state.templateLibrary.getTemplate(templateId);
+    if (!template) {
+      res.status(400).json({
+        error: `Unknown template: ${templateId}`,
+        availableTemplates: state.templateLibrary.listTemplates().map((t) => t.id),
+      });
+      return;
+    }
+
+    const project = template.createProject({ projectName });
+
+    // Write the new project as a proper A3P archive
+    const newDir = path.join(options.evidenceDir, "project-new");
+    fs.mkdirSync(newDir, { recursive: true });
+    const newProjectPath = path.join(newDir, `${project.projectName}.a3p`);
+    const a3pBytes = await writeA3P(project);
+    fs.writeFileSync(newProjectPath, a3pBytes);
+
+    // Update server state to reflect the new project
+    state.parsedProject = project;
+    state.projectName = project.projectName;
+    state.projectPath = newProjectPath;
+    state.sceneObjects.clear();
+    for (const obj of project.sceneObjects) {
+      state.sceneObjects.set(obj.name, {
+        name: obj.name,
+        className: obj.typeName,
+        position: obj.position
+          ? { x: obj.position.x, y: obj.position.y, z: obj.position.z }
+          : { ...DEFAULT_POSITION },
+      });
+    }
+    state.procedures.clear();
+    state.procedures.set("myFirstMethod", []);
+    for (const method of project.methods) {
+      state.procedures.set(method.name, method.statements?.map((s) => s.kind) ?? []);
+    }
+    state.launched = true;
+    state.eventSystem.reset();
+
+    res.json({
+      schema_version: "eatme.alice-project-new-result/v1",
+      status: "created",
+      templateId,
+      projectName: project.projectName,
+      projectPath: newProjectPath,
+      sceneObjectCount: state.sceneObjects.size,
+      a3pSizeBytes: a3pBytes.length,
     });
   });
 

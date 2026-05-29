@@ -157,6 +157,58 @@ describe("server API", () => {
     });
   });
 
+  describe("GET /api/project/templates", () => {
+    it("returns available templates", async () => {
+      const res = await request(app).get("/api/project/templates").expect(200);
+      expect(res.body.templates).toBeInstanceOf(Array);
+      expect(res.body.templates.length).toBeGreaterThan(0);
+      const blank = res.body.templates.find(
+        (t: { id: string }) => t.id === "blank",
+      );
+      expect(blank).toBeDefined();
+      expect(blank.name).toBeTruthy();
+      expect(blank.description).toBeTruthy();
+    });
+  });
+
+  describe("POST /api/project/new", () => {
+    it("creates a new project from blank template", async () => {
+      const res = await request(app)
+        .post("/api/project/new")
+        .send({ templateId: "blank", projectName: "TestProject" })
+        .expect(200);
+
+      expect(res.body.schema_version).toBe(
+        "eatme.alice-project-new-result/v1",
+      );
+      expect(res.body.status).toBe("created");
+      expect(res.body.templateId).toBe("blank");
+      expect(res.body.projectName).toBe("TestProject");
+      expect(res.body.a3pSizeBytes).toBeGreaterThan(0);
+      expect(fs.existsSync(res.body.projectPath)).toBe(true);
+    });
+
+    it("creates a project with default template when none specified", async () => {
+      const res = await request(app)
+        .post("/api/project/new")
+        .send({ projectName: "DefaultTemplate" })
+        .expect(200);
+
+      expect(res.body.status).toBe("created");
+      expect(res.body.templateId).toBe("blank");
+    });
+
+    it("rejects unknown template", async () => {
+      const res = await request(app)
+        .post("/api/project/new")
+        .send({ templateId: "nonexistent" })
+        .expect(400);
+
+      expect(res.body.error).toContain("nonexistent");
+      expect(res.body.availableTemplates).toBeInstanceOf(Array);
+    });
+  });
+
   describe("GET /api/screenshot", () => {
     it("returns screenshot info", async () => {
       const res = await request(app).get("/api/screenshot").expect(200);
