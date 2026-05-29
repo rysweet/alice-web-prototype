@@ -29,19 +29,39 @@ const EVIDENCE_DIR = path.resolve(__dirname, "../.test-tutorial-e2e-evidence");
 let server: http.Server;
 let baseUrl: string;
 
-// Helper: JSON POST
-async function post(endpoint: string, body: Record<string, unknown> = {}): Promise<Response> {
-  return fetch(`${baseUrl}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+// Helper: create an isolated server for testing pre-launch behavior
+async function withFreshServer(
+  fn: (url: string) => Promise<void>,
+): Promise<void> {
+  const dir = path.join(EVIDENCE_DIR, `fresh-${Date.now()}`);
+  fs.mkdirSync(dir, { recursive: true });
+  const app = createServer({ port: 0, evidenceDir: dir });
+  const srv = app.listen(0);
+  const { port } = srv.address() as AddressInfo;
+  try {
+    await fn(`http://127.0.0.1:${port}`);
+  } finally {
+    await new Promise<void>((resolve) => srv.close(() => resolve()));
+  }
 }
 
-// Helper: JSON GET
-async function get(endpoint: string): Promise<Response> {
-  return fetch(`${baseUrl}${endpoint}`);
+// Helper: JSON POST/GET bound to a base URL
+function createClient(getBaseUrl: () => string) {
+  return {
+    post(endpoint: string, body: Record<string, unknown> = {}): Promise<Response> {
+      return fetch(`${getBaseUrl()}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    },
+    get(endpoint: string): Promise<Response> {
+      return fetch(`${getBaseUrl()}${endpoint}`);
+    },
+  };
 }
+
+const { post, get } = createClient(() => baseUrl);
 
 beforeAll(() => {
   fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
@@ -313,24 +333,15 @@ describe("Step 6: POST /api/code/edit-procedure", () => {
 // ── Step 7: Run World ────────────────────────────────────────────────
 describe("Step 7: POST /api/world/run", () => {
   it("rejects run before launch on a fresh server", async () => {
-    // Create a fresh server instance that hasn't been launched
-    const freshEvidenceDir = path.join(EVIDENCE_DIR, "fresh-run-test");
-    fs.mkdirSync(freshEvidenceDir, { recursive: true });
-    const freshApp = createServer({ port: 0, evidenceDir: freshEvidenceDir });
-    const freshServer = freshApp.listen(0);
-    const { port } = freshServer.address() as AddressInfo;
-
-    try {
-      const res = await fetch(`http://127.0.0.1:${port}/api/world/run`, {
+    await withFreshServer(async (url) => {
+      const res = await fetch(`${url}/api/world/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toContain("Not launched");
-    } finally {
-      await new Promise<void>((resolve) => freshServer.close(() => resolve()));
-    }
+    });
   });
 
   it("executes the world after project creation", async () => {
@@ -447,14 +458,8 @@ describe("Step 9: POST /api/events/register", () => {
   });
 
   it("rejects registration before launch on a fresh server", async () => {
-    const freshEvidenceDir = path.join(EVIDENCE_DIR, "fresh-event-test");
-    fs.mkdirSync(freshEvidenceDir, { recursive: true });
-    const freshApp = createServer({ port: 0, evidenceDir: freshEvidenceDir });
-    const freshServer = freshApp.listen(0);
-    const { port } = freshServer.address() as AddressInfo;
-
-    try {
-      const res = await fetch(`http://127.0.0.1:${port}/api/events/register`, {
+    await withFreshServer(async (url) => {
+      const res = await fetch(`${url}/api/events/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventType: "keyPress", handlerName: "h" }),
@@ -462,9 +467,7 @@ describe("Step 9: POST /api/events/register", () => {
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toContain("not launched");
-    } finally {
-      await new Promise<void>((resolve) => freshServer.close(() => resolve()));
-    }
+    });
   });
 });
 
@@ -505,14 +508,8 @@ describe("Step 10: POST /api/events/fire", () => {
   });
 
   it("rejects fire before launch on a fresh server", async () => {
-    const freshEvidenceDir = path.join(EVIDENCE_DIR, "fresh-fire-test");
-    fs.mkdirSync(freshEvidenceDir, { recursive: true });
-    const freshApp = createServer({ port: 0, evidenceDir: freshEvidenceDir });
-    const freshServer = freshApp.listen(0);
-    const { port } = freshServer.address() as AddressInfo;
-
-    try {
-      const res = await fetch(`http://127.0.0.1:${port}/api/events/fire`, {
+    await withFreshServer(async (url) => {
+      const res = await fetch(`${url}/api/events/fire`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventType: "keyPressed" }),
@@ -520,9 +517,7 @@ describe("Step 10: POST /api/events/fire", () => {
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toContain("not launched");
-    } finally {
-      await new Promise<void>((resolve) => freshServer.close(() => resolve()));
-    }
+    });
   });
 });
 
@@ -595,17 +590,7 @@ describe("Full tutorial workflow (sequential)", () => {
     }
   });
 
-  async function wPost(endpoint: string, body: Record<string, unknown> = {}): Promise<Response> {
-    return fetch(`${workflowUrl}${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  }
-
-  async function wGet(endpoint: string): Promise<Response> {
-    return fetch(`${workflowUrl}${endpoint}`);
-  }
+  const { post: wPost, get: wGet } = createClient(() => workflowUrl);
 
   it("completes the full 11-step tutorial workflow end-to-end", async () => {
     // Step 1: Health check

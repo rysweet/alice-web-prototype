@@ -35,6 +35,23 @@ interface SceneObject {
 
 const DEFAULT_POSITION: Position = { x: 0, y: 0, z: 0 };
 
+/** Build an AliceProject from the current server state (or return the cached parse). */
+function buildCurrentProject(state: ServerState): AliceProject {
+  return state.parsedProject ?? {
+    version: "3.10",
+    projectName: state.projectName,
+    sceneObjects: Array.from(state.sceneObjects.values()).map((o) => ({
+      name: o.name,
+      typeName: o.className,
+      resourceType: null,
+      position: null,
+      orientation: null,
+      size: null,
+    })),
+    methods: [],
+  };
+}
+
 interface ServerState {
   launched: boolean;
   projectPath: string | null;
@@ -232,20 +249,7 @@ export function createServer(options: ServerOptions): express.Express {
     const savedProjectFilename = "saved-project.a3p";
     const savedProjectPath = path.join(saveDir, savedProjectFilename);
 
-    // Build the current project model from server state
-    const currentProject: AliceProject = state.parsedProject ?? {
-      version: "3.10",
-      projectName: state.projectName,
-      sceneObjects: Array.from(state.sceneObjects.values()).map((o) => ({
-        name: o.name,
-        typeName: o.className,
-        resourceType: null,
-        position: null,
-        orientation: null,
-        size: null,
-      })),
-      methods: [],
-    };
+    const currentProject = buildCurrentProject(state);
 
     // Write through the A3P archive pipeline
     const a3pBytes = await writeA3P(currentProject);
@@ -394,21 +398,7 @@ export function createServer(options: ServerOptions): express.Express {
     const screenshotPath = path.join(options.evidenceDir, "screenshot.png");
 
     try {
-      // Use cached parse if available, otherwise build from server state
-      const currentProject: AliceProject = state.parsedProject ?? {
-        version: "3.10",
-        projectName: state.projectName,
-        sceneObjects: Array.from(state.sceneObjects.values()).map((o) => ({
-          name: o.name,
-          typeName: o.className,
-          resourceType: null,
-          position: null,
-          orientation: null,
-          size: null,
-        })),
-        methods: [],
-      };
-
+      const currentProject = buildCurrentProject(state);
       const result = await renderSceneToPng(currentProject, { width: 640, height: 480 });
       fs.writeFileSync(screenshotPath, result.png);
 
