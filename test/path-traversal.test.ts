@@ -21,7 +21,7 @@ describe("validateProjectPath", () => {
   it("rejects path traversal with ../", () => {
     const result = validateProjectPath("/home/user/projects/../../evil.a3p", allowedDirs);
     expect(result.valid).toBe(false);
-    expect(result.error).toContain("outside allowed");
+    if (!result.valid) expect(result.error).toContain("outside allowed");
   });
 
   it("rejects encoded traversal %2e%2e", () => {
@@ -32,7 +32,7 @@ describe("validateProjectPath", () => {
   it("rejects null bytes", () => {
     const result = validateProjectPath("/home/user/projects/evil\0.a3p", allowedDirs);
     expect(result.valid).toBe(false);
-    expect(result.error).toContain("null");
+    if (!result.valid) expect(result.error).toContain("null");
   });
 
   it("rejects non-.a3p extension", () => {
