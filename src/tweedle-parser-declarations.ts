@@ -109,18 +109,93 @@ export type ClassDecl = {
   enumValues?: EnumValueDecl[];
 };
 
+export interface SourceLocation {
+  line: number;
+  column: number;
+  offset?: number;
+  length?: number;
+}
+
+export interface TweedleDiagnostic {
+  severity: "error" | "warning" | "info";
+  message: string;
+  location: SourceLocation;
+  found?: string;
+  expected?: string;
+  code?: string;
+}
+
+export class TweedleDiagnosticCollector {
+  private readonly _diagnostics: TweedleDiagnostic[] = [];
+  private _errorCount = 0;
+  private _warningCount = 0;
+
+  add(diagnostic: TweedleDiagnostic): void {
+    this._diagnostics.push(diagnostic);
+    if (diagnostic.severity === "error") this._errorCount++;
+    else if (diagnostic.severity === "warning") this._warningCount++;
+  }
+
+  error(
+    message: string,
+    location: SourceLocation,
+    options?: { found?: string; expected?: string; code?: string },
+  ): void {
+    this.add({ severity: "error", message, location, ...options });
+  }
+
+  warning(
+    message: string,
+    location: SourceLocation,
+    options?: { found?: string; expected?: string; code?: string },
+  ): void {
+    this.add({ severity: "warning", message, location, ...options });
+  }
+
+  /** Returns a live read-only view of the internal diagnostics array. Copy with .slice() if you need a stable snapshot. */
+  get diagnostics(): readonly TweedleDiagnostic[] {
+    return this._diagnostics;
+  }
+
+  get errors(): readonly TweedleDiagnostic[] {
+    return this._diagnostics.filter((diagnostic) => diagnostic.severity === "error");
+  }
+
+  get warnings(): readonly TweedleDiagnostic[] {
+    return this._diagnostics.filter((diagnostic) => diagnostic.severity === "warning");
+  }
+
+  get hasErrors(): boolean {
+    return this._errorCount > 0;
+  }
+
+  get hasWarnings(): boolean {
+    return this._warningCount > 0;
+  }
+
+  clear(): void {
+    this._diagnostics.length = 0;
+    this._errorCount = 0;
+    this._warningCount = 0;
+  }
+}
+
 // ── TweedleParseError ────────────────────────────────────────────────────
 
 export class TweedleParseError extends Error {
+  public readonly sourceLocation: SourceLocation;
+
   constructor(
     message: string,
     public readonly line: number,
     public readonly column: number,
     public readonly found: string,
     public readonly expected: string,
+    location?: Omit<SourceLocation, "line" | "column">,
   ) {
     super(message);
     this.name = "TweedleParseError";
+    this.sourceLocation = { line, column, ...location };
   }
 }
 
