@@ -19,7 +19,7 @@ export interface ServerOptions {
   port: number;
   evidenceDir: string;
   projectPath?: string;
-  allowedProjectDirs?: string[];
+  allowedProjectDirs?: readonly string[];
 }
 
 interface Position {
@@ -43,9 +43,9 @@ function sanitizeFilename(name: string): string {
 
 const ENCODED_TRAVERSAL_RE = /%(2e|2f|5c)/i;
 
-const resolvedDirCache = new WeakMap<string[], string[]>();
+const resolvedDirCache = new WeakMap<readonly string[], string[]>();
 
-function getResolvedDirs(allowedProjectDirs: string[]): string[] {
+function getResolvedDirs(allowedProjectDirs: readonly string[]): string[] {
   let resolved = resolvedDirCache.get(allowedProjectDirs);
   if (!resolved) {
     resolved = allowedProjectDirs.map((dir) => path.resolve(dir));
@@ -56,7 +56,7 @@ function getResolvedDirs(allowedProjectDirs: string[]): string[] {
 
 export function validateProjectPath(
   projectPath: string,
-  allowedProjectDirs: string[],
+  allowedProjectDirs: readonly string[],
 ): { valid: true; resolvedPath: string } | { valid: false; error: string } {
   if (projectPath.includes("\0")) {
     return { valid: false, error: "project path contains a null byte" };
@@ -141,10 +141,12 @@ export function createServer(options: ServerOptions): express.Express {
   // Ensure evidence dir exists
   fs.mkdirSync(options.evidenceDir, { recursive: true });
 
+  // Hoist default so the WeakMap cache sees the same reference across requests
+  const allowedProjectDirs = options.allowedProjectDirs ?? [process.cwd()];
+
   // ── POST /api/launch ───────────────────────────────────────────────
   app.post("/api/launch", async (req, res) => {
     const projectFile = req.body?.project ?? options.projectPath ?? null;
-    const allowedProjectDirs = options.allowedProjectDirs ?? [process.cwd()];
     let resolvedProjectFile: string | null = null;
     state.launched = true;
 
