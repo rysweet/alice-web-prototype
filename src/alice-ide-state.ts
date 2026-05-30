@@ -274,4 +274,45 @@ export class IdeState<TProject = unknown, TEntity = unknown, TStatement = unknow
     this.undoRedo.attach(history);
     return this;
   }
+
+  /** Create a new project, clearing current state. */
+  newProject(projectName = "Untitled"): this {
+    this.project.close();
+    this.project.open({} as TProject, null);
+    this.project.loadedProject = { projectName } as unknown as TProject;
+    this.project.dirty = false;
+    this.selection.clear();
+    this.editor.setMode("code");
+    this.editor.setCursorPosition({ line: 1, column: 1 });
+    return this;
+  }
+
+  /** Close the current project. */
+  closeProject(): this {
+    this.project.close();
+    this.selection.clear();
+    return this;
+  }
+
+  /** Mark project as saved. */
+  saveProject(savePath: string | null = null): this {
+    this.project.markSaved(savePath);
+    return this;
+  }
+
+  /** Mark project as dirty (modified). */
+  markDirty(): this {
+    this.project.markDirty();
+    return this;
+  }
+
+  /** Check if project has unsaved changes. */
+  get isDirty(): boolean {
+    return this.project.dirty;
+  }
+
+  /** Check if a project is currently open. */
+  get hasProject(): boolean {
+    return this.project.hasProject;
+  }
 }

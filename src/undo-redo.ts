@@ -272,3 +272,112 @@ export class CompositeCommand implements Command {
     }
   }
 }
+
+/** Command to create a new method (procedure or function). */
+export class CreateMethodCommand implements Command {
+  private readonly _procedures: Map<string, string[]>;
+  private readonly _methodName: string;
+  private readonly _isFunction: boolean;
+  private readonly _returnType: string | null;
+
+  constructor(
+    procedures: Map<string, string[]>,
+    methodName: string,
+    isFunction = false,
+    returnType: string | null = null,
+  ) {
+    this._procedures = procedures;
+    this._methodName = methodName;
+    this._isFunction = isFunction;
+    this._returnType = returnType;
+  }
+
+  get description(): string {
+    return `Create ${this._isFunction ? "function" : "procedure"} "${this._methodName}"`;
+  }
+
+  execute(): void {
+    if (this._procedures.has(this._methodName)) {
+      throw new Error(`Method "${this._methodName}" already exists`);
+    }
+    this._procedures.set(this._methodName, []);
+  }
+
+  undo(): void {
+    this._procedures.delete(this._methodName);
+  }
+}
+
+/** Command to delete a method (procedure or function). */
+export class DeleteMethodCommand implements Command {
+  private readonly _procedures: Map<string, string[]>;
+  private readonly _methodName: string;
+  private _capturedStatements: string[] | null = null;
+
+  constructor(procedures: Map<string, string[]>, methodName: string) {
+    this._procedures = procedures;
+    this._methodName = methodName;
+  }
+
+  get description(): string {
+    return `Delete method "${this._methodName}"`;
+  }
+
+  execute(): void {
+    const statements = this._procedures.get(this._methodName);
+    if (!statements) {
+      throw new Error(`Method "${this._methodName}" not found`);
+    }
+    this._capturedStatements = [...statements];
+    this._procedures.delete(this._methodName);
+  }
+
+  undo(): void {
+    if (this._capturedStatements !== null) {
+      this._procedures.set(this._methodName, [...this._capturedStatements]);
+    }
+  }
+}
+
+/** Command to insert a statement at a specific position in a method. */
+export class InsertStatementCommand implements Command {
+  private readonly _procedures: Map<string, string[]>;
+  private readonly _methodName: string;
+  private readonly _index: number;
+  private readonly _statement: string;
+  private _actualIndex: number | null = null;
+
+  constructor(
+    procedures: Map<string, string[]>,
+    methodName: string,
+    index: number,
+    statement: string,
+  ) {
+    this._procedures = procedures;
+    this._methodName = methodName;
+    this._index = index;
+    this._statement = statement;
+  }
+
+  get description(): string {
+    return `Insert statement in "${this._methodName}" at ${this._index}`;
+  }
+
+  execute(): void {
+    const statements = this._procedures.get(this._methodName);
+    if (!statements) {
+      throw new Error(`Method "${this._methodName}" not found`);
+    }
+    const idx = Math.max(0, Math.min(this._index, statements.length));
+    statements.splice(idx, 0, this._statement);
+    this._actualIndex = idx;
+  }
+
+  undo(): void {
+    if (this._actualIndex === null) return;
+    const statements = this._procedures.get(this._methodName);
+    if (statements) {
+      statements.splice(this._actualIndex, 1);
+    }
+  }
+}
