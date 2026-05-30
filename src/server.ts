@@ -241,6 +241,124 @@ export function createServer(options: ServerOptions): express.Express {
     });
   });
 
+  // ── POST /api/code/create-procedure ─────────────────────────────
+  app.post("/api/code/create-procedure", (req, res) => {
+    const { name, parameters } = req.body ?? {};
+
+    if (!name || typeof name !== "string" || !name.trim()) {
+      res.status(400).json({ error: "name is required and must be a non-empty string" });
+      return;
+    }
+
+    const methodName = name.trim();
+
+    if (state.procedures.has(methodName)) {
+      res.status(400).json({ error: `Procedure "${methodName}" already exists` });
+      return;
+    }
+
+    const params: Array<{ name: string; type: string; defaultValue?: string }> = [];
+    if (Array.isArray(parameters)) {
+      for (const parameter of parameters) {
+        if (!parameter || typeof parameter !== "object" || !parameter.name || typeof parameter.name !== "string") {
+          res.status(400).json({ error: "Each parameter must have a name" });
+          return;
+        }
+        params.push({
+          name: parameter.name,
+          type: parameter.type ?? "Object",
+          ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
+        });
+      }
+    }
+
+    state.procedures.set(methodName, []);
+
+    if (state.parsedProject) {
+      state.parsedProject.methods.push({
+        name: methodName,
+        isFunction: false,
+        returnType: "void",
+        parameters: params.map((parameter) => ({
+          name: parameter.name,
+          type: parameter.type,
+          ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
+        })),
+        statements: [],
+      });
+    }
+
+    res.json({
+      status: "created",
+      name: methodName,
+      kind: "procedure",
+      parameters: params,
+      totalProcedures: state.procedures.size,
+    });
+  });
+
+  // ── POST /api/code/create-function ──────────────────────────────
+  app.post("/api/code/create-function", (req, res) => {
+    const { name, returnType, parameters } = req.body ?? {};
+
+    if (!name || typeof name !== "string" || !name.trim()) {
+      res.status(400).json({ error: "name is required and must be a non-empty string" });
+      return;
+    }
+
+    if (!returnType || typeof returnType !== "string" || !returnType.trim()) {
+      res.status(400).json({ error: "returnType is required for functions" });
+      return;
+    }
+
+    const methodName = name.trim();
+
+    if (state.procedures.has(methodName)) {
+      res.status(400).json({ error: `Method "${methodName}" already exists` });
+      return;
+    }
+
+    const params: Array<{ name: string; type: string; defaultValue?: string }> = [];
+    if (Array.isArray(parameters)) {
+      for (const parameter of parameters) {
+        if (!parameter || typeof parameter !== "object" || !parameter.name || typeof parameter.name !== "string") {
+          res.status(400).json({ error: "Each parameter must have a name" });
+          return;
+        }
+        params.push({
+          name: parameter.name,
+          type: parameter.type ?? "Object",
+          ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
+        });
+      }
+    }
+
+    state.procedures.set(methodName, []);
+
+    if (state.parsedProject) {
+      state.parsedProject.methods.push({
+        name: methodName,
+        isFunction: true,
+        returnType: returnType.trim(),
+        parameters: params.map((parameter) => ({
+          name: parameter.name,
+          type: parameter.type,
+          ...(parameter.defaultValue !== undefined ? { defaultValue: parameter.defaultValue } : {}),
+        })),
+        statements: [],
+      });
+    }
+
+    res.json({
+      status: "created",
+      name: methodName,
+      kind: "function",
+      returnType: returnType.trim(),
+      parameters: params,
+      totalProcedures: state.procedures.size,
+    });
+  });
+
   // ── POST /api/project/save ─────────────────────────────────────────
   app.post("/api/project/save", async (req, res) => {
     const {
