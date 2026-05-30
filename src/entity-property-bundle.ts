@@ -261,8 +261,8 @@ export class EntityPropertyBundle extends PropertyOwner {
     });
   }
 
-  get propertyNames(): string[] {
-    return [...ENTITY_PROPERTY_NAMES];
+  get propertyNames(): readonly string[] {
+    return ENTITY_PROPERTY_NAMES;
   }
 
   onAnyChange(callback: (propertyName: string, oldValue: unknown, newValue: unknown) => void): () => void {
