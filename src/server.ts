@@ -41,6 +41,19 @@ function sanitizeFilename(name: string): string {
   return name.replace(/[/\\]/g, "_").replace(/\.\./g, "_");
 }
 
+const ENCODED_TRAVERSAL_RE = /%(2e|2f|5c)/i;
+
+const resolvedDirCache = new WeakMap<string[], string[]>();
+
+function getResolvedDirs(allowedProjectDirs: string[]): string[] {
+  let resolved = resolvedDirCache.get(allowedProjectDirs);
+  if (!resolved) {
+    resolved = allowedProjectDirs.map((dir) => path.resolve(dir));
+    resolvedDirCache.set(allowedProjectDirs, resolved);
+  }
+  return resolved;
+}
+
 export function validateProjectPath(
   projectPath: string,
   allowedProjectDirs: string[],
@@ -49,7 +62,7 @@ export function validateProjectPath(
     return { valid: false, error: "project path contains a null byte" };
   }
 
-  if (/%(2e|2f|5c)/i.test(projectPath)) {
+  if (ENCODED_TRAVERSAL_RE.test(projectPath)) {
     return {
       valid: false,
       error: "project path contains encoded traversal characters",
@@ -62,7 +75,7 @@ export function validateProjectPath(
     return { valid: false, error: "project path must be an .a3p file" };
   }
 
-  const resolvedAllowedDirs = allowedProjectDirs.map((dir) => path.resolve(dir));
+  const resolvedAllowedDirs = getResolvedDirs(allowedProjectDirs);
   const isWithinAllowedDir = resolvedAllowedDirs.some(
     (allowedDir) =>
       resolvedPath === allowedDir ||
