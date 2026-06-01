@@ -67,7 +67,7 @@ export class ModelResourceCatalog {
 
   get(id: string): ModelResourceSummary | null {
     const definition = this.#definitions.get(id);
-    return definition ? this.#cachedSummary(definition) : null;
+    return definition ? cloneSummary(this.#cachedSummary(definition)) : null;
   }
 
   list(): ModelResourceSummary[] {
