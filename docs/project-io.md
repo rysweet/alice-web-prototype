@@ -326,6 +326,13 @@ const output = await writeProject(archive);
 
 They can coexist. Neither depends on the other.
 
+### Project Lifecycle Manager
+
+`ProjectManager` (`src/project-manager.ts`) builds on `project-io.ts` to
+provide create/open/save/close workflows with backup history, recent files,
+and recovery. See [Parity gaps #76–#77](./parity-gaps-76-77.md#project-lifecycle)
+for the backup/restore and revert APIs added in issues #76–#77.
+
 ## Testing
 
 Tests are in `test/project-io.test.ts`:
@@ -372,3 +379,12 @@ it('round-trips a project archive', async () => {
   archive, modify the resource map, and write the entire archive back.
 - **Thumbnail is unvalidated.** `writeProject()` does not verify that
   `thumbnail` bytes are a valid PNG image.
+
+## Project Lifecycle Management
+
+For `createBackup()`, `restoreFromBackup()`, and `revertToLastSaved()`
+methods on `ProjectManager`, see
+[Parity gaps #76–#77](./parity-gaps-76-77.md#project-lifecycle).
+
+These methods extend the existing auto-backup behavior (which occurs on
+`save()`) with explicit user-triggered backup and restore workflows.

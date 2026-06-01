@@ -20,16 +20,13 @@ export class AnimationTimeline<T> {
     const durationMs = this.durationMs; const progress = durationMs === 0 ? 1 : (clampedTime - first.timeMs) / durationMs;
     if (clampedTime <= first.timeMs) return { value: first.value, progress };
     if (clampedTime >= last.timeMs) return { value: last.value, progress };
-    for (let index = 0; index < this.#keyframes.length - 1; index += 1) {
-      const start = this.#keyframes[index]!; const end = this.#keyframes[index + 1]!;
-      if (clampedTime <= end.timeMs) {
-        const segmentDuration = end.timeMs - start.timeMs;
-        const rawPortion = segmentDuration === 0 ? 1 : (clampedTime - start.timeMs) / segmentDuration;
-        const easedPortion = resolveEasing(start.easing)(clamp01(rawPortion));
-        return { value: this.#interpolate(start.value, end.value, easedPortion), progress };
-      }
-    }
-    return { value: last.value, progress };
+    let lo = 0, hi = this.#keyframes.length - 2;
+    while (lo < hi) { const mid = (lo + hi) >>> 1; if (this.#keyframes[mid + 1]!.timeMs < clampedTime) lo = mid + 1; else hi = mid; }
+    const start = this.#keyframes[lo]!; const end = this.#keyframes[lo + 1]!;
+    const segmentDuration = end.timeMs - start.timeMs;
+    const rawPortion = segmentDuration === 0 ? 1 : (clampedTime - start.timeMs) / segmentDuration;
+    const easedPortion = resolveEasing(start.easing)(clamp01(rawPortion));
+    return { value: this.#interpolate(start.value, end.value, easedPortion), progress };
   }
 }
 

@@ -1,6 +1,6 @@
-export type ResourceKind = "model" | "audio" | "image";
+export type ResourceKind = "model" | "audio" | "image" | "dynamic";
 
-class ResourceBase {
+export class ResourceBase {
   public readonly tags: readonly string[];
 
   constructor(
@@ -105,7 +105,41 @@ export class ModelResource extends ResourceBase {
   }
 }
 
-export type ProjectResource = ModelResource | AudioResource | ImageResource;
+export class DynamicResource extends ResourceBase {
+  readonly data: ArrayBuffer;
+  readonly source: "runtime" = "runtime";
+
+  constructor(
+    kind: ResourceKind,
+    id: string,
+    name: string,
+    data: ArrayBuffer,
+    tags?: readonly string[],
+  ) {
+    super(kind, id, name, tags);
+    this.data = data.slice(0);
+  }
+}
+
+export class DynamicModelResource extends DynamicResource {
+  constructor(id: string, name: string, data: ArrayBuffer, tags?: readonly string[]) {
+    super("model", id, name, data, tags);
+  }
+}
+
+export class DynamicAudioResource extends DynamicResource {
+  constructor(id: string, name: string, data: ArrayBuffer, tags?: readonly string[]) {
+    super("audio", id, name, data, tags);
+  }
+}
+
+export class DynamicImageResource extends DynamicResource {
+  constructor(id: string, name: string, data: ArrayBuffer, tags?: readonly string[]) {
+    super("image", id, name, data, tags);
+  }
+}
+
+export type ProjectResource = ModelResource | AudioResource | ImageResource | DynamicResource;
 
 export class ResourceBundle {
   private readonly resources = new Map<string, ProjectResource>();
@@ -262,6 +296,10 @@ export class ResourceManager {
     bundle.add(resource);
     this.cache.set(resource.id, resource);
     return this;
+  }
+
+  registerDynamic(resource: DynamicResource, bundleId = "dynamic"): this {
+    return this.registerResource(resource, bundleId);
   }
 
   registerLazyResource<TResource extends ProjectResource>(bundleId: string, lazyResource: LazyResource<TResource>): this {

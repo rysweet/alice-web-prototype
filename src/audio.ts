@@ -364,3 +364,121 @@ export async function loadAudioFromA3P(
     format,
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Stub Web Audio API interfaces for DOM-free testing and parity
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface StubAudioDestinationNode {
+  channelCount: number;
+}
+
+export interface StubGainNode {
+  gain: { value: number };
+  connect(dest: StubAudioDestinationNode | StubGainNode): void;
+}
+
+export interface StubAudioBufferSourceNode {
+  buffer: ArrayBuffer | null;
+  loop: boolean;
+  connect(dest: StubGainNode): void;
+  start(): void;
+  stop(): void;
+}
+
+export interface StubAudioContext {
+  sampleRate: number;
+  currentTime: number;
+  state: string;
+  destination: StubAudioDestinationNode;
+  createGain(): StubGainNode;
+  createBufferSource(): StubAudioBufferSourceNode;
+}
+
+export class WebAudioPlayer {
+  readonly player: AudioPlayer;
+  readonly audioContext: StubAudioContext;
+  readonly gainNode: StubGainNode;
+
+  constructor() {
+    this.player = new AudioPlayer();
+    this.gainNode = {
+      gain: { value: 1 },
+      connect(_dest: StubAudioDestinationNode | StubGainNode) {},
+    };
+    this.audioContext = {
+      sampleRate: 44100,
+      currentTime: 0,
+      state: "running",
+      destination: { channelCount: 2 },
+      createGain: (): StubGainNode => ({
+        gain: { value: 1 },
+        connect(_dest: StubAudioDestinationNode | StubGainNode) {},
+      }),
+      createBufferSource: (): StubAudioBufferSourceNode => ({
+        buffer: null,
+        loop: false,
+        connect(_dest: StubGainNode) {},
+        start() {},
+        stop() {},
+      }),
+    };
+  }
+
+  get state(): AudioPlayerState {
+    return this.player.state;
+  }
+
+  get volume(): number {
+    return this.player.volume;
+  }
+
+  get pan(): number {
+    return this.player.pan;
+  }
+
+  set pan(value: number) {
+    this.player.pan = value;
+  }
+
+  get resource(): AudioResource | null {
+    return this.player.resource;
+  }
+
+  setVolume(value: number): void {
+    this.player.volume = clamp(value, 0, 1);
+    this.gainNode.gain.value = this.player.volume;
+  }
+
+  load(resource: AudioResource): void {
+    this.player.load(resource);
+  }
+
+  loadFromManager(manager: SoundResourceManager, resourceId: string): void {
+    this.player.loadFromManager(manager, resourceId);
+  }
+
+  play(): void {
+    this.player.play();
+  }
+
+  pause(): void {
+    this.player.pause();
+  }
+
+  stop(): void {
+    this.player.stop();
+  }
+
+  connect(destination?: StubAudioDestinationNode): void {
+    this.gainNode.connect(destination ?? this.audioContext.destination);
+  }
+
+  on(event: AudioEventType, callback: AudioEventCallback): void {
+    this.player.on(event, callback);
+  }
+
+  off(event: AudioEventType, callback: AudioEventCallback): void {
+    this.player.off(event, callback);
+  }
+}

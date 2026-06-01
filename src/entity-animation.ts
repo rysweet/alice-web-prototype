@@ -1,6 +1,7 @@
 import {
   DEFAULT_STYLE,
   PropertyAnimation,
+  clamp01,
   lerpScalar,
   lerpSize,
   lerpVec3,
@@ -98,8 +99,10 @@ class ImmediateAnimation implements AnimationClip {
   }
 }
 
+const HEX_COLOR_RE = /^#?([\da-f]{6})$/i;
+
 function interpolatePaint(from: string, to: string, portion: number): string {
-  const hex = /^#?([\da-f]{6})$/i;
+  const hex = HEX_COLOR_RE;
   const fromMatch = hex.exec(from.trim());
   const toMatch = hex.exec(to.trim());
   if (!fromMatch || !toMatch) {
@@ -371,4 +374,90 @@ export class VehicleAnimation implements AnimationClip {
   get isComplete(): boolean { return this.#clip.isComplete; }
   update(deltaMs: number): AnimationClipState { return this.#clip.update(deltaMs); }
   reset(): void { this.#clip.reset(); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SayOutLoudAnimation — browser TTS parity via stub SpeechUtterance
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface SpeechUtterance {
+  text: string;
+  rate: number;
+  pitch: number;
+  volume: number;
+}
+
+export interface SayOutLoudOptions {
+  text: string;
+  rate?: number;
+  pitch?: number;
+  volume?: number;
+}
+
+export class SayOutLoudAnimation implements AnimationClip {
+  readonly text: string;
+  readonly durationMs: number;
+  readonly utterance: SpeechUtterance;
+  private _elapsedMs = 0;
+  private _complete: boolean;
+
+  constructor(options: SayOutLoudOptions) {
+    const rate = options.rate ?? 1.0;
+    const pitch = options.pitch ?? 1.0;
+    const volume = options.volume ?? 1.0;
+
+    if (!Number.isFinite(rate) || rate <= 0) {
+      throw new TypeError(`rate must be a finite positive number, got ${rate}`);
+    }
+    if (!Number.isFinite(pitch) || pitch <= 0) {
+      throw new TypeError(`pitch must be a finite positive number, got ${pitch}`);
+    }
+
+    this.text = options.text;
+    this.durationMs = (options.text.length / (rate * 5)) * 1000;
+    this.utterance = {
+      text: options.text,
+      rate,
+      pitch,
+      volume: clamp01(Number.isFinite(volume) ? volume : 1),
+    };
+    this._complete = this.durationMs === 0;
+  }
+
+  get elapsedMs(): number {
+    return this._elapsedMs;
+  }
+
+  get progress(): number {
+    if (this.durationMs === 0) return 1;
+    return Math.min(this._elapsedMs / this.durationMs, 1);
+  }
+
+  get complete(): boolean {
+    return this._complete;
+  }
+
+  get isComplete(): boolean {
+    return this._complete;
+  }
+
+  update(deltaMs: number): AnimationClipState {
+    if (!this._complete && deltaMs > 0) {
+      this._elapsedMs = Math.min(this._elapsedMs + deltaMs, this.durationMs);
+      if (this._elapsedMs >= this.durationMs) {
+        this._complete = true;
+      }
+    }
+    return {
+      elapsedMs: this._elapsedMs,
+      durationMs: this.durationMs,
+      progress: this.progress,
+      complete: this._complete,
+    };
+  }
+
+  reset(): void {
+    this._elapsedMs = 0;
+    this._complete = this.durationMs === 0;
+  }
 }
