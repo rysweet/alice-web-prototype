@@ -389,6 +389,36 @@ export class SProgram {
   }
 }
 
+export class STransport extends SMovableTurnable {
+  constructor(name?: string | null) {
+    super(name);
+  }
+}
+
+export class SVRHand extends SMovableTurnable {
+  constructor(name?: string | null) {
+    super(name);
+  }
+}
+
+export class SVRHeadset extends SMovableTurnable {
+  constructor(name?: string | null) {
+    super(name);
+  }
+}
+
+export class SVRUser extends SMovableTurnable {
+  constructor(name?: string | null) {
+    super(name);
+  }
+}
+
+export class SAxes extends SMovableTurnable {
+  constructor(name?: string | null) {
+    super(name);
+  }
+}
+
 export const STORY_API_DEFAULTS = {
   position: ZERO_POSITION,
   orientation: IDENTITY_ORIENTATION,

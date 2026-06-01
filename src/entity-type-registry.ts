@@ -22,6 +22,11 @@ import {
   SThing,
   STorus,
   STurnable,
+  STransport,
+  SVRHand,
+  SVRHeadset,
+  SVRUser,
+  SAxes,
 } from "./story-api";
 import { SMarineMammal } from "./biped-quadruped";
 import type { KnownModelClassKey, ModelClassData } from "./model-resources";
@@ -211,6 +216,36 @@ export class TextModelType extends EntityType<STextModel> {
   }
 }
 
+export class TransportType extends EntityType<STransport> {
+  constructor() {
+    super({ name: "STransport", parentName: "SMovableTurnable", ctor: STransport, category: "vehicles", modelClass: "VEHICLE" });
+  }
+}
+
+export class VRHandType extends EntityType<SVRHand> {
+  constructor() {
+    super({ name: "SVRHand", parentName: "SMovableTurnable", ctor: SVRHand, category: "vr" });
+  }
+}
+
+export class VRHeadsetType extends EntityType<SVRHeadset> {
+  constructor() {
+    super({ name: "SVRHeadset", parentName: "SMovableTurnable", ctor: SVRHeadset, category: "vr" });
+  }
+}
+
+export class VRUserType extends EntityType<SVRUser> {
+  constructor() {
+    super({ name: "SVRUser", parentName: "SMovableTurnable", ctor: SVRUser, category: "vr" });
+  }
+}
+
+export class AxesType extends EntityType<SAxes> {
+  constructor() {
+    super({ name: "SAxes", parentName: "SMovableTurnable", ctor: SAxes, category: "markers" });
+  }
+}
+
 export class TypeInheritanceTree {
   readonly nodes: ReadonlyMap<string, EntityTypeNode>;
   readonly roots: readonly EntityTypeNode[];
@@ -365,6 +400,11 @@ export class EntityTypeRegistry {
       new SwimmerType(),
       new SlithererType(),
       new MarineMammalType(),
+      new TransportType(),
+      new VRHandType(),
+      new VRHeadsetType(),
+      new VRUserType(),
+      new AxesType(),
     ]) {
       this.register(type);
     }
