@@ -162,7 +162,15 @@ export class MethodDeclaration extends AstMethodDeclaration {
     );
   }
 
-  getSignature(): MethodSignature {
+  override getSignature(): string {
+    return new MethodSignature(
+      this.name,
+      this.parameters.map((p) => p.paramType),
+      this.returnType,
+    ).toString();
+  }
+
+  getMethodSignature(): MethodSignature {
     return MethodSignature.fromMethod(this);
   }
 }

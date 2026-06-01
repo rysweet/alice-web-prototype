@@ -428,7 +428,7 @@ export class MoveTowardAnimation extends DurationAnimation {
   constructor(
     private readonly entity: PositionedEntity,
     target: Position,
-    private readonly amount: number,
+    amount: number,
     durationMs: number,
     style: AnimationStyle = AnimationStyle.BEGIN_AND_END_GENTLY,
   ) {
