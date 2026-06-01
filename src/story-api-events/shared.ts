@@ -65,7 +65,7 @@ export interface ProximityTransitionEvent {
 }
 
 export interface OcclusionEvent {
-  readonly type: "occluded" | "revealed";
+  readonly type: "occluded" | "revealed" | "occlusion-start" | "occlusion-end" | "while-occlusion";
   readonly camera: SCamera;
   readonly target: SThing;
   readonly occluder: SThing | null;
@@ -80,7 +80,7 @@ export interface TransformationEvent<T = Position | Orientation | Size> {
 }
 
 export interface ViewEvent {
-  readonly type: "view-enter" | "view-exit";
+  readonly type: "view-enter" | "view-exit" | "while-in-view";
   readonly camera: SCamera;
   readonly target: SThing;
 }
