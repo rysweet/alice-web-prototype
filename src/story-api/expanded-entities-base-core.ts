@@ -16,6 +16,18 @@ import type {
   Vec3,
   BoundingBox,
 } from "./expanded-types";
+import type {
+  MouseClickOnScreenEvent,
+  MouseClickOnObjectEvent,
+  KeyListenerEvent,
+  ArrowKeyEvent,
+  NumberKeyEvent,
+  PointOfViewChangeEvent,
+  CollisionTransitionEvent,
+  ProximityTransitionEvent,
+  OcclusionEvent,
+  ViewEvent,
+} from "../story-api-events/shared";
 
 const nonEmptyString = (value: string): boolean => typeof value === "string" && value.trim().length > 0;
 
@@ -263,6 +275,182 @@ export class SScene extends SThing {
 
   removeTimeListener(listener: (time: number) => void): void {
     this.#timeListeners.delete(listener);
+  }
+
+  // ── Simple listeners (scene-level, Set<callback>) ──
+
+  readonly #mouseClickOnScreenListeners = new Set<(event: MouseClickOnScreenEvent) => void>();
+  readonly #mouseClickOnObjectListeners = new Set<(event: MouseClickOnObjectEvent) => void>();
+  readonly #keyPressListeners = new Set<(event: KeyListenerEvent) => void>();
+  readonly #arrowKeyPressListeners = new Set<(event: ArrowKeyEvent) => void>();
+  readonly #numberKeyPressListeners = new Set<(event: NumberKeyEvent) => void>();
+  readonly #pointOfViewChangeListeners = new Set<(event: PointOfViewChangeEvent) => void>();
+
+  addMouseClickOnScreenListener(listener: (event: MouseClickOnScreenEvent) => void): void {
+    this.#mouseClickOnScreenListeners.add(listener);
+  }
+
+  removeMouseClickOnScreenListener(listener: (event: MouseClickOnScreenEvent) => void): void {
+    this.#mouseClickOnScreenListeners.delete(listener);
+  }
+
+  addMouseClickOnObjectListener(listener: (event: MouseClickOnObjectEvent) => void): void {
+    this.#mouseClickOnObjectListeners.add(listener);
+  }
+
+  removeMouseClickOnObjectListener(listener: (event: MouseClickOnObjectEvent) => void): void {
+    this.#mouseClickOnObjectListeners.delete(listener);
+  }
+
+  addKeyPressListener(listener: (event: KeyListenerEvent) => void): void {
+    this.#keyPressListeners.add(listener);
+  }
+
+  removeKeyPressListener(listener: (event: KeyListenerEvent) => void): void {
+    this.#keyPressListeners.delete(listener);
+  }
+
+  addArrowKeyPressListener(listener: (event: ArrowKeyEvent) => void): void {
+    this.#arrowKeyPressListeners.add(listener);
+  }
+
+  removeArrowKeyPressListener(listener: (event: ArrowKeyEvent) => void): void {
+    this.#arrowKeyPressListeners.delete(listener);
+  }
+
+  addNumberKeyPressListener(listener: (event: NumberKeyEvent) => void): void {
+    this.#numberKeyPressListeners.add(listener);
+  }
+
+  removeNumberKeyPressListener(listener: (event: NumberKeyEvent) => void): void {
+    this.#numberKeyPressListeners.delete(listener);
+  }
+
+  addPointOfViewChangeListener(listener: (event: PointOfViewChangeEvent) => void): void {
+    this.#pointOfViewChangeListeners.add(listener);
+  }
+
+  removePointOfViewChangeListener(listener: (event: PointOfViewChangeEvent) => void): void {
+    this.#pointOfViewChangeListeners.delete(listener);
+  }
+
+  // ── Entity-bound listeners (Map<SThing, Set<callback>>) ──
+
+  readonly #collisionStartListeners = new Map<SThing, Set<(event: CollisionTransitionEvent) => void>>();
+  readonly #collisionEndListeners = new Map<SThing, Set<(event: CollisionTransitionEvent) => void>>();
+  readonly #occlusionStartListeners = new Map<SThing, Set<(event: OcclusionEvent) => void>>();
+  readonly #occlusionEndListeners = new Map<SThing, Set<(event: OcclusionEvent) => void>>();
+  readonly #whileInViewListeners = new Map<SThing, Set<(event: ViewEvent) => void>>();
+  readonly #whileOcclusionListeners = new Map<SThing, Set<(event: OcclusionEvent) => void>>();
+
+  #addEntityListener<E>(store: Map<SThing, Set<(event: E) => void>>, entity: SThing, listener: (event: E) => void): void {
+    let listeners = store.get(entity);
+    if (!listeners) {
+      listeners = new Set();
+      store.set(entity, listeners);
+    }
+    listeners.add(listener);
+  }
+
+  #removeEntityListener<E>(store: Map<SThing, Set<(event: E) => void>>, entity: SThing, listener: (event: E) => void): void {
+    const listeners = store.get(entity);
+    if (!listeners) return;
+    listeners.delete(listener);
+    if (listeners.size === 0) store.delete(entity);
+  }
+
+  addCollisionStartListener(entity: SThing, listener: (event: CollisionTransitionEvent) => void): void {
+    this.#addEntityListener(this.#collisionStartListeners, entity, listener);
+  }
+
+  removeCollisionStartListener(entity: SThing, listener: (event: CollisionTransitionEvent) => void): void {
+    this.#removeEntityListener(this.#collisionStartListeners, entity, listener);
+  }
+
+  addCollisionEndListener(entity: SThing, listener: (event: CollisionTransitionEvent) => void): void {
+    this.#addEntityListener(this.#collisionEndListeners, entity, listener);
+  }
+
+  removeCollisionEndListener(entity: SThing, listener: (event: CollisionTransitionEvent) => void): void {
+    this.#removeEntityListener(this.#collisionEndListeners, entity, listener);
+  }
+
+  addOcclusionStartListener(entity: SThing, listener: (event: OcclusionEvent) => void): void {
+    this.#addEntityListener(this.#occlusionStartListeners, entity, listener);
+  }
+
+  removeOcclusionStartListener(entity: SThing, listener: (event: OcclusionEvent) => void): void {
+    this.#removeEntityListener(this.#occlusionStartListeners, entity, listener);
+  }
+
+  addOcclusionEndListener(entity: SThing, listener: (event: OcclusionEvent) => void): void {
+    this.#addEntityListener(this.#occlusionEndListeners, entity, listener);
+  }
+
+  removeOcclusionEndListener(entity: SThing, listener: (event: OcclusionEvent) => void): void {
+    this.#removeEntityListener(this.#occlusionEndListeners, entity, listener);
+  }
+
+  addWhileInViewListener(entity: SThing, listener: (event: ViewEvent) => void): void {
+    this.#addEntityListener(this.#whileInViewListeners, entity, listener);
+  }
+
+  removeWhileInViewListener(entity: SThing, listener: (event: ViewEvent) => void): void {
+    this.#removeEntityListener(this.#whileInViewListeners, entity, listener);
+  }
+
+  addWhileOcclusionListener(entity: SThing, listener: (event: OcclusionEvent) => void): void {
+    this.#addEntityListener(this.#whileOcclusionListeners, entity, listener);
+  }
+
+  removeWhileOcclusionListener(entity: SThing, listener: (event: OcclusionEvent) => void): void {
+    this.#removeEntityListener(this.#whileOcclusionListeners, entity, listener);
+  }
+
+  // ── Proximity listeners (Map<SThing, Map<callback, distance>>) ──
+
+  readonly #proximityEnterListeners = new Map<SThing, Map<(event: ProximityTransitionEvent) => void, number>>();
+  readonly #proximityExitListeners = new Map<SThing, Map<(event: ProximityTransitionEvent) => void, number>>();
+
+  #addProximityListener(
+    store: Map<SThing, Map<(event: ProximityTransitionEvent) => void, number>>,
+    entity: SThing,
+    distance: number,
+    listener: (event: ProximityTransitionEvent) => void,
+  ): void {
+    let listeners = store.get(entity);
+    if (!listeners) {
+      listeners = new Map();
+      store.set(entity, listeners);
+    }
+    listeners.set(listener, distance);
+  }
+
+  #removeProximityListener(
+    store: Map<SThing, Map<(event: ProximityTransitionEvent) => void, number>>,
+    entity: SThing,
+    listener: (event: ProximityTransitionEvent) => void,
+  ): void {
+    const listeners = store.get(entity);
+    if (!listeners) return;
+    listeners.delete(listener);
+    if (listeners.size === 0) store.delete(entity);
+  }
+
+  addProximityEnterListener(entity: SThing, distance: number, listener: (event: ProximityTransitionEvent) => void): void {
+    this.#addProximityListener(this.#proximityEnterListeners, entity, distance, listener);
+  }
+
+  removeProximityEnterListener(entity: SThing, listener: (event: ProximityTransitionEvent) => void): void {
+    this.#removeProximityListener(this.#proximityEnterListeners, entity, listener);
+  }
+
+  addProximityExitListener(entity: SThing, distance: number, listener: (event: ProximityTransitionEvent) => void): void {
+    this.#addProximityListener(this.#proximityExitListeners, entity, distance, listener);
+  }
+
+  removeProximityExitListener(entity: SThing, listener: (event: ProximityTransitionEvent) => void): void {
+    this.#removeProximityListener(this.#proximityExitListeners, entity, listener);
   }
 }
 
