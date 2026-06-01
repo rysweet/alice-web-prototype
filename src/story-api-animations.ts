@@ -67,6 +67,7 @@ function resolveStyle(style: AnimationStyle): (portion: number) => number {
 export abstract class DurationAnimation {
   protected elapsedMsInternal = 0;
   protected completeInternal = false;
+  private readonly easingFn: (portion: number) => number;
 
   constructor(
     public readonly durationMs: number,
@@ -75,6 +76,7 @@ export abstract class DurationAnimation {
     if (!Number.isFinite(durationMs) || durationMs < 0) {
       throw new TypeError(`durationMs must be a finite non-negative number, got ${durationMs}`);
     }
+    this.easingFn = resolveStyle(style);
   }
 
   get elapsedMs(): number {
@@ -114,7 +116,7 @@ export abstract class DurationAnimation {
       ? this.durationMs
       : Math.min(this.elapsedMsInternal + sanitizeDelta(deltaMs), this.durationMs);
     this.elapsedMsInternal = nextElapsed;
-    this.apply(resolveStyle(this.style)(this.progress));
+    this.apply(this.easingFn(this.progress));
     if (this.elapsedMsInternal >= this.durationMs) {
       this.completeInternal = true;
       this.finish();
@@ -367,7 +369,7 @@ function lerpOrientation(from: Orientation, to: Orientation, portion: number): O
     z: lerpScalar(from.z, to.z, portion),
     w: lerpScalar(from.w, to.w, portion),
   };
-  const len = Math.sqrt(result.x ** 2 + result.y ** 2 + result.z ** 2 + result.w ** 2) || 1;
+  const len = Math.sqrt(result.x * result.x + result.y * result.y + result.z * result.z + result.w * result.w) || 1;
   return { x: result.x / len, y: result.y / len, z: result.z / len, w: result.w / len };
 }
 
@@ -512,6 +514,8 @@ export class PlaceAnimation extends DurationAnimation {
 
 export class StraightenOutJointsAnimation extends DurationAnimation {
   private readonly startRotations: Record<string, number>;
+  private readonly jointKeys: string[];
+  private readonly output: Record<string, number>;
 
   constructor(
     private readonly target: JointedEntity,
@@ -520,19 +524,22 @@ export class StraightenOutJointsAnimation extends DurationAnimation {
   ) {
     super(durationMs, style);
     this.startRotations = { ...target.jointRotations };
+    this.jointKeys = Object.keys(this.startRotations);
+    this.output = Object.create(null) as Record<string, number>;
   }
 
   protected apply(portion: number): void {
-    const next: Record<string, number> = {};
-    for (const [joint, startRotation] of Object.entries(this.startRotations)) {
-      next[joint] = lerpScalar(startRotation, 0, portion);
+    const { output, startRotations, jointKeys } = this;
+    for (let i = 0; i < jointKeys.length; i++) {
+      const key = jointKeys[i];
+      output[key] = lerpScalar(startRotations[key], 0, portion);
     }
-    this.target.jointRotations = next;
+    this.target.jointRotations = output;
   }
 }
 
 export class FoldWingsAnimation extends DurationAnimation {
-  private readonly startRotations: Record<string, number>;
+  private readonly wingStartRotations: Record<string, number>;
   private readonly wingJoints: readonly string[];
   private static readonly DEFAULT_WING_JOINTS = [
     "LEFT_WING_SHOULDER", "LEFT_WING_ELBOW", "LEFT_WING_WRIST", "LEFT_WING_TIP",
@@ -546,16 +553,20 @@ export class FoldWingsAnimation extends DurationAnimation {
     style: AnimationStyle = AnimationStyle.BEGIN_AND_END_GENTLY,
   ) {
     super(durationMs, style);
-    this.startRotations = { ...target.jointRotations };
     this.wingJoints = target.wingJointNames ?? FoldWingsAnimation.DEFAULT_WING_JOINTS;
+    // Only snapshot the wing joints we'll actually animate
+    const starts: Record<string, number> = Object.create(null) as Record<string, number>;
+    for (const joint of this.wingJoints) {
+      starts[joint] = target.jointRotations[joint] ?? 0;
+    }
+    this.wingStartRotations = starts;
   }
 
   protected apply(portion: number): void {
-    const next = { ...this.target.jointRotations };
+    const rotations = this.target.jointRotations;
     for (const joint of this.wingJoints) {
-      const start = this.startRotations[joint] ?? 0;
-      next[joint] = lerpScalar(start, this.foldAngle, portion);
+      rotations[joint] = lerpScalar(this.wingStartRotations[joint], this.foldAngle, portion);
     }
-    this.target.jointRotations = next;
+    this.target.jointRotations = rotations;
   }
 }
