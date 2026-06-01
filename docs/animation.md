@@ -383,6 +383,27 @@ Tests are in `test/animation.test.ts` and cover:
 - Constructor validation (invalid `durationMs`)
 - Concurrent tweens producing independent state
 
+## Entity Animations
+
+Higher-level animation classes in `src/entity-animation.ts` wrap the core
+animation primitives for entity-specific operations:
+
+| Class | Purpose |
+|---|---|
+| `MoveAnimation` | Animate entity position via `PropertyAnimation<Position>` |
+| `TurnAnimation` | Animate entity orientation via quaternion interpolation |
+| `RollAnimation` | Animate entity roll around a directional axis |
+| `ResizeAnimation` | Animate entity size scaling |
+| `OpacityAnimation` | Animate entity opacity (0–1) |
+| `SayAnimation` | Display speech bubble text on a model entity |
+| `ThinkAnimation` | Display thought bubble text on a model entity |
+| `SayOutLoudAnimation` | TTS playback via stub SpeechSynthesis API |
+| `PlayAudioAnimation` | Trigger audio playback on an entity |
+| `VehicleAnimation` | Attach/detach entity vehicle relationships |
+
+For `SayOutLoudAnimation` details (TTS parity with Java Alice), see
+[Parity gaps #76–#77](./parity-gaps-76-77.md#sayoutloud-tts-animation).
+
 ## Limitations
 
 - **No slerp.** Quaternion interpolation uses `nlerp` (normalized lerp), which

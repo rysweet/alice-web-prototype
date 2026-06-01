@@ -324,3 +324,13 @@ Tests are fully DOM-free and cover:
 - `load()` stops current playback
 - `loadAudioFromA3P()` extracts resources from ZIP
 - `loadAudioFromA3P()` returns empty array for projects with no audio
+
+## Web Audio API Layer
+
+For Web Audio API parity (stub `AudioContext`, `GainNode`,
+`AudioBufferSourceNode`), see the `WebAudioPlayer` class documented in
+[Parity gaps #76–#77](./parity-gaps-76-77.md#audio-playback-pipeline).
+
+`WebAudioPlayer` wraps `AudioPlayer` with composition and delegates all state
+transitions to the inner player. It adds stub Web Audio graph interfaces for
+browser-like API surface without requiring a real browser environment.

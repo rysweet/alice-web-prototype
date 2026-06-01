@@ -207,6 +207,39 @@ export class ProjectManager {
     this._lastSavedData = null;
   }
 
+  async revertToLastSaved(): Promise<void> {
+    if (!this._archive) {
+      throw new Error("No project is open. Cannot revert.");
+    }
+    if (!this._lastSavedData) {
+      throw new Error("No saved state to revert to");
+    }
+    const archive = await readProject(this._lastSavedData);
+    this._archive = archive;
+    this._dirty = false;
+  }
+
+  async createBackup(_label?: string): Promise<void> {
+    if (!this._archive) {
+      throw new Error("No project is open. Cannot create backup.");
+    }
+    const data = await this._serializeCurrentArchive();
+    this._addBackup(this._fileName ?? "Untitled", data);
+  }
+
+  async restoreFromBackup(timestamp: number): Promise<void> {
+    if (!Number.isFinite(timestamp)) {
+      throw new TypeError(`timestamp must be a finite number, got ${timestamp}`);
+    }
+    const backup = this._backupHistory.find((b) => b.timestamp === timestamp);
+    if (!backup) {
+      throw new Error(`No backup found with timestamp ${timestamp}`);
+    }
+    const archive = await readProject(backup.data);
+    this._archive = archive;
+    this._dirty = false;
+  }
+
   markDirty(): void {
     if (!this._archive) {
       throw new Error("No project is open. Cannot mark as dirty.");

@@ -72,3 +72,4 @@ so the `eatme` test suite can drive real curriculum workflows.
 - [Architecture](./architecture.md)
 - [TypeScript parity](./typescript-parity.md)
 - [Parity gaps #71–#75](./parity-gaps-71-75.md)
+- [Parity gaps #76–#77](./parity-gaps-76-77.md)
