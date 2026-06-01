@@ -45,6 +45,7 @@ export {
   SlithererResource,
   SwimmerResource,
   TrainResource,
+  VehicleResource,
   WatercraftResource,
   type IndividualModelResource,
 } from "./model-resources/individual-resources.js";

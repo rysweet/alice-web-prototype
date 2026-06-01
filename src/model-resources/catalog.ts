@@ -93,7 +93,7 @@ export class ModelResourceCatalog {
     const requiredTags = rawTags.map((tag) => tag.toLowerCase());
 
     return [...this.#definitions.values()]
-      .map((definition) => this.#cachedSummary(definition))
+      .map((definition) => cloneSummary(this.#cachedSummary(definition)))
       .filter((resource) => {
         if (normalizedCategory && resource.category.toLowerCase() !== normalizedCategory) {
           return false;
@@ -141,7 +141,7 @@ export class ModelResourceCatalog {
       throw new Error(`Unknown model resource '${id}'`);
     }
 
-    const summary = this.#cachedSummary(definition);
+    const summary = cloneSummary(this.#cachedSummary(definition));
     const promise = (async () => {
       const loaded = definition.loader ? await definition.loader(summary) : {};
       const geometry = loaded.geometry ?? definition.geometry;
