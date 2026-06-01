@@ -66,6 +66,46 @@ const DEFAULT_MODELS: GalleryModel[] = [
     resourceType: null,
     placeOnGround: false,
   },
+  {
+    id: "vehicles/transport",
+    name: "Transport",
+    className: "org.lgna.story.STransport",
+    category: "vehicles",
+    tags: ["vehicle", "transport", "car", "bus"],
+    resourceType: null,
+    placeOnGround: true,
+    defaultSize: { width: 2, height: 1.5, depth: 4 },
+  },
+  {
+    id: "vr/hand",
+    name: "VR Hand",
+    className: "org.lgna.story.SVRHand",
+    category: "vr",
+    tags: ["vr", "hand", "controller"],
+    resourceType: null,
+    placeOnGround: false,
+    defaultSize: { width: 0.15, height: 0.1, depth: 0.2 },
+  },
+  {
+    id: "vr/headset",
+    name: "VR Headset",
+    className: "org.lgna.story.SVRHeadset",
+    category: "vr",
+    tags: ["vr", "headset", "hmd"],
+    resourceType: null,
+    placeOnGround: false,
+    defaultSize: { width: 0.2, height: 0.15, depth: 0.25 },
+  },
+  {
+    id: "vr/user",
+    name: "VR User",
+    className: "org.lgna.story.SVRUser",
+    category: "vr",
+    tags: ["vr", "user", "player", "avatar"],
+    resourceType: null,
+    placeOnGround: true,
+    defaultSize: { width: 0.5, height: 1.8, depth: 0.5 },
+  },
 ];
 
 export class GalleryCatalog {
@@ -114,27 +154,31 @@ export class GalleryCatalog {
     const queryText = query.trim().toLowerCase();
     const requiredTags = new Set((options.tags ?? []).map((tag) => tag.toLowerCase()));
     const category = options.category?.trim().toLowerCase();
+    const results: GalleryModel[] = [];
 
-    return this.list().filter((model) => {
+    for (const model of this.models.values()) {
       if (category && model.category.toLowerCase() !== category) {
-        return false;
+        continue;
       }
-      const modelTags = new Set(model.tags.map((tag) => tag.toLowerCase()));
-      for (const tag of requiredTags) {
-        if (!modelTags.has(tag)) {
-          return false;
+      if (requiredTags.size > 0) {
+        const modelTags = new Set(model.tags.map((tag) => tag.toLowerCase()));
+        let allMatch = true;
+        for (const tag of requiredTags) {
+          if (!modelTags.has(tag)) { allMatch = false; break; }
         }
+        if (!allMatch) continue;
       }
-      if (!queryText) {
-        return true;
-      }
-      return (
+      if (queryText && !(
         model.id.toLowerCase().includes(queryText) ||
         model.name.toLowerCase().includes(queryText) ||
         model.className.toLowerCase().includes(queryText) ||
         model.tags.some((tag) => tag.toLowerCase().includes(queryText))
-      );
-    });
+      )) {
+        continue;
+      }
+      results.push(cloneModel(model));
+    }
+    return results;
   }
 }
 

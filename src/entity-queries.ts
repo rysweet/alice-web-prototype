@@ -70,7 +70,7 @@ export class IsBehindQuery {
 
 export class IsWithinThresholdQuery {
   evaluate(left: SThing, right: SThing, threshold: number): boolean {
-    return new DistanceQuery().between(left, right) <= threshold;
+    return distanceBetween(positionOf(left), positionOf(right)) <= threshold;
   }
 }
 
@@ -83,8 +83,8 @@ export class BoundingBoxQuery {
 
 export class CollisionQuery {
   evaluate(left: SThing, right: SThing): boolean {
-    const leftBounds = new BoundingBoxQuery().worldBounds(left);
-    const rightBounds = new BoundingBoxQuery().worldBounds(right);
+    const leftBounds = getEntityBoundingBox(left);
+    const rightBounds = getEntityBoundingBox(right);
     return leftBounds !== null && rightBounds !== null && boundingBoxesIntersect(leftBounds, rightBounds);
   }
 }

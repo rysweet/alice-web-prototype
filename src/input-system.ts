@@ -200,7 +200,32 @@ export class GestureRecognizer {
   }
 }
 
+export interface UserInputHandler {
+  getBooleanFromUser(message: string): boolean;
+  getStringFromUser(message: string): string;
+  getIntegerFromUser(message: string): number;
+  getDoubleFromUser(message: string): number;
+}
+
 export class InputManager {
+  static inputHandler: UserInputHandler | null = null;
+
+  static getBooleanFromUser(message: string): boolean {
+    return InputManager.inputHandler?.getBooleanFromUser(message) ?? false;
+  }
+
+  static getStringFromUser(message: string): string {
+    return InputManager.inputHandler?.getStringFromUser(message) ?? "";
+  }
+
+  static getIntegerFromUser(message: string): number {
+    return InputManager.inputHandler?.getIntegerFromUser(message) ?? 0;
+  }
+
+  static getDoubleFromUser(message: string): number {
+    return InputManager.inputHandler?.getDoubleFromUser(message) ?? 0;
+  }
+
   readonly mouse = new MouseState();
   readonly keyboard = new KeyboardState();
   readonly touch = new TouchState();

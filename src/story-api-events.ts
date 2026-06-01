@@ -20,6 +20,10 @@ export {
 } from "./story-api-events/collision-listeners.js";
 export {
   OcclusionListener,
+  OcclusionStartListener,
+  OcclusionEndListener,
+  WhileOcclusionListener,
+  WhileInViewListener,
   TransformationListener,
   ViewEnterListener,
   ViewExitListener,

@@ -65,7 +65,7 @@ export interface ProximityTransitionEvent {
 }
 
 export interface OcclusionEvent {
-  readonly type: "occluded" | "revealed";
+  readonly type: "occluded" | "revealed" | "occlusion-start" | "occlusion-end" | "while-occlusion";
   readonly camera: SCamera;
   readonly target: SThing;
   readonly occluder: SThing | null;
@@ -80,7 +80,7 @@ export interface TransformationEvent<T = Position | Orientation | Size> {
 }
 
 export interface ViewEvent {
-  readonly type: "view-enter" | "view-exit";
+  readonly type: "view-enter" | "view-exit" | "while-in-view";
   readonly camera: SCamera;
   readonly target: SThing;
 }
@@ -136,7 +136,9 @@ export function entityKey(entity: SThing): string {
 }
 
 export function pairKey(left: SThing, right: SThing): string {
-  return [entityKey(left), entityKey(right)].sort().join("::");
+  const leftKey = entityKey(left);
+  const rightKey = entityKey(right);
+  return leftKey < rightKey ? `${leftKey}::${rightKey}` : `${rightKey}::${leftKey}`;
 }
 
 function positionOf(entity: SThing): Position {
@@ -155,11 +157,14 @@ function positionOf(entity: SThing): Position {
 }
 
 export function collectCollisionPairs(entities: readonly SThing[]): Map<string, PairState> {
-  const targets = entities.flatMap((entity) => {
+  const targets: Array<{ id: string; bounds: NonNullable<ReturnType<typeof getEntityBoundingBox>> }> = [];
+  const byId = new Map<string, SThing>();
+  for (const entity of entities) {
+    const key = entityKey(entity);
+    byId.set(key, entity);
     const bounds = getEntityBoundingBox(entity);
-    return bounds ? [{ id: entityKey(entity), bounds }] : [];
-  });
-  const byId = new Map(entities.map((entity) => [entityKey(entity), entity]));
+    if (bounds) targets.push({ id: key, bounds });
+  }
   const pairs = new Map<string, PairState>();
   for (const collision of collisionHandler.getAabbCollisions(targets)) {
     const left = byId.get(collision.leftId);

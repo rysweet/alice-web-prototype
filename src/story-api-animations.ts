@@ -1,4 +1,5 @@
 import { easeIn, easeInOut, easeOut, lerpScalar, linear } from "./animation";
+import type { PoseableEntity } from "./poses";
 import type { Size } from "./story-api/types";
 
 export const AnimationStyle = Object.freeze({
@@ -31,10 +32,6 @@ export interface BubbleHost {
 
 export interface ResizableEntity {
   size: Size;
-}
-
-export interface PoseableEntity {
-  jointRotations: Record<string, number>;
 }
 
 function clamp01(value: number): number {
@@ -128,10 +125,11 @@ export abstract class DurationAnimation {
   }
 
   protected snapshot(): AnimationFrame {
+    const progress = this.progress;
     return {
       elapsedMs: this.elapsedMsInternal,
       durationMs: this.durationMs,
-      progress: this.progress,
+      progress,
       complete: this.completeInternal,
     };
   }
@@ -186,6 +184,7 @@ export class CompoundAnimation extends DurationAnimation {
     return this.snapshot();
   }
 
+  // No-op: CompoundAnimation delegates to child animations
   protected apply(): void {
   }
 
@@ -215,6 +214,7 @@ export class CompoundAnimation extends DurationAnimation {
 }
 
 export class DelayAnimation extends DurationAnimation {
+  // No-op: DelayAnimation only tracks elapsed time
   protected apply(): void {
   }
 }
@@ -311,7 +311,11 @@ export class StrikePoseAnimation extends DurationAnimation {
   }
 
   protected apply(portion: number): void {
-    const next = { ...this.target.jointRotations };
+    const current = this.target.jointRotations;
+    const next: Record<string, number> = {};
+    for (const key in current) {
+      next[key] = current[key];
+    }
     for (const [jointName, targetRotation] of Object.entries(this.pose)) {
       const startRotation = this.startRotations[jointName] ?? 0;
       next[jointName] = lerpScalar(startRotation, targetRotation, portion);
