@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { SScene, SBox, SCamera } from "../src/story-api/index.js";
+import { SScene, SBox } from "../src/story-api/index.js";
 import type {
   MouseClickOnScreenEvent,
   MouseClickOnObjectEvent,
@@ -23,17 +23,6 @@ function makeBoxAt(name: string, x: number, y: number, z: number): SBox {
   box.setName(name);
   box.position = { x, y, z };
   return box;
-}
-
-function makeCamera(): SCamera {
-  const camera = new SCamera();
-  camera.position = { x: 0, y: 0, z: 0 };
-  camera.orientation = { x: 0, y: 0, z: 0, w: 1 };
-  camera.nearClippingPlaneDistance = 0.1;
-  camera.farClippingPlaneDistance = 20;
-  camera.horizontalViewingAngle = Math.PI / 2;
-  camera.verticalViewingAngle = Math.PI / 2;
-  return camera;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
