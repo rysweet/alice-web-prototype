@@ -13,6 +13,11 @@ export const SUPPORTED_A3P_STATEMENT_KINDS = [
   "WhileLoop",
 ] as const;
 
+export const LOWERED_A3P_STATEMENT_KINDS = [
+  "VariableAssignment",
+  "EventListener",
+] as const;
+
 const UNSUPPORTED_COLLECTION_LOOP_KINDS = new Set([
   "ForEachInArrayLoop",
   "ForEachInIterableLoop",

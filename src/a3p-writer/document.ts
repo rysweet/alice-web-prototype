@@ -29,7 +29,7 @@ import {
 } from "./xml-tools.js";
 import { appendSupportedStatements } from "./statements.js";
 
-export { SUPPORTED_A3P_STATEMENT_KINDS } from "./statements.js";
+export { LOWERED_A3P_STATEMENT_KINDS, SUPPORTED_A3P_STATEMENT_KINDS } from "./statements.js";
 
 export function buildProjectXml(project: AliceProject, baseXmlText: string | null): string {
   const source = getA3PSource(project);

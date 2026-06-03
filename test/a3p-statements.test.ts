@@ -7,7 +7,7 @@ import {
   type AliceProject,
   type AliceStatement,
 } from "../src/a3p-parser";
-import { SUPPORTED_A3P_STATEMENT_KINDS, writeA3P } from "../src/a3p-writer";
+import { LOWERED_A3P_STATEMENT_KINDS, SUPPORTED_A3P_STATEMENT_KINDS, writeA3P } from "../src/a3p-writer";
 
 const COLLECTION_LOOP_KINDS = [
   "ForEachInArrayLoop",
@@ -59,10 +59,15 @@ function summarizeStatement(statement: AliceStatement): unknown {
     object: statement.object ?? null,
     method: statement.method ?? null,
     arguments: statement.arguments ?? [],
+    count: statement.count ?? null,
     expression: statement.expression ?? null,
+    condition: statement.condition ?? null,
     itemType: statement.itemType ?? null,
     itemName: statement.itemName ?? null,
     collection: statement.collection ?? null,
+    name: statement.name ?? null,
+    varType: statement.varType ?? null,
+    value: statement.value ?? null,
     body: (statement.body ?? []).map(summarizeStatement),
     ifBody: (statement.ifBody ?? []).map(summarizeStatement),
     elseBody: (statement.elseBody ?? []).map(summarizeStatement),
@@ -125,20 +130,30 @@ function expectedCollectionLoopSummary(kind: string): unknown {
     object: null,
     method: null,
     arguments: [],
+    count: null,
     expression: null,
+    condition: null,
     itemType: "Object",
     itemName: "item",
     collection: "unknown",
+    name: null,
+    varType: null,
+    value: null,
     body: [
       {
         kind: "Comment",
         object: null,
         method: null,
         arguments: [],
+        count: null,
         expression: "inside collection loop",
+        condition: null,
         itemType: null,
         itemName: null,
         collection: null,
+        name: null,
+        varType: null,
+        value: null,
         body: [],
         ifBody: [],
         elseBody: [],
@@ -229,9 +244,10 @@ function directChild(parent: Element, tagName: string): Element | null {
 }
 
 describe("a3p statement serialization", () => {
-  it("keeps writer-supported statement kinds explicit within parser-recognized kinds", () => {
+  it("keeps writer statement kind categories explicit", () => {
     const parsed = new Set<string>(PARSED_A3P_STATEMENT_KINDS);
     const supported = new Set<string>(SUPPORTED_A3P_STATEMENT_KINDS);
+    const lowered = new Set<string>(LOWERED_A3P_STATEMENT_KINDS);
 
     expect([...supported].every((kind) => parsed.has(kind))).toBe(true);
     expect([...parsed].filter((kind) => !supported.has(kind))).toEqual([
@@ -240,6 +256,8 @@ describe("a3p statement serialization", () => {
       "EachInArrayTogether",
       "EachInIterableTogether",
     ]);
+    expect([...lowered]).toEqual(["VariableAssignment", "EventListener"]);
+    expect([...lowered].every((kind) => !parsed.has(kind))).toBe(true);
   });
 
   it("preserves supported nested statement bodies through round-trip", async () => {
@@ -259,6 +277,7 @@ describe("a3p statement serialization", () => {
                 { kind: "MethodCall", object: "hero", method: "move", arguments: ["FORWARD", "1.0"] },
                 {
                   kind: "WhileLoop",
+                  condition: "unknown",
                   body: [{ kind: "MethodCall", object: "villain", method: "turn", arguments: ["LEFT", "0.25"] }],
                 },
               ],
@@ -267,13 +286,17 @@ describe("a3p statement serialization", () => {
         },
         {
           kind: "CountLoop",
+          count: 1,
           body: [{ kind: "MethodCall", object: "hero", method: "hop", arguments: ["2.0"] }],
         },
         {
           kind: "IfElse",
+          condition: "unknown",
           ifBody: [{ kind: "MethodCall", object: "hero", method: "say", arguments: ["yes"] }],
           elseBody: [{ kind: "Comment", expression: "else branch" }],
         },
+        { kind: "ReturnStatement", expression: "unknown" },
+        { kind: "VariableDeclaration", name: "unknown", varType: "Object", value: "" },
       ],
     };
 

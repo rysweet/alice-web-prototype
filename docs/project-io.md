@@ -171,8 +171,8 @@ Serialize an `AliceProjectArchive` back to .a3p ZIP format.
 1. Creates a new ZIP archive
 2. Writes `programType.xml` using the `__original_xml__` pass-through key
    (set by `readProject()`), or falls back to an explicit `programType.xml`
-   entry in the resources map. Throws if neither is available — there is no
-   model-to-XML serializer.
+   entry in the resources map. If neither is available, it synthesizes XML from
+   the archive's `AliceProject` model.
 3. Writes `manifest.json` if `archive.manifest` is not null
 4. Writes `thumbnail.png` if `archive.thumbnail` is not null
 5. Writes all entries from `archive.resources`
@@ -191,7 +191,6 @@ Serialize an `AliceProjectArchive` back to .a3p ZIP format.
 | Error | Condition |
 |---|---|
 | `Error` | Any resource path contains `..` or is absolute (path traversal protection) |
-| `Error` | Neither `__original_xml__` key nor explicit `programType.xml` entry exists in resources |
 
 - If `archive.manifest` is a non-null object, it is serialized as
   pretty-printed JSON (2-space indent) into `manifest.json`
@@ -210,16 +209,12 @@ Serialize an `AliceProjectArchive` back to .a3p ZIP format.
 
 ### XML Pass-Through
 
-`writeProject()` preserves the original XML via pass-through. On read,
-`readProject()` stores the original `programType.xml` bytes as a special
-entry in the resources map under the key `__original_xml__`. On write,
-`writeProject()` checks for this key first and uses it if present, ensuring
-byte-level XML preservation on round-trip.
-
-If the `__original_xml__` key has been removed from the resources map,
-`writeProject()` throws an `Error` — there is no XML-from-model serializer.
-The caller must either preserve the original XML or provide an explicit
-`programType.xml` entry in the resources map.
+`writeProject()` preserves original XML whenever a base XML document is
+available. On read, `readProject()` stores the original `programType.xml` bytes
+as a special entry in the resources map under the key `__original_xml__`. On
+write, `writeProject()` checks for this key first, then an explicit
+`programType.xml` or `program.xml` entry in the resources map. If no base XML is
+available, it generates XML from the archive's `AliceProject` model.
 
 ### A3P Statement Write Support
 
@@ -230,6 +225,11 @@ collection loop nodes (`ForEachInArrayLoop`, `ForEachInIterableLoop`,
 `EachInArrayTogether`, and `EachInIterableTogether`), but the writer rejects
 them instead of fabricating item or collection-expression XML that it cannot
 preserve faithfully.
+
+Writer-only runtime statements that do not have a faithful Alice XML node,
+currently `VariableAssignment` and `EventListener`, are intentionally lowered to
+comments so they remain visible after writing instead of becoming unsupported
+placeholders.
 
 ## Security
 
@@ -381,10 +381,10 @@ it('round-trips a project archive', async () => {
 
 - **No streaming.** The entire ZIP is loaded into memory. For very large
   projects (>256 MB extracted), this will fail by design (ZIP bomb protection).
-- **No XML generation from model.** There is no model-to-XML serializer.
-  `writeProject()` requires either the `__original_xml__` key (set automatically
-  by `readProject()`) or an explicit `programType.xml` entry in the resources map.
-  Round-trip works out of the box; new-from-scratch archives require providing XML.
+- **Generated XML is best-effort.** Round-trips preserve existing XML when
+  `__original_xml__`, `programType.xml`, or `program.xml` is available. New
+  archives can be synthesized from the model, but generated XML only covers the
+  A3P structures currently supported by the parser and writer.
 - **No incremental updates.** To change one resource, you must read the entire
   archive, modify the resource map, and write the entire archive back.
 - **Thumbnail is unvalidated.** `writeProject()` does not verify that
