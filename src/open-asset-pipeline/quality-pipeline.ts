@@ -106,11 +106,7 @@ export async function runQualityPipeline(
     if (!anyFailing) break;
 
     for (const state of states) {
-      if (state.passing) {
-        // Already passed — score again (maintains scorer call order) but don't re-generate
-        callScorer(scorer, state.model, state.config.category);
-        continue;
-      }
+      if (state.passing) continue;
 
       // Adjust scale slightly per iteration for variation
       const adjustedConfig: ProceduralModelConfig = {

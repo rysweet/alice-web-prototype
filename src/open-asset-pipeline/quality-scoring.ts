@@ -18,6 +18,17 @@ interface Bounds {
 }
 
 function computeBounds(geometry: ModelGeometryData): Bounds | null {
+  // Fast path: reuse pre-computed bounds when available and finite
+  if (geometry.bounds) {
+    const b = geometry.bounds;
+    if (
+      Number.isFinite(b.min.x) && Number.isFinite(b.min.y) && Number.isFinite(b.min.z) &&
+      Number.isFinite(b.max.x) && Number.isFinite(b.max.y) && Number.isFinite(b.max.z)
+    ) {
+      return { minX: b.min.x, minY: b.min.y, minZ: b.min.z, maxX: b.max.x, maxY: b.max.y, maxZ: b.max.z };
+    }
+  }
+
   const verts = geometry.vertices;
   if (!verts || verts.length < 3) return null;
 
@@ -66,48 +77,30 @@ const PROPORTION_TARGETS: Record<EntityCategory, ProportionTarget> = {
 
 // ── Public API ─────────────────────────────────────────────────────
 
-/**
- * Scores the silhouette coverage of geometry.
- * Measures how much of the bounding box is "filled" by using vertex distribution.
- * Returns 0–100.
- */
-export function scoreSilhouette(geometry: ModelGeometryData): number {
-  const bounds = computeBounds(geometry);
-  if (!bounds) return 0;
+// ── Internal scoring (bounds pre-computed) ─────────────────────────
 
+function scoreSilhouetteFromBounds(geometry: ModelGeometryData, bounds: Bounds): number {
   const width = bounds.maxX - bounds.minX;
   const height = bounds.maxY - bounds.minY;
   const depth = bounds.maxZ - bounds.minZ;
 
-  // Degenerate check: at least 2 dimensions must be non-zero
   const nonZeroDims = [width, height, depth].filter(d => d > 1e-6).length;
   if (nonZeroDims < 2) return 0;
 
-  // Score based on vertex count relative to bounding box volume
   const vertexCount = geometry.vertices.length / 3;
   const bbVolume = Math.max(width, 0.01) * Math.max(height, 0.01) * Math.max(depth, 0.01);
   const vertexDensity = vertexCount / bbVolume;
 
-  // Normalize: ~100 vertices per unit^3 is "good"
   const densityScore = clamp(vertexDensity / 100 * 60, 0, 60);
-
-  // Bonus for having reasonable dimensions (not collapsed)
   const dimensionScore = nonZeroDims === 3 ? 40 : 20;
 
   return clamp(Math.round(densityScore + dimensionScore), 0, 100);
 }
 
-/**
- * Scores joint placement validity within geometry bounds.
- * Joints with localTransform.position should fall near/within the bounding box.
- * Returns 0–100.
- */
-export function scoreJointPlacement(
-  geometry: ModelGeometryData,
+function scoreJointPlacementFromBounds(
+  bounds: Bounds,
   joints: readonly ModelJointDefinition[],
 ): number {
-  const bounds = computeBounds(geometry);
-  if (!bounds) return 0;
   if (joints.length === 0) return 0;
 
   const width = bounds.maxX - bounds.minX;
@@ -116,15 +109,13 @@ export function scoreJointPlacement(
   const diagonal = Math.sqrt(width * width + height * height + depth * depth);
   if (diagonal < 1e-6) return 0;
 
-  // For joints with position data, check proximity to bounding box
   const jointsWithPos = joints.filter(j => j.localTransform?.position);
   if (jointsWithPos.length === 0) {
-    // No position data — give a neutral score based on joint count matching
     return clamp(Math.round(50 * Math.min(joints.length / 3, 1)), 0, 100);
   }
 
   let insideCount = 0;
-  const margin = diagonal * 0.3; // Allow joints slightly outside bounds
+  const margin = diagonal * 0.3;
 
   for (const joint of jointsWithPos) {
     const pos = joint.localTransform!.position;
@@ -138,6 +129,49 @@ export function scoreJointPlacement(
   return clamp(Math.round(ratio * 100), 0, 100);
 }
 
+function scoreProportionsFromBounds(bounds: Bounds, category: EntityCategory): number {
+  const width = Math.max(bounds.maxX - bounds.minX, 1e-6);
+  const height = Math.max(bounds.maxY - bounds.minY, 1e-6);
+  const depth = Math.max(bounds.maxZ - bounds.minZ, 1e-6);
+
+  const target = PROPORTION_TARGETS[category];
+  const actualHW = height / width;
+  const actualHD = height / depth;
+
+  const hwScore = Math.exp(-Math.abs(Math.log(actualHW / target.heightToWidth)));
+  const hdScore = Math.exp(-Math.abs(Math.log(actualHD / target.heightToDepth)));
+
+  const combined = (hwScore + hdScore) / 2;
+  return clamp(Math.round(combined * 100), 0, 100);
+}
+
+// ── Public API ─────────────────────────────────────────────────────
+
+/**
+ * Scores the silhouette coverage of geometry.
+ * Measures how much of the bounding box is "filled" by using vertex distribution.
+ * Returns 0–100.
+ */
+export function scoreSilhouette(geometry: ModelGeometryData): number {
+  const bounds = computeBounds(geometry);
+  if (!bounds) return 0;
+  return scoreSilhouetteFromBounds(geometry, bounds);
+}
+
+/**
+ * Scores joint placement validity within geometry bounds.
+ * Joints with localTransform.position should fall near/within the bounding box.
+ * Returns 0–100.
+ */
+export function scoreJointPlacement(
+  geometry: ModelGeometryData,
+  joints: readonly ModelJointDefinition[],
+): number {
+  const bounds = computeBounds(geometry);
+  if (!bounds) return 0;
+  return scoreJointPlacementFromBounds(bounds, joints);
+}
+
 /**
  * Scores geometry proportions against category-appropriate aspect ratios.
  * Returns 0–100.
@@ -148,21 +182,7 @@ export function scoreProportions(
 ): number {
   const bounds = computeBounds(geometry);
   if (!bounds) return 0;
-
-  const width = Math.max(bounds.maxX - bounds.minX, 1e-6);
-  const height = Math.max(bounds.maxY - bounds.minY, 1e-6);
-  const depth = Math.max(bounds.maxZ - bounds.minZ, 1e-6);
-
-  const target = PROPORTION_TARGETS[category];
-  const actualHW = height / width;
-  const actualHD = height / depth;
-
-  // Score each ratio: exponential decay from target
-  const hwScore = Math.exp(-Math.abs(Math.log(actualHW / target.heightToWidth)));
-  const hdScore = Math.exp(-Math.abs(Math.log(actualHD / target.heightToDepth)));
-
-  const combined = (hwScore + hdScore) / 2;
-  return clamp(Math.round(combined * 100), 0, 100);
+  return scoreProportionsFromBounds(bounds, category);
 }
 
 /** Quality score result with overall and sub-scores. */
@@ -176,15 +196,21 @@ export interface QualityScoreResult {
 /**
  * Computes the aggregate quality score for a model.
  * Overall = Math.round(average of three sub-scores).
+ * Bounds are computed once and shared across all three sub-scorers.
  */
 export function computeQualityScore(
   geometry: ModelGeometryData,
   joints: readonly ModelJointDefinition[],
   category: EntityCategory,
 ): QualityScoreResult {
-  const silhouette = scoreSilhouette(geometry);
-  const jointPlacement = scoreJointPlacement(geometry, joints);
-  const proportions = scoreProportions(geometry, category);
+  const bounds = computeBounds(geometry);
+  if (!bounds) {
+    return { overall: 0, silhouette: 0, jointPlacement: 0, proportions: 0 };
+  }
+
+  const silhouette = scoreSilhouetteFromBounds(geometry, bounds);
+  const jointPlacement = scoreJointPlacementFromBounds(bounds, joints);
+  const proportions = scoreProportionsFromBounds(bounds, category);
   const overall = Math.round((silhouette + jointPlacement + proportions) / 3);
 
   return { overall, silhouette, jointPlacement, proportions };

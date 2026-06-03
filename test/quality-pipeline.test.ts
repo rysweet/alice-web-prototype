@@ -165,19 +165,18 @@ describe("runQualityPipeline — iteration behavior", () => {
     expect(report.results[0].iterationCount).toBe(3);
   });
 
-  it("does not re-generate passing models in subsequent iterations", async () => {
+  it("does not re-generate or re-score passing models in subsequent iterations", async () => {
     const generatorCalls: string[] = [];
     const customGenerator = (config: ProceduralModelConfig): ProceduralModelResult => {
       generatorCalls.push(config.id);
       return generateProceduralModel(config);
     };
 
-    // First model always passes, second always fails
-    let scorerCallIndex = 0;
-    const mixedScorer = () => {
-      scorerCallIndex++;
-      // Odd calls (model 1 on each iteration) pass; even calls (model 2) fail
-      const score = scorerCallIndex % 2 === 1 ? 80 : 10;
+    // Category-based scorer: BIPED always passes, QUADRUPED always fails
+    const scorerCalls: string[] = [];
+    const mixedScorer = (_geom: ProceduralModelResult["geometry"], _joints: readonly ProceduralModelResult["joints"][number][], category: string) => {
+      scorerCalls.push(category);
+      const score = category === "BIPED" ? 80 : 10;
       return { overall: score, silhouette: score, jointPlacement: score, proportions: score };
     };
 
@@ -193,6 +192,10 @@ describe("runQualityPipeline — iteration behavior", () => {
     // FAIL_MODEL should be generated 3 times (once per iteration)
     const failModelCalls = generatorCalls.filter((id) => id === "FAIL_MODEL");
     expect(failModelCalls).toHaveLength(3);
+
+    // Passing model scored once; failing model scored 3 times
+    expect(scorerCalls.filter(c => c === "BIPED")).toHaveLength(1);
+    expect(scorerCalls.filter(c => c === "QUADRUPED")).toHaveLength(3);
   });
 });
 

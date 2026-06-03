@@ -72,15 +72,38 @@ export function mergeModelGeometry(parts: readonly ModelGeometryData[]): ModelGe
     vertexOffset += part.vertices.length / 3;
   }
 
+  // Compute merged bounds: use part bounds when available (O(parts) vs O(vertices))
   let minX = Infinity, minY = Infinity, minZ = Infinity;
   let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-  for (let i = 0; i < allVertices.length; i += 3) {
-    minX = Math.min(minX, allVertices[i]!);
-    minY = Math.min(minY, allVertices[i + 1]!);
-    minZ = Math.min(minZ, allVertices[i + 2]!);
-    maxX = Math.max(maxX, allVertices[i]!);
-    maxY = Math.max(maxY, allVertices[i + 1]!);
-    maxZ = Math.max(maxZ, allVertices[i + 2]!);
+
+  const allHaveFiniteBounds = parts.every(p =>
+    p.bounds != null &&
+    Number.isFinite(p.bounds.min.x) && Number.isFinite(p.bounds.min.y) && Number.isFinite(p.bounds.min.z) &&
+    Number.isFinite(p.bounds.max.x) && Number.isFinite(p.bounds.max.y) && Number.isFinite(p.bounds.max.z),
+  );
+
+  if (allHaveFiniteBounds) {
+    for (const part of parts) {
+      const b = part.bounds!;
+      if (b.min.x < minX) minX = b.min.x;
+      if (b.min.y < minY) minY = b.min.y;
+      if (b.min.z < minZ) minZ = b.min.z;
+      if (b.max.x > maxX) maxX = b.max.x;
+      if (b.max.y > maxY) maxY = b.max.y;
+      if (b.max.z > maxZ) maxZ = b.max.z;
+    }
+  } else {
+    for (let i = 0; i < allVertices.length; i += 3) {
+      const vx = allVertices[i]!;
+      const vy = allVertices[i + 1]!;
+      const vz = allVertices[i + 2]!;
+      if (vx < minX) minX = vx;
+      if (vy < minY) minY = vy;
+      if (vz < minZ) minZ = vz;
+      if (vx > maxX) maxX = vx;
+      if (vy > maxY) maxY = vy;
+      if (vz > maxZ) maxZ = vz;
+    }
   }
 
   return {
