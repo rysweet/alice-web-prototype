@@ -246,6 +246,32 @@ export const DEFAULT_IDE_SHORTCUTS: readonly ShortcutDefinition[] = Object.freez
   // Help
   { id: "help", combo: "f1", description: "Open help", group: "Help", contexts: ["global"] },
   { id: "shortcuts-help", combo: "mod+shift+/", description: "Keyboard shortcuts", group: "Help", contexts: ["global"] },
+
+  // Expanded Edit operations
+  { id: "find-replace", combo: "mod+h", description: "Find and replace", group: "Edit", contexts: ["editor"] },
+  { id: "go-to-line", combo: "mod+shift+g", description: "Go to line", group: "Edit", contexts: ["editor"] },
+  { id: "indent", combo: "mod+]", description: "Indent selection", group: "Edit", contexts: ["editor"] },
+  { id: "dedent", combo: "mod+[", description: "Dedent selection", group: "Edit", contexts: ["editor"] },
+  { id: "sort-statements", combo: "mod+shift+l", description: "Sort statements", group: "Edit", contexts: ["editor"] },
+
+  // Expanded Scene editing
+  { id: "focus-entity", combo: "mod+shift+f", description: "Focus on selected entity", group: "Scene", contexts: ["scene"] },
+  { id: "lock-entity", combo: "mod+l", description: "Lock selected entity", group: "Scene", contexts: ["scene"] },
+  { id: "unlock-entity", combo: "mod+shift+l", description: "Unlock selected entity", group: "Scene", contexts: ["scene"] },
+  { id: "align-entities", combo: "mod+shift+alt+a", description: "Align selected entities", group: "Scene", contexts: ["scene"] },
+  { id: "distribute-entities", combo: "mod+shift+alt+d", description: "Distribute selected entities", group: "Scene", contexts: ["scene"] },
+  { id: "reset-transform", combo: "mod+shift+t", description: "Reset entity transform", group: "Scene", contexts: ["scene"] },
+  { id: "invert-selection", combo: "mod+shift+i", description: "Invert selection", group: "Scene", contexts: ["scene"] },
+
+  // Camera bookmarks
+  { id: "store-bookmark", combo: "mod+shift+b", description: "Store camera bookmark", group: "Camera", contexts: ["scene"] },
+  { id: "restore-bookmark", combo: "mod+alt+b", description: "Restore camera bookmark", group: "Camera", contexts: ["scene"] },
+
+  // View management
+  { id: "toggle-panel", combo: "mod+b", description: "Toggle side panel", group: "View", contexts: ["global"] },
+  { id: "switch-code-perspective", combo: "mod+alt+1", description: "Code perspective", group: "View", contexts: ["global"] },
+  { id: "switch-scene-perspective", combo: "mod+alt+2", description: "Scene perspective", group: "View", contexts: ["global"] },
+  { id: "switch-run-perspective", combo: "mod+alt+3", description: "Run perspective", group: "View", contexts: ["global"] },
 ]);
 
 /**
