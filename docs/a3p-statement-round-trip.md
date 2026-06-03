@@ -73,15 +73,17 @@ must reject unsupported statement kinds before returning archive bytes.
 | --- | --- | --- |
 | `Comment` | `org.lgna.project.ast.Comment` | Preserve `expression` from the comment text. |
 | `MethodCall` | `ExpressionStatement` with `MethodInvocation` | Preserve `object`, `method`, and ordered `arguments`. |
-| `CountLoop` | `org.lgna.project.ast.CountLoop` | Preserve `count` or `countExpression` and nested `body`. |
-| `IfElse` | `org.lgna.project.ast.ConditionalStatement` | Preserve `condition`, `ifBody`, and `elseBody`. |
-| `ReturnStatement` | `org.lgna.project.ast.ReturnStatement` | Preserve `expression`. |
-| `VariableDeclaration` | `org.lgna.project.ast.LocalDeclarationStatement` | Preserve `name`, `varType`, and `value`. |
+| `CountLoop` | `org.lgna.project.ast.CountLoop` | Preserve nested `body`; count expression parsing is not yet faithful. |
+| `IfElse` | `org.lgna.project.ast.ConditionalStatement` | Preserve nested `ifBody` and `elseBody`; condition parsing is not yet faithful. |
+| `ReturnStatement` | `org.lgna.project.ast.ReturnStatement` | Recognize return statements; expression parsing is not yet faithful. |
+| `VariableDeclaration` | `org.lgna.project.ast.LocalDeclarationStatement` | Recognize local declarations; declaration metadata parsing is not yet faithful. |
 | `DoInOrder` | `org.lgna.project.ast.DoInOrder` | Preserve ordered nested `body` statements. |
 | `DoTogether` | `org.lgna.project.ast.DoTogether` | Preserve parallel nested `body` statements. |
-| `WhileLoop` | `org.lgna.project.ast.WhileLoop` | Preserve `condition` and nested `body`. |
-| `ForEachInArrayLoop` | `org.lgna.project.ast.ForEachInArrayLoop` | Preserve `itemType`, `itemName`, `collection`, and nested `body`. |
-| `EachInArrayTogether` | `org.lgna.project.ast.EachInArrayTogether` | Preserve `itemType`, `itemName`, `collection`, and nested `body`. |
+| `WhileLoop` | `org.lgna.project.ast.WhileLoop` | Preserve nested `body`; condition parsing is not yet faithful. |
+| `ForEachInArrayLoop` | `org.lgna.project.ast.ForEachInArrayLoop` | Recognize collection loops and nested `body`; item and collection expressions are not yet faithful. |
+| `ForEachInIterableLoop` | `org.lgna.project.ast.ForEachInIterableLoop` | Recognize collection loops and nested `body`; item and collection expressions are not yet faithful. |
+| `EachInArrayTogether` | `org.lgna.project.ast.EachInArrayTogether` | Recognize together collection loops and nested `body`; item and collection expressions are not yet faithful. |
+| `EachInIterableTogether` | `org.lgna.project.ast.EachInIterableTogether` | Recognize together collection loops and nested `body`; item and collection expressions are not yet faithful. |
 
 Parser tests must include at least one synthetic project for each parser kind.
 Container statements must include nested body assertions, not only top-level
@@ -89,36 +91,41 @@ kind assertions.
 
 ## Writer-supported statement kinds
 
-`SUPPORTED_A3P_STATEMENT_KINDS` contains every `AliceStatement.kind` that
-`writeA3P()` accepts as input. It includes all parser-equivalent kinds plus the
-writer-only lowering cases below.
+`SUPPORTED_A3P_STATEMENT_KINDS` contains every parser-equivalent
+`AliceStatement.kind` that `writeA3P()` can emit faithfully. It is intentionally
+a subset of `PARSED_A3P_STATEMENT_KINDS`: the parser may recognize Alice XML
+that the writer rejects rather than corrupting unsupported expression metadata.
+
+`LOWERED_A3P_STATEMENT_KINDS` contains runtime-only input forms that the writer
+accepts by lowering them to a visible Alice XML representation that reparses as a
+different kind.
 
 | `AliceStatement.kind` | Writer behavior | Parser-equivalent round-trip |
 | --- | --- | --- |
 | `Comment` | Emit Alice `Comment`. | Yes |
 | `MethodCall` | Emit `ExpressionStatement` with `MethodInvocation`. | Yes |
-| `CountLoop` | Emit Alice `CountLoop` with count and `body`. | Yes |
-| `IfElse` | Emit Alice `ConditionalStatement` with condition and both branches. | Yes |
-| `ReturnStatement` | Emit Alice `ReturnStatement` with return expression. | Yes |
-| `VariableDeclaration` | Emit Alice `LocalDeclarationStatement` with declaration metadata and initializer. | Yes |
+| `CountLoop` | Emit Alice `CountLoop` with nested `body`. | Body-only |
+| `IfElse` | Emit Alice `ConditionalStatement` with a placeholder true expression and both branches. | Body-only |
+| `ReturnStatement` | Emit Alice `ReturnStatement`. | Kind-only |
+| `VariableDeclaration` | Emit Alice `LocalDeclarationStatement`. | Kind-only |
 | `DoInOrder` | Emit Alice `DoInOrder` with child `body`. | Yes |
 | `DoTogether` | Emit Alice `DoTogether` with child `body`. | Yes |
-| `WhileLoop` | Emit Alice `WhileLoop` with condition and `body`. | Yes |
-| `ForEachInArrayLoop` | Emit Alice `ForEachInArrayLoop` with item metadata, collection, and `body`. | Yes |
-| `EachInArrayTogether` | Emit Alice `EachInArrayTogether` with item metadata, collection, and `body`. | Yes |
-| `VariableAssignment` | Lower to an Alice assignment expression statement. | No |
-| `EventListener` | Lower to an Alice listener registration method invocation. | No |
-| `ForEach` | Lower the runtime foreach statement to Alice `ForEachInArrayLoop`. | No |
+| `WhileLoop` | Emit Alice `WhileLoop` with nested `body`. | Body-only |
+| `VariableAssignment` | Lower to an Alice comment marker. | No |
+| `EventListener` | Lower to an Alice comment marker. | No |
 
-Use `ForEach` for the `AliceStatement.kind` accepted by the A3P writer.
-`ForEachLoop` is the AST class name used elsewhere in the project; it is not the
-writer inventory name.
+The writer rejects `ForEachInArrayLoop`, `ForEachInIterableLoop`,
+`EachInArrayTogether`, `EachInIterableTogether`, and runtime `ForEachLoop`
+inputs. The parser currently does not preserve the full item and
+array/iterable expression trees needed to re-emit those loops faithfully, so
+failing loudly is safer than fabricating wrong-typed XML.
 
 ## Writer-only lowering shapes
 
 Writer-only cases are supported input forms that intentionally reparse as an
-Alice XML form rather than as the original runtime kind. Tests must inspect
-`programType.xml` and assert the node and property names below.
+Alice XML form rather than as the original runtime kind. They are lossy,
+visible lowerings used for runtime-only statement kinds that have no faithful
+Alice statement node in the current writer.
 
 ### `VariableAssignment`
 
@@ -135,16 +142,13 @@ const statement = {
 Alice XML shape:
 
 ```text
-node[type="org.lgna.project.ast.ExpressionStatement"]
-  property[name="expression"]
-    node[type="org.lgna.project.ast.AssignmentExpression"]
-      property[name="leftHandSide"]  -> expression for statement.name
-      property[name="rightHandSide"] -> expression for statement.value
+node[type="org.lgna.project.ast.Comment"]
+  property[name="text"] = "VariableAssignment:${statement.name}=${statement.value}"
 ```
 
-The test must assert the `ExpressionStatement`, `AssignmentExpression`,
-`leftHandSide`, and `rightHandSide` markers and verify that the emitted XML
-contains the assignment target and value source.
+The test must assert that no fake `org.lgna.project.ast.VariableAssignment`
+node is emitted and that the reparsed statement is a `Comment` containing the
+assignment marker.
 
 ### `EventListener`
 
@@ -162,59 +166,18 @@ const statement = {
 Alice XML shape:
 
 ```text
-node[type="org.lgna.project.ast.ExpressionStatement"]
-  property[name="expression"]
-    node[type="org.lgna.project.ast.MethodInvocation"]
-      property[name="method"]
-        node[type="org.lgna.project.ast.JavaMethod"]
-          property[name="name"] = statement.event
-      property[name="callerObject"] = statement.object when object is not "this"
-      property[name="requiredArguments"]
-        collection[type="java.util.ArrayList"]
-          node[type="org.lgna.project.ast.LambdaExpression"]
-            property[name="body"]
-              node[type="org.lgna.project.ast.BlockStatement"]
-                property[name="statements"] -> lowered statement.body nodes
+node[type="org.lgna.project.ast.Comment"]
+  property[name="text"] = "EventListener:${statement.event}"
 ```
 
-The test must assert that listener lowering is a method invocation, not a custom
-opaque node, and that the callback body contains the lowered child statements.
-
-### `ForEach`
-
-Input:
-
-```typescript
-const statement = {
-  kind: "ForEach",
-  itemType: "org.lgna.story.SThing",
-  itemName: "item",
-  collection: "this.animals",
-  body: [{ kind: "MethodCall", object: "item", method: "say", arguments: ["hello"] }],
-};
-```
-
-Alice XML shape:
-
-```text
-node[type="org.lgna.project.ast.ForEachInArrayLoop"]
-  property[name="itemType"]   -> statement.itemType
-  property[name="itemName"]   -> statement.itemName
-  property[name="array"]      -> expression for statement.collection
-  property[name="body"]
-    node[type="org.lgna.project.ast.BlockStatement"]
-      property[name="statements"]
-        collection[type="java.util.ArrayList"]
-          ...lowered statement.body nodes...
-```
-
-The parser-equivalent form for this XML is `ForEachInArrayLoop`, so `ForEach`
-is a writer-only lowering case.
+The test must assert that no fake `org.lgna.project.ast.EventListener` node is
+emitted and that the reparsed statement is a `Comment` containing the event
+marker.
 
 ## Unsupported statements
 
-`writeA3P()` throws for any `AliceStatement.kind` that is not in
-`SUPPORTED_A3P_STATEMENT_KINDS`.
+`writeA3P()` throws for any `AliceStatement.kind` that is neither a faithfully
+supported parser-equivalent kind nor an explicitly lowered runtime-only kind.
 
 ```typescript
 import { writeA3P } from "./a3p-writer.js";
@@ -286,6 +249,6 @@ standard changes globally.
 | System | Module | Relationship |
 | --- | --- | --- |
 | A3P parser | `src/a3p-parser.ts` | Exports `PARSED_A3P_STATEMENT_KINDS`; reads Alice `programType.xml` into `AliceStatement` objects. |
-| A3P writer | `src/a3p-writer.ts` | Exports `SUPPORTED_A3P_STATEMENT_KINDS`; writes supported `AliceStatement` objects back into Alice-compatible XML. |
+| A3P writer | `src/a3p-writer.ts` | Exports `SUPPORTED_A3P_STATEMENT_KINDS` and `LOWERED_A3P_STATEMENT_KINDS`; writes supported `AliceStatement` objects back into Alice-compatible XML. |
 | Serialization | `src/serialization.ts` | Serializes `AliceProject` to the simplified project XML/JSON format, not native A3P XML. |
 | Tweedle VM | `src/tweedle-vm-core-setup.ts` | Executes runtime statement kinds, including kinds that are writer-only lowerings for A3P. |
