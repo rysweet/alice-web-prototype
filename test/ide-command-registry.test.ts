@@ -649,7 +649,7 @@ describe("CommandActionRegistry", () => {
     registry.register("indent", () => new IndentCommand(editor));
     const cmd = registry.create("indent");
     expect(cmd).not.toBeNull();
-    expect(cmd!.description).toBe("Indent selection");
+    expect(cmd!.description).toBe("Indent all lines");
   });
 
   it("returns null for unknown actions", () => {

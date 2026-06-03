@@ -7,7 +7,7 @@
  * External/unknown data is safely ignored.
  */
 import type { DragPosition } from "./drag-drop-system";
-import { DragProxy, DragSource, DropTarget, DropPolicy } from "./drag-drop-system";
+import { DragProxy, DragSource, DropPolicy } from "./drag-drop-system";
 import type { DragPayload, DragItemType } from "./drag-drop-bridge";
 import { DragDataTransfer, DRAG_MIME_TYPE } from "./drag-drop-bridge";
 

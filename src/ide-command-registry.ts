@@ -90,7 +90,7 @@ export class IndentCommand implements Command {
   ) {}
 
   get description(): string {
-    return "Indent selection";
+    return "Indent all lines";
   }
 
   execute(): void {
@@ -116,7 +116,7 @@ export class DedentCommand implements Command {
   ) {}
 
   get description(): string {
-    return "Dedent selection";
+    return "Dedent all lines";
   }
 
   execute(): void {

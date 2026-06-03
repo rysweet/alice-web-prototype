@@ -11,8 +11,8 @@
  * Follows modern ARIA practices: uses live-region announcements instead
  * of deprecated aria-grabbed/aria-dropeffect.
  */
-import type { AriaLive, AriaRole } from "./accessibility-bridge";
-import { AriaLiveRegion, RoleMappingRegistry } from "./accessibility-bridge";
+import type { AriaLive } from "./accessibility-bridge";
+import { AriaLiveRegion } from "./accessibility-bridge";
 
 // ---------------------------------------------------------------------------
 // High Contrast Detection
