@@ -58,3 +58,26 @@ export {
   generateBlenderExportScript,
   getAssetSourceGuide,
 } from "./open-asset-pipeline/blender-pipeline.js";
+
+// glTF/GLB export
+export {
+  exportModelToGlb,
+  type GlbMetadata,
+} from "./open-asset-pipeline/gltf-export.js";
+
+// Quality scoring
+export {
+  scoreSilhouette,
+  scoreJointPlacement,
+  scoreProportions,
+  computeQualityScore,
+  type QualityScoreResult,
+} from "./open-asset-pipeline/quality-scoring.js";
+
+// Quality pipeline
+export {
+  runQualityPipeline,
+  type QualityReport,
+  type ModelQualityResult,
+  type QualityPipelineOptions,
+} from "./open-asset-pipeline/quality-pipeline.js";
