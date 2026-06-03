@@ -268,22 +268,7 @@ function extractParameters(methodNode: Element, keyMap: Map<string, Element>): A
 function extractStatements(methodNode: Element, keyMap: Map<string, Element>): AliceStatement[] {
   const bodyNode = getPropertyNode(methodNode, "body", keyMap);
   if (!bodyNode) return [];
-
-  const statementsProperty = getProperty(bodyNode, "statements");
-  if (!statementsProperty) return [];
-
-  const results: AliceStatement[] = [];
-  const collection = directChild(statementsProperty, "collection");
-  const container = collection ?? statementsProperty;
-
-  for (let i = 0; i < container.childNodes.length; i++) {
-    const child = container.childNodes[i] as Element;
-    if (child.nodeType !== 1 || child.tagName !== "node") continue;
-    const statement = parseStatement(resolve(child, keyMap), keyMap);
-    if (statement) results.push(statement);
-  }
-
-  return results;
+  return extractBlockStatements(bodyNode, keyMap);
 }
 
 function parseStatement(node: Element, keyMap: Map<string, Element>): AliceStatement | null {
@@ -293,31 +278,225 @@ function parseStatement(node: Element, keyMap: Map<string, Element>): AliceState
     const expressionNode = getPropertyNode(node, "expression", keyMap);
     if (!expressionNode) return null;
     if (expressionNode.getAttribute("type") === "org.lgna.project.ast.MethodInvocation") {
-      const methodNode = getPropertyNode(expressionNode, "method", keyMap);
-      return {
-        kind: "MethodCall",
-        method: methodNode ? getPropertyText(methodNode, "name") ?? "unknown" : "unknown",
-        object: "this",
-        arguments: [],
-      };
+      return parseMethodInvocation(expressionNode, keyMap);
     }
   }
 
   if (nodeType === "org.lgna.project.ast.Comment") {
     return { kind: "Comment", expression: getPropertyText(node, "text") ?? "" };
   }
+
+  if (nodeType === "org.lgna.project.ast.DoInOrder") {
+    return { kind: "DoInOrder", body: extractBodyStatements(node, keyMap) };
+  }
+
+  if (nodeType === "org.lgna.project.ast.DoTogether") {
+    return { kind: "DoTogether", body: extractBodyStatements(node, keyMap) };
+  }
+
+  if (nodeType === "org.lgna.project.ast.WhileLoop") {
+    return {
+      kind: "WhileLoop",
+      condition: extractExpressionSummary(node, "conditional", keyMap),
+      body: extractBodyStatements(node, keyMap),
+    };
+  }
+
   if (nodeType === "org.lgna.project.ast.CountLoop") {
-    return { kind: "CountLoop", count: 1, body: [] };
+    const countValue = extractCountValue(node, keyMap);
+    return {
+      kind: "CountLoop",
+      count: countValue,
+      countExpression: String(countValue),
+      body: extractBodyStatements(node, keyMap),
+    };
   }
+
   if (nodeType === "org.lgna.project.ast.ConditionalStatement") {
-    return { kind: "IfElse", condition: "unknown", ifBody: [], elseBody: [] };
+    return parseConditionalStatement(node, keyMap);
   }
+
+  if (nodeType === "org.lgna.project.ast.ForEachInArrayLoop") {
+    return parseForEachLoop(node, keyMap, "ForEachLoop");
+  }
+
+  if (nodeType === "org.lgna.project.ast.EachInArrayTogether") {
+    return parseForEachLoop(node, keyMap, "EachInArrayTogether");
+  }
+
   if (nodeType === "org.lgna.project.ast.ReturnStatement") {
-    return { kind: "ReturnStatement", expression: "unknown" };
+    return { kind: "ReturnStatement", expression: extractExpressionSummary(node, "expression", keyMap) };
   }
+
   if (nodeType === "org.lgna.project.ast.LocalDeclarationStatement") {
-    return { kind: "VariableDeclaration", name: "unknown", varType: "Object", value: "" };
+    return parseLocalDeclaration(node, keyMap);
   }
 
   return { kind: nodeType.split(".").pop() ?? "Unknown" };
+}
+
+function parseMethodInvocation(invocationNode: Element, keyMap: Map<string, Element>): AliceStatement {
+  const callerObject = extractCallerName(invocationNode, keyMap);
+  const methodName = extractMethodName(invocationNode, keyMap);
+  const args = extractMethodArguments(invocationNode, keyMap);
+  return { kind: "MethodCall", method: methodName, object: callerObject, arguments: args };
+}
+
+function extractCallerName(invocationNode: Element, keyMap: Map<string, Element>): string {
+  const expressionProperty = getProperty(invocationNode, "expression");
+  if (!expressionProperty) return "this";
+  let exprNode = directChild(expressionProperty, "node");
+  if (!exprNode) return "this";
+  exprNode = resolve(exprNode, keyMap);
+  const exprType = exprNode.getAttribute("type") ?? "";
+  if (exprType === "org.lgna.project.ast.FieldAccess") {
+    const fieldNode = getPropertyNode(exprNode, "field", keyMap);
+    if (fieldNode) {
+      const name = getPropertyText(fieldNode, "name");
+      if (name) return name;
+    }
+  }
+  if (exprType === "org.lgna.project.ast.ThisExpression") {
+    return "this";
+  }
+  return "this";
+}
+
+function extractMethodName(invocationNode: Element, keyMap: Map<string, Element>): string {
+  const methodNode = getPropertyNode(invocationNode, "method", keyMap);
+  if (!methodNode) return "unknown";
+  // JavaMethod: <method name="say"/>
+  const methodElement = directChild(methodNode, "method");
+  if (methodElement) {
+    const name = methodElement.getAttribute("name");
+    if (name) return name;
+  }
+  // UserMethod: <property name="name"><value>myMethod</value></property>
+  const name = getPropertyText(methodNode, "name");
+  return name ?? "unknown";
+}
+
+function extractMethodArguments(invocationNode: Element, keyMap: Map<string, Element>): string[] {
+  const args: string[] = [];
+  const requiredArgs = getProperty(invocationNode, "requiredArguments");
+  if (!requiredArgs) return args;
+  const collection = directChild(requiredArgs, "collection");
+  const container = collection ?? requiredArgs;
+  for (let i = 0; i < container.childNodes.length; i++) {
+    const child = container.childNodes[i] as Element;
+    if (child.nodeType !== 1 || child.tagName !== "node") continue;
+    const resolved = resolve(child, keyMap);
+    const exprProp = getProperty(resolved, "expression");
+    if (exprProp) {
+      let exprNode = directChild(exprProp, "node");
+      if (exprNode) {
+        exprNode = resolve(exprNode, keyMap);
+        const val = getPropertyText(exprNode, "value");
+        if (val !== null) { args.push(val); continue; }
+      }
+    }
+    args.push("unknown");
+  }
+  return args;
+}
+
+function extractBodyStatements(parentNode: Element, keyMap: Map<string, Element>): AliceStatement[] {
+  const bodyNode = getPropertyNode(parentNode, "body", keyMap);
+  if (!bodyNode) return [];
+  return extractBlockStatements(bodyNode, keyMap);
+}
+
+function extractBlockStatements(blockNode: Element, keyMap: Map<string, Element>): AliceStatement[] {
+  const statementsProperty = getProperty(blockNode, "statements");
+  if (!statementsProperty) return [];
+  const results: AliceStatement[] = [];
+  const collection = directChild(statementsProperty, "collection");
+  const container = collection ?? statementsProperty;
+  for (let i = 0; i < container.childNodes.length; i++) {
+    const child = container.childNodes[i] as Element;
+    if (child.nodeType !== 1 || child.tagName !== "node") continue;
+    const statement = parseStatement(resolve(child, keyMap), keyMap);
+    if (statement) results.push(statement);
+  }
+  return results;
+}
+
+function extractExpressionSummary(node: Element, propertyName: string, keyMap: Map<string, Element>): string {
+  const propNode = getPropertyNode(node, propertyName, keyMap);
+  if (!propNode) return "unknown";
+  const val = getPropertyText(propNode, "value");
+  if (val !== null) return val;
+  const typeName = propNode.getAttribute("type")?.split(".").pop() ?? "";
+  if (typeName === "BooleanLiteral" || typeName === "StringLiteral" || typeName === "IntegerLiteral" || typeName === "DoubleLiteral") {
+    return getPropertyText(propNode, "value") ?? "unknown";
+  }
+  return typeName || "unknown";
+}
+
+function extractCountValue(node: Element, keyMap: Map<string, Element>): number {
+  const constantNode = getPropertyNode(node, "constant", keyMap);
+  if (!constantNode) return 1;
+  const val = getPropertyText(constantNode, "value");
+  if (val !== null) {
+    const parsed = parseInt(val, 10);
+    if (!isNaN(parsed)) return parsed;
+  }
+  return 1;
+}
+
+function parseConditionalStatement(node: Element, keyMap: Map<string, Element>): AliceStatement {
+  const pairsProperty = getProperty(node, "booleanExpressionBodyPairs");
+  let condition = "unknown";
+  let ifBody: AliceStatement[] = [];
+
+  if (pairsProperty) {
+    const collection = directChild(pairsProperty, "collection");
+    const container = collection ?? pairsProperty;
+    for (let i = 0; i < container.childNodes.length; i++) {
+      const child = container.childNodes[i] as Element;
+      if (child.nodeType !== 1 || child.tagName !== "node") continue;
+      const pair = resolve(child, keyMap);
+      condition = extractExpressionSummary(pair, "expression", keyMap);
+      ifBody = extractBodyStatements(pair, keyMap);
+      break; // only first pair for simple if/else
+    }
+  }
+
+  const elseBodyNode = getPropertyNode(node, "elseBody", keyMap);
+  const elseBody = elseBodyNode ? extractBlockStatements(elseBodyNode, keyMap) : [];
+
+  return { kind: "IfElse", condition, ifBody, elseBody };
+}
+
+function parseForEachLoop(node: Element, keyMap: Map<string, Element>, kind: string): AliceStatement {
+  const itemNode = getPropertyNode(node, "item", keyMap);
+  const itemName = itemNode ? getPropertyText(itemNode, "name") ?? "item" : "item";
+
+  let itemType: string | undefined;
+  if (itemNode) {
+    const typeNode = getPropertyNode(itemNode, "valueType", keyMap);
+    if (typeNode) {
+      itemType = extractResolvedTypeName(typeNode, keyMap) ?? undefined;
+    }
+  }
+
+  const collectionValue = extractExpressionSummary(node, "array", keyMap);
+  const body = extractBodyStatements(node, keyMap);
+
+  return { kind, itemName, itemType, collection: collectionValue, body };
+}
+
+function parseLocalDeclaration(node: Element, keyMap: Map<string, Element>): AliceStatement {
+  const localNode = getPropertyNode(node, "local", keyMap);
+  const name = localNode ? getPropertyText(localNode, "name") ?? "unknown" : "unknown";
+  let varType = "Object";
+  if (localNode) {
+    const typeNode = getPropertyNode(localNode, "valueType", keyMap);
+    if (typeNode) {
+      varType = extractResolvedTypeName(typeNode, keyMap) ?? "Object";
+    }
+  }
+  const initNode = getPropertyNode(node, "initializer", keyMap);
+  const value = initNode ? getPropertyText(initNode, "value") ?? "" : "";
+  return { kind: "VariableDeclaration", name, varType, value };
 }

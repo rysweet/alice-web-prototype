@@ -183,14 +183,35 @@ function syncMethodSignature(doc: Document, methodNode: Element, desired: AliceM
     paramsCollection.appendChild(createParameterNode(doc, parameter.name, parameter.type));
   }
 
-  const existingBody = getPropertyNode(methodNode, "body");
-  if (!existingBody || desired.statements.length === 0) {
+  let existingBody = getPropertyNode(methodNode, "body");
+  if (!existingBody && desired.statements.length === 0) {
     return;
   }
 
-  const statementsCollection = ensureCollectionProperty(doc, existingBody, "statements");
-  while (statementsCollection.firstChild) statementsCollection.removeChild(statementsCollection.firstChild);
-  appendSupportedStatements(doc, statementsCollection, desired.statements);
+  if (!existingBody && desired.statements.length > 0) {
+    const bodyProperty = doc.createElement("property");
+    bodyProperty.setAttribute("name", "body");
+    const bodyNode = doc.createElement("node");
+    bodyNode.setAttribute("type", "org.lgna.project.ast.BlockStatement");
+    bodyNode.setAttribute("uuid", generateUuid());
+    const statementsProperty = doc.createElement("property");
+    statementsProperty.setAttribute("name", "statements");
+    const statementsCollection = doc.createElement("collection");
+    statementsCollection.setAttribute("type", "java.util.ArrayList");
+    appendSupportedStatements(doc, statementsCollection, desired.statements);
+    statementsProperty.appendChild(statementsCollection);
+    bodyNode.appendChild(statementsProperty);
+    appendBooleanProperty(doc, bodyNode, "isEnabled", true);
+    bodyProperty.appendChild(bodyNode);
+    methodNode.appendChild(bodyProperty);
+    return;
+  }
+
+  if (existingBody) {
+    const statementsCollection = ensureCollectionProperty(doc, existingBody, "statements");
+    while (statementsCollection.firstChild) statementsCollection.removeChild(statementsCollection.firstChild);
+    appendSupportedStatements(doc, statementsCollection, desired.statements);
+  }
 }
 
 function syncConstructors(doc: Document, typeNode: Element, desiredType: AliceTypeDefinition): void {
@@ -368,14 +389,332 @@ function createNamedUserTypeNode(doc: Document, type: AliceTypeDefinition, versi
 
 function appendSupportedStatements(doc: Document, collection: Element, statements: AliceMethod["statements"]): void {
   for (const statement of statements) {
-    if (statement.kind !== "Comment") continue;
-    const commentNode = doc.createElement("node");
-    commentNode.setAttribute("type", "org.lgna.project.ast.Comment");
-    commentNode.setAttribute("uuid", generateUuid());
-    appendStringProperty(doc, commentNode, "text", statement.expression ?? "");
-    appendBooleanProperty(doc, commentNode, "isEnabled", true);
-    collection.appendChild(commentNode);
+    const node = serializeStatement(doc, statement);
+    if (node) collection.appendChild(node);
   }
+}
+
+function serializeStatement(doc: Document, statement: import("../a3p-parser.js").AliceStatement): Element | null {
+  switch (statement.kind) {
+    case "Comment":
+      return createCommentNode(doc, statement.expression ?? "");
+    case "MethodCall":
+      return createMethodCallNode(doc, statement);
+    case "DoInOrder":
+      return createBlockContainerNode(doc, "org.lgna.project.ast.DoInOrder", statement.body ?? []);
+    case "DoTogether":
+      return createBlockContainerNode(doc, "org.lgna.project.ast.DoTogether", statement.body ?? []);
+    case "WhileLoop":
+      return createWhileLoopNode(doc, statement);
+    case "CountLoop":
+      return createCountLoopNode(doc, statement);
+    case "IfElse":
+      return createConditionalNode(doc, statement);
+    case "ForEachLoop":
+      return createForEachNode(doc, "org.lgna.project.ast.ForEachInArrayLoop", statement);
+    case "EachInArrayTogether":
+      return createForEachNode(doc, "org.lgna.project.ast.EachInArrayTogether", statement);
+    case "ReturnStatement":
+      return createReturnNode(doc, statement.expression ?? "");
+    case "VariableDeclaration":
+      return createLocalDeclarationNode(doc, statement);
+    default:
+      return null;
+  }
+}
+
+function createCommentNode(doc: Document, text: string): Element {
+  const node = doc.createElement("node");
+  node.setAttribute("type", "org.lgna.project.ast.Comment");
+  node.setAttribute("uuid", generateUuid());
+  appendStringProperty(doc, node, "text", text);
+  appendBooleanProperty(doc, node, "isEnabled", true);
+  return node;
+}
+
+function createMethodCallNode(doc: Document, statement: import("../a3p-parser.js").AliceStatement): Element {
+  const exprStmt = doc.createElement("node");
+  exprStmt.setAttribute("type", "org.lgna.project.ast.ExpressionStatement");
+  exprStmt.setAttribute("uuid", generateUuid());
+
+  const exprProp = doc.createElement("property");
+  exprProp.setAttribute("name", "expression");
+  const invocation = doc.createElement("node");
+  invocation.setAttribute("type", "org.lgna.project.ast.MethodInvocation");
+  invocation.setAttribute("uuid", generateUuid());
+
+  // expression (caller object)
+  const callerProp = doc.createElement("property");
+  callerProp.setAttribute("name", "expression");
+  if (statement.object && statement.object !== "this") {
+    const fieldAccess = doc.createElement("node");
+    fieldAccess.setAttribute("type", "org.lgna.project.ast.FieldAccess");
+    fieldAccess.setAttribute("uuid", generateUuid());
+    const fieldProp = doc.createElement("property");
+    fieldProp.setAttribute("name", "field");
+    const userField = doc.createElement("node");
+    userField.setAttribute("type", "org.lgna.project.ast.UserField");
+    userField.setAttribute("uuid", generateUuid());
+    appendStringProperty(doc, userField, "name", statement.object);
+    fieldProp.appendChild(userField);
+    fieldAccess.appendChild(fieldProp);
+    callerProp.appendChild(fieldAccess);
+  } else {
+    const thisExpr = doc.createElement("node");
+    thisExpr.setAttribute("type", "org.lgna.project.ast.ThisExpression");
+    thisExpr.setAttribute("uuid", generateUuid());
+    callerProp.appendChild(thisExpr);
+  }
+  invocation.appendChild(callerProp);
+
+  // method
+  const methodProp = doc.createElement("property");
+  methodProp.setAttribute("name", "method");
+  const methodNode = doc.createElement("node");
+  methodNode.setAttribute("type", "org.lgna.project.ast.JavaMethod");
+  methodNode.setAttribute("uuid", generateUuid());
+  const methodElement = doc.createElement("method");
+  methodElement.setAttribute("name", statement.method ?? "unknown");
+  methodNode.appendChild(methodElement);
+  methodProp.appendChild(methodNode);
+  invocation.appendChild(methodProp);
+
+  // requiredArguments
+  const argsProp = doc.createElement("property");
+  argsProp.setAttribute("name", "requiredArguments");
+  const argsCollection = doc.createElement("collection");
+  argsCollection.setAttribute("type", "java.util.ArrayList");
+  for (const arg of statement.arguments ?? []) {
+    argsCollection.appendChild(createSimpleArgumentNode(doc, arg));
+  }
+  argsProp.appendChild(argsCollection);
+  invocation.appendChild(argsProp);
+
+  appendCollectionProperty(doc, invocation, "variableArguments");
+  appendCollectionProperty(doc, invocation, "keyedArguments");
+
+  exprProp.appendChild(invocation);
+  exprStmt.appendChild(exprProp);
+  appendBooleanProperty(doc, exprStmt, "isEnabled", true);
+  return exprStmt;
+}
+
+function createSimpleArgumentNode(doc: Document, value: string): Element {
+  const argNode = doc.createElement("node");
+  argNode.setAttribute("type", "org.lgna.project.ast.SimpleArgument");
+  argNode.setAttribute("uuid", generateUuid());
+  const exprProp = doc.createElement("property");
+  exprProp.setAttribute("name", "expression");
+  exprProp.appendChild(createLiteralNode(doc, value));
+  argNode.appendChild(exprProp);
+  return argNode;
+}
+
+function createLiteralNode(doc: Document, value: string): Element {
+  const node = doc.createElement("node");
+  node.setAttribute("uuid", generateUuid());
+  if (value === "true" || value === "false") {
+    node.setAttribute("type", "org.lgna.project.ast.BooleanLiteral");
+  } else if (/^-?\d+$/.test(value)) {
+    node.setAttribute("type", "org.lgna.project.ast.IntegerLiteral");
+  } else if (/^-?\d+\.\d+$/.test(value)) {
+    node.setAttribute("type", "org.lgna.project.ast.DoubleLiteral");
+  } else {
+    node.setAttribute("type", "org.lgna.project.ast.StringLiteral");
+  }
+  appendStringProperty(doc, node, "value", value);
+  return node;
+}
+
+function createBlockStatementNode(doc: Document, statements: import("../a3p-parser.js").AliceStatement[]): Element {
+  const block = doc.createElement("node");
+  block.setAttribute("type", "org.lgna.project.ast.BlockStatement");
+  block.setAttribute("uuid", generateUuid());
+  const stmtsProp = doc.createElement("property");
+  stmtsProp.setAttribute("name", "statements");
+  const collection = doc.createElement("collection");
+  collection.setAttribute("type", "java.util.ArrayList");
+  appendSupportedStatements(doc, collection, statements);
+  stmtsProp.appendChild(collection);
+  block.appendChild(stmtsProp);
+  appendBooleanProperty(doc, block, "isEnabled", true);
+  return block;
+}
+
+function createBlockContainerNode(doc: Document, nodeType: string, body: import("../a3p-parser.js").AliceStatement[]): Element {
+  const node = doc.createElement("node");
+  node.setAttribute("type", nodeType);
+  node.setAttribute("uuid", generateUuid());
+  const bodyProp = doc.createElement("property");
+  bodyProp.setAttribute("name", "body");
+  bodyProp.appendChild(createBlockStatementNode(doc, body));
+  node.appendChild(bodyProp);
+  appendBooleanProperty(doc, node, "isEnabled", true);
+  return node;
+}
+
+function createWhileLoopNode(doc: Document, statement: import("../a3p-parser.js").AliceStatement): Element {
+  const node = doc.createElement("node");
+  node.setAttribute("type", "org.lgna.project.ast.WhileLoop");
+  node.setAttribute("uuid", generateUuid());
+
+  const condProp = doc.createElement("property");
+  condProp.setAttribute("name", "conditional");
+  condProp.appendChild(createLiteralNode(doc, statement.condition ?? "true"));
+  node.appendChild(condProp);
+
+  const bodyProp = doc.createElement("property");
+  bodyProp.setAttribute("name", "body");
+  bodyProp.appendChild(createBlockStatementNode(doc, statement.body ?? []));
+  node.appendChild(bodyProp);
+
+  appendBooleanProperty(doc, node, "isEnabled", true);
+  return node;
+}
+
+function createCountLoopNode(doc: Document, statement: import("../a3p-parser.js").AliceStatement): Element {
+  const node = doc.createElement("node");
+  node.setAttribute("type", "org.lgna.project.ast.CountLoop");
+  node.setAttribute("uuid", generateUuid());
+
+  // variable (UserLocal)
+  const varProp = doc.createElement("property");
+  varProp.setAttribute("name", "variable");
+  const localNode = doc.createElement("node");
+  localNode.setAttribute("type", "org.lgna.project.ast.UserLocal");
+  localNode.setAttribute("uuid", generateUuid());
+  appendStringProperty(doc, localNode, "name", "index");
+  appendTypeProperty(doc, localNode, "valueType", "java.lang.Integer");
+  appendBooleanProperty(doc, localNode, "isFinal", false);
+  varProp.appendChild(localNode);
+  node.appendChild(varProp);
+
+  // constant (IntegerLiteral for count)
+  const constProp = doc.createElement("property");
+  constProp.setAttribute("name", "constant");
+  const countValue = statement.countExpression ?? String(statement.count ?? 1);
+  constProp.appendChild(createLiteralNode(doc, countValue));
+  node.appendChild(constProp);
+
+  const bodyProp = doc.createElement("property");
+  bodyProp.setAttribute("name", "body");
+  bodyProp.appendChild(createBlockStatementNode(doc, statement.body ?? []));
+  node.appendChild(bodyProp);
+
+  appendBooleanProperty(doc, node, "isEnabled", true);
+  return node;
+}
+
+function createConditionalNode(doc: Document, statement: import("../a3p-parser.js").AliceStatement): Element {
+  const node = doc.createElement("node");
+  node.setAttribute("type", "org.lgna.project.ast.ConditionalStatement");
+  node.setAttribute("uuid", generateUuid());
+
+  // booleanExpressionBodyPairs
+  const pairsProp = doc.createElement("property");
+  pairsProp.setAttribute("name", "booleanExpressionBodyPairs");
+  const pairsCollection = doc.createElement("collection");
+  pairsCollection.setAttribute("type", "java.util.ArrayList");
+
+  const pair = doc.createElement("node");
+  pair.setAttribute("type", "org.lgna.project.ast.BooleanExpressionBodyPair");
+  pair.setAttribute("uuid", generateUuid());
+
+  const exprProp = doc.createElement("property");
+  exprProp.setAttribute("name", "expression");
+  exprProp.appendChild(createLiteralNode(doc, statement.condition ?? "true"));
+  pair.appendChild(exprProp);
+
+  const bodyProp = doc.createElement("property");
+  bodyProp.setAttribute("name", "body");
+  bodyProp.appendChild(createBlockStatementNode(doc, statement.ifBody ?? []));
+  pair.appendChild(bodyProp);
+
+  pairsCollection.appendChild(pair);
+  pairsProp.appendChild(pairsCollection);
+  node.appendChild(pairsProp);
+
+  // elseBody
+  const elseProp = doc.createElement("property");
+  elseProp.setAttribute("name", "elseBody");
+  elseProp.appendChild(createBlockStatementNode(doc, statement.elseBody ?? []));
+  node.appendChild(elseProp);
+
+  appendBooleanProperty(doc, node, "isEnabled", true);
+  return node;
+}
+
+function createForEachNode(doc: Document, nodeType: string, statement: import("../a3p-parser.js").AliceStatement): Element {
+  const node = doc.createElement("node");
+  node.setAttribute("type", nodeType);
+  node.setAttribute("uuid", generateUuid());
+
+  // item (UserLocal)
+  const itemProp = doc.createElement("property");
+  itemProp.setAttribute("name", "item");
+  const localNode = doc.createElement("node");
+  localNode.setAttribute("type", "org.lgna.project.ast.UserLocal");
+  localNode.setAttribute("uuid", generateUuid());
+  appendStringProperty(doc, localNode, "name", statement.itemName ?? "item");
+  if (statement.itemType) {
+    appendTypeProperty(doc, localNode, "valueType", statement.itemType);
+  }
+  appendBooleanProperty(doc, localNode, "isFinal", false);
+  itemProp.appendChild(localNode);
+  node.appendChild(itemProp);
+
+  // array expression
+  const arrayProp = doc.createElement("property");
+  arrayProp.setAttribute("name", "array");
+  arrayProp.appendChild(createLiteralNode(doc, statement.collection ?? ""));
+  node.appendChild(arrayProp);
+
+  const bodyProp = doc.createElement("property");
+  bodyProp.setAttribute("name", "body");
+  bodyProp.appendChild(createBlockStatementNode(doc, statement.body ?? []));
+  node.appendChild(bodyProp);
+
+  appendBooleanProperty(doc, node, "isEnabled", true);
+  return node;
+}
+
+function createReturnNode(doc: Document, expression: string): Element {
+  const node = doc.createElement("node");
+  node.setAttribute("type", "org.lgna.project.ast.ReturnStatement");
+  node.setAttribute("uuid", generateUuid());
+  const exprProp = doc.createElement("property");
+  exprProp.setAttribute("name", "expression");
+  exprProp.appendChild(createLiteralNode(doc, expression));
+  node.appendChild(exprProp);
+  appendBooleanProperty(doc, node, "isEnabled", true);
+  return node;
+}
+
+function createLocalDeclarationNode(doc: Document, statement: import("../a3p-parser.js").AliceStatement): Element {
+  const node = doc.createElement("node");
+  node.setAttribute("type", "org.lgna.project.ast.LocalDeclarationStatement");
+  node.setAttribute("uuid", generateUuid());
+
+  // local (UserLocal)
+  const localProp = doc.createElement("property");
+  localProp.setAttribute("name", "local");
+  const localNode = doc.createElement("node");
+  localNode.setAttribute("type", "org.lgna.project.ast.UserLocal");
+  localNode.setAttribute("uuid", generateUuid());
+  appendStringProperty(doc, localNode, "name", statement.name ?? "x");
+  appendTypeProperty(doc, localNode, "valueType", statement.varType ?? "java.lang.Object");
+  appendBooleanProperty(doc, localNode, "isFinal", false);
+  localProp.appendChild(localNode);
+  node.appendChild(localProp);
+
+  // initializer
+  const initProp = doc.createElement("property");
+  initProp.setAttribute("name", "initializer");
+  initProp.appendChild(createLiteralNode(doc, statement.value ?? ""));
+  node.appendChild(initProp);
+
+  appendBooleanProperty(doc, node, "isEnabled", true);
+  return node;
 }
 
 function createParameterNode(doc: Document, name: string, typeName: string): Element {
