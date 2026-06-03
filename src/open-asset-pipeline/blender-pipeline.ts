@@ -56,7 +56,14 @@ export function getBlenderJointMap(category?: EntityCategory): Record<string, st
 // ── Script generation ──────────────────────────────────────────────
 
 function escapePythonString(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t")
+    .replace(/\0/g, "")
+    .replace(/[\x00-\x1f\x7f]/g, "");
 }
 
 export function generateBlenderExportScript(config?: BlenderExportConfig): string {
