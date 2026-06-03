@@ -193,14 +193,14 @@ export interface TreeNode {
 }
 
 export interface TreeNodeAttributes {
-  readonly role: "treeitem";
-  readonly "aria-label": string;
-  readonly "aria-level": number;
-  readonly "aria-setsize": number;
-  readonly "aria-posinset": number;
-  readonly "aria-expanded"?: string;
-  readonly "aria-selected"?: string;
-  readonly tabindex: string;
+  role: "treeitem";
+  "aria-label": string;
+  "aria-level": number;
+  "aria-setsize": number;
+  "aria-posinset": number;
+  "aria-expanded"?: string;
+  "aria-selected"?: string;
+  tabindex: string;
 }
 
 export class AccessibleTreeView {
@@ -229,10 +229,10 @@ export class AccessibleTreeView {
     };
 
     if (node.children && node.children.length > 0) {
-      (attrs as Record<string, string>)["aria-expanded"] = String(node.expanded ?? false);
+      attrs["aria-expanded"] = String(node.expanded ?? false);
     }
     if (node.selected !== undefined) {
-      (attrs as Record<string, string>)["aria-selected"] = String(node.selected);
+      attrs["aria-selected"] = String(node.selected);
     }
 
     return attrs;
@@ -297,12 +297,12 @@ export interface CodeEditorState {
 }
 
 export interface CodeEditorAttributes {
-  readonly role: "textbox";
-  readonly "aria-label": string;
-  readonly "aria-multiline": "true";
-  readonly "aria-readonly"?: string;
-  readonly "aria-description": string;
-  readonly tabindex: "0";
+  role: "textbox";
+  "aria-label": string;
+  "aria-multiline": "true";
+  "aria-readonly"?: string;
+  "aria-description": string;
+  tabindex: "0";
 }
 
 export class AccessibleCodeEditor {
@@ -329,7 +329,7 @@ export class AccessibleCodeEditor {
     };
 
     if (state.readOnly) {
-      (attrs as Record<string, string>)["aria-readonly"] = "true";
+      attrs["aria-readonly"] = "true";
     }
 
     return attrs;

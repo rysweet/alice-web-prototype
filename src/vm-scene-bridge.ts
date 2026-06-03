@@ -256,7 +256,7 @@ export class VmSceneBridge implements AliceMethodBridge {
   readonly #defaultBubbleDurationMs: number;
 
   constructor(options: VmSceneBridgeOptions = {}) {
-    this.#animationQueue = options.animationQueue ?? null;
+    this.#animationQueue = options.animationQueue ?? new AnimationQueue();
     this.#overlayContainer = options.overlayContainer
       ?? (typeof document !== "undefined" ? document.body : null);
     this.#projectWorldToScreen = options.projectWorldToScreen ?? screenPositionOf;
