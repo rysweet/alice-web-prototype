@@ -142,6 +142,16 @@ function buildFactoryCases() {
     ["TypeBrowser.createDefaultClassDeclaration", () => PublicApi.TypeBrowser.createDefaultClassDeclaration("Actor")],
     ["TypeSystem.createTweedleTypeAuthority", () => PublicApi.TypeSystem.createTweedleTypeAuthority([])],
     ["Server.createServer", () => PublicApi.Server.createServer({ port: 0, evidenceDir: SERVER_EVIDENCE_DIR })],
+    ["ComponentAbstraction.createButton", () => PublicApi.ComponentAbstraction.createButton("b1", "OK")],
+    ["ComponentAbstraction.createLabel", () => PublicApi.ComponentAbstraction.createLabel("l1", "Hello")],
+    ["ComponentAbstraction.createTextField", () => PublicApi.ComponentAbstraction.createTextField("tf1")],
+    ["ComponentAbstraction.createCheckbox", () => PublicApi.ComponentAbstraction.createCheckbox("cb1", "Check", false)],
+    ["ComponentAbstraction.createComboBox", () => PublicApi.ComponentAbstraction.createComboBox("cmb1", { items: ["A", "B"] })],
+    ["ComponentAbstraction.createSlider", () => PublicApi.ComponentAbstraction.createSlider("sl1")],
+    ["ComponentAbstraction.createPanel", () => PublicApi.ComponentAbstraction.createPanel("p1")],
+    ["ComponentAbstraction.createToolbar", () => PublicApi.ComponentAbstraction.createToolbar("tb1", [])],
+    ["ComponentAbstraction.createSeparator", () => PublicApi.ComponentAbstraction.createSeparator("sep1")],
+    ["ComponentAbstraction.createProgressBar", () => PublicApi.ComponentAbstraction.createProgressBar("pb1")],
   ]);
 }
 
@@ -330,6 +340,18 @@ function assertFactoryResult(key: string, value: unknown): void {
       return;
     case "Server.createServer":
       expectKeys(value, ["get", "post", "listen"]);
+      return;
+    case "ComponentAbstraction.createButton":
+    case "ComponentAbstraction.createLabel":
+    case "ComponentAbstraction.createTextField":
+    case "ComponentAbstraction.createCheckbox":
+    case "ComponentAbstraction.createComboBox":
+    case "ComponentAbstraction.createSlider":
+    case "ComponentAbstraction.createPanel":
+    case "ComponentAbstraction.createToolbar":
+    case "ComponentAbstraction.createSeparator":
+    case "ComponentAbstraction.createProgressBar":
+      expectKeys(value, ["id", "type"]);
       return;
     default:
       throw new Error(`Unhandled factory contract case: ${key}`);
