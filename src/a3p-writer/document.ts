@@ -25,6 +25,23 @@ import {
   serializeXmlString,
 } from "./xml-tools.js";
 
+export const SUPPORTED_A3P_STATEMENT_KINDS = [
+  "Comment",
+  "MethodCall",
+  "CountLoop",
+  "IfElse",
+  "ReturnStatement",
+  "VariableDeclaration",
+  "DoInOrder",
+  "DoTogether",
+  "WhileLoop",
+  "ForEachInArrayLoop",
+  "EachInArrayTogether",
+  "VariableAssignment",
+  "EventListener",
+  "ForEach",
+] as const;
+
 export function buildProjectXml(project: AliceProject, baseXmlText: string | null): string {
   const source = getA3PSource(project);
   if (baseXmlText !== null && source?.snapshot === snapshotAliceProject(project)) {
@@ -380,12 +397,11 @@ function createNamedUserTypeNode(doc: Document, type: AliceTypeDefinition, versi
 
 function appendSupportedStatements(doc: Document, collection: Element, statements: AliceMethod["statements"]): void {
   for (const statement of statements) {
-    const node = createStatementNode(doc, statement);
-    if (node) collection.appendChild(node);
+    collection.appendChild(createStatementNode(doc, statement));
   }
 }
 
-function createStatementNode(doc: Document, statement: AliceMethod["statements"][number]): Element | null {
+function createStatementNode(doc: Document, statement: AliceMethod["statements"][number]): Element {
   switch (statement.kind) {
     case "Comment": {
       const commentNode = doc.createElement("node");
@@ -396,61 +412,24 @@ function createStatementNode(doc: Document, statement: AliceMethod["statements"]
       return commentNode;
     }
     case "MethodCall": {
-      const exprStmt = doc.createElement("node");
-      exprStmt.setAttribute("type", "org.lgna.project.ast.ExpressionStatement");
-      exprStmt.setAttribute("uuid", generateUuid());
-      appendBooleanProperty(doc, exprStmt, "isEnabled", true);
-
-      const exprProp = doc.createElement("property");
-      exprProp.setAttribute("name", "expression");
-      const invocation = doc.createElement("node");
-      invocation.setAttribute("type", "org.lgna.project.ast.MethodInvocation");
-      invocation.setAttribute("uuid", generateUuid());
-
-      const methodRef = doc.createElement("node");
-      methodRef.setAttribute("type", "org.lgna.project.ast.JavaMethod");
-      methodRef.setAttribute("uuid", generateUuid());
-      appendStringProperty(doc, methodRef, "name", statement.method || "unknown");
-      const methodProp = doc.createElement("property");
-      methodProp.setAttribute("name", "method");
-      methodProp.appendChild(methodRef);
-      invocation.appendChild(methodProp);
-
-      if (statement.object && statement.object !== "this") {
-        appendStringProperty(doc, invocation, "callerObject", statement.object);
-      }
-
-      if (statement.arguments?.length) {
-        const argsProp = doc.createElement("property");
-        argsProp.setAttribute("name", "requiredArguments");
-        const argsCollection = doc.createElement("collection");
-        argsCollection.setAttribute("type", "java.util.ArrayList");
-        for (const arg of statement.arguments) {
-          const argNode = doc.createElement("node");
-          argNode.setAttribute("type", "org.lgna.project.ast.SimpleArgument");
-          argNode.setAttribute("uuid", generateUuid());
-          appendStringProperty(doc, argNode, "value", arg);
-          argsCollection.appendChild(argNode);
-        }
-        argsProp.appendChild(argsCollection);
-        invocation.appendChild(argsProp);
-      }
-
-      exprProp.appendChild(invocation);
-      exprStmt.appendChild(exprProp);
-      return exprStmt;
+      return createExpressionStatementNode(doc, createMethodInvocationNode(doc, statement));
     }
     case "CountLoop": {
       const loopNode = doc.createElement("node");
       loopNode.setAttribute("type", "org.lgna.project.ast.CountLoop");
       loopNode.setAttribute("uuid", generateUuid());
       appendBooleanProperty(doc, loopNode, "isEnabled", true);
+      appendStringProperty(doc, loopNode, "count", String(statement.count ?? 1), "java.lang.Integer");
+      appendBlockBody(doc, loopNode, statement.body ?? []);
       return loopNode;
     }
     case "IfElse": {
       const condNode = doc.createElement("node");
       condNode.setAttribute("type", "org.lgna.project.ast.ConditionalStatement");
       condNode.setAttribute("uuid", generateUuid());
+      appendStringProperty(doc, condNode, "condition", statement.condition ?? "unknown");
+      appendStatementBlockProperty(doc, condNode, "ifBody", statement.ifBody ?? []);
+      appendStatementBlockProperty(doc, condNode, "elseBody", statement.elseBody ?? []);
       appendBooleanProperty(doc, condNode, "isEnabled", true);
       return condNode;
     }
@@ -458,6 +437,7 @@ function createStatementNode(doc: Document, statement: AliceMethod["statements"]
       const retNode = doc.createElement("node");
       retNode.setAttribute("type", "org.lgna.project.ast.ReturnStatement");
       retNode.setAttribute("uuid", generateUuid());
+      appendStringProperty(doc, retNode, "expression", statement.expression ?? "");
       appendBooleanProperty(doc, retNode, "isEnabled", true);
       return retNode;
     }
@@ -465,6 +445,9 @@ function createStatementNode(doc: Document, statement: AliceMethod["statements"]
       const declNode = doc.createElement("node");
       declNode.setAttribute("type", "org.lgna.project.ast.LocalDeclarationStatement");
       declNode.setAttribute("uuid", generateUuid());
+      appendStringProperty(doc, declNode, "name", statement.name ?? "unknown");
+      appendTypeProperty(doc, declNode, "varType", statement.varType ?? "java.lang.Object");
+      appendStringProperty(doc, declNode, "value", statement.value ?? "");
       appendBooleanProperty(doc, declNode, "isEnabled", true);
       return declNode;
     }
@@ -489,34 +472,111 @@ function createStatementNode(doc: Document, statement: AliceMethod["statements"]
       whNode.setAttribute("type", "org.lgna.project.ast.WhileLoop");
       whNode.setAttribute("uuid", generateUuid());
       appendBooleanProperty(doc, whNode, "isEnabled", true);
+      appendStringProperty(doc, whNode, "condition", statement.condition ?? "unknown");
       appendBlockBody(doc, whNode, statement.body ?? []);
       return whNode;
     }
     case "ForEachInArrayLoop": {
-      const feNode = doc.createElement("node");
-      feNode.setAttribute("type", "org.lgna.project.ast.ForEachInArrayLoop");
-      feNode.setAttribute("uuid", generateUuid());
-      appendBooleanProperty(doc, feNode, "isEnabled", true);
-      appendBlockBody(doc, feNode, statement.body ?? []);
-      return feNode;
+      return createForEachInArrayLoopNode(doc, "org.lgna.project.ast.ForEachInArrayLoop", statement);
     }
     case "EachInArrayTogether": {
-      const eatNode = doc.createElement("node");
-      eatNode.setAttribute("type", "org.lgna.project.ast.EachInArrayTogether");
-      eatNode.setAttribute("uuid", generateUuid());
-      appendBooleanProperty(doc, eatNode, "isEnabled", true);
-      appendBlockBody(doc, eatNode, statement.body ?? []);
-      return eatNode;
+      return createForEachInArrayLoopNode(doc, "org.lgna.project.ast.EachInArrayTogether", statement);
+    }
+    case "VariableAssignment": {
+      const assignment = doc.createElement("node");
+      assignment.setAttribute("type", "org.lgna.project.ast.AssignmentExpression");
+      assignment.setAttribute("uuid", generateUuid());
+      appendStringProperty(doc, assignment, "leftHandSide", statement.name ?? "unknown");
+      appendStringProperty(doc, assignment, "rightHandSide", statement.value ?? "");
+      return createExpressionStatementNode(doc, assignment);
+    }
+    case "EventListener": {
+      const invocation = createMethodInvocationNode(doc, {
+        kind: "MethodCall",
+        object: statement.object ?? "this",
+        method: statement.event ?? "unknown",
+        arguments: [],
+      });
+      const argsCollection = ensureCollectionProperty(doc, invocation, "requiredArguments");
+      const lambda = doc.createElement("node");
+      lambda.setAttribute("type", "org.lgna.project.ast.LambdaExpression");
+      lambda.setAttribute("uuid", generateUuid());
+      appendBlockBody(doc, lambda, statement.body ?? []);
+      argsCollection.appendChild(lambda);
+      return createExpressionStatementNode(doc, invocation);
+    }
+    case "ForEach": {
+      return createForEachInArrayLoopNode(doc, "org.lgna.project.ast.ForEachInArrayLoop", statement);
     }
     default:
-      console.warn(`A3P writer: unhandled statement kind "${statement.kind}" — dropped`);
-      return null;
+      throw new Error(`Unsupported A3P statement kind: ${statement.kind}`);
   }
 }
 
+function createMethodInvocationNode(doc: Document, statement: AliceStatement): Element {
+  const invocation = doc.createElement("node");
+  invocation.setAttribute("type", "org.lgna.project.ast.MethodInvocation");
+  invocation.setAttribute("uuid", generateUuid());
+
+  const methodRef = doc.createElement("node");
+  methodRef.setAttribute("type", "org.lgna.project.ast.JavaMethod");
+  methodRef.setAttribute("uuid", generateUuid());
+  appendStringProperty(doc, methodRef, "name", statement.method || "unknown");
+  const methodProp = doc.createElement("property");
+  methodProp.setAttribute("name", "method");
+  methodProp.appendChild(methodRef);
+  invocation.appendChild(methodProp);
+
+  if (statement.object && statement.object !== "this") {
+    appendStringProperty(doc, invocation, "callerObject", statement.object);
+  }
+
+  if (statement.arguments?.length) {
+    const argsCollection = appendCollectionProperty(doc, invocation, "requiredArguments");
+    for (const arg of statement.arguments) {
+      const argNode = doc.createElement("node");
+      argNode.setAttribute("type", "org.lgna.project.ast.SimpleArgument");
+      argNode.setAttribute("uuid", generateUuid());
+      appendStringProperty(doc, argNode, "value", arg);
+      argsCollection.appendChild(argNode);
+    }
+  }
+
+  return invocation;
+}
+
+function createExpressionStatementNode(doc: Document, expressionNode: Element): Element {
+  const exprStmt = doc.createElement("node");
+  exprStmt.setAttribute("type", "org.lgna.project.ast.ExpressionStatement");
+  exprStmt.setAttribute("uuid", generateUuid());
+  appendBooleanProperty(doc, exprStmt, "isEnabled", true);
+
+  const exprProp = doc.createElement("property");
+  exprProp.setAttribute("name", "expression");
+  exprProp.appendChild(expressionNode);
+  exprStmt.appendChild(exprProp);
+  return exprStmt;
+}
+
+function createForEachInArrayLoopNode(doc: Document, nodeType: string, statement: AliceStatement): Element {
+      const feNode = doc.createElement("node");
+      feNode.setAttribute("type", nodeType);
+      feNode.setAttribute("uuid", generateUuid());
+      appendBooleanProperty(doc, feNode, "isEnabled", true);
+      appendTypeProperty(doc, feNode, "itemType", statement.itemType ?? "java.lang.Object");
+      appendStringProperty(doc, feNode, "itemName", statement.itemName ?? "item");
+      appendStringProperty(doc, feNode, "array", statement.collection ?? "unknown");
+      appendBlockBody(doc, feNode, statement.body ?? []);
+      return feNode;
+}
+
 function appendBlockBody(doc: Document, parentNode: Element, statements: AliceStatement[]): void {
+  appendStatementBlockProperty(doc, parentNode, "body", statements);
+}
+
+function appendStatementBlockProperty(doc: Document, parentNode: Element, propertyName: string, statements: AliceStatement[]): void {
   const bodyProp = doc.createElement("property");
-  bodyProp.setAttribute("name", "body");
+  bodyProp.setAttribute("name", propertyName);
   const blockNode = doc.createElement("node");
   blockNode.setAttribute("type", "org.lgna.project.ast.BlockStatement");
   blockNode.setAttribute("uuid", generateUuid());
@@ -527,6 +587,7 @@ function appendBlockBody(doc: Document, parentNode: Element, statements: AliceSt
   appendSupportedStatements(doc, collection, statements);
   stmtsProp.appendChild(collection);
   blockNode.appendChild(stmtsProp);
+  appendBooleanProperty(doc, blockNode, "isEnabled", true);
   bodyProp.appendChild(blockNode);
   parentNode.appendChild(bodyProp);
 }

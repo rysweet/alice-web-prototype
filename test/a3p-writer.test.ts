@@ -2,7 +2,9 @@ import { beforeAll, describe, expect, it } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
 import JSZip from "jszip";
-import { parseA3P, type AliceMethod, type AliceProject } from "../src/a3p-parser";
+import * as a3pParserModule from "../src/a3p-parser";
+import * as a3pWriterModule from "../src/a3p-writer";
+import { parseA3P, type AliceMethod, type AliceProject, type AliceStatement } from "../src/a3p-parser";
 import { writeA3P } from "../src/a3p-writer";
 
 beforeAll(async () => {
@@ -91,6 +93,193 @@ function addSceneMethod(project: AliceProject, method: AliceMethod): void {
   if (sceneType) {
     sceneType.methods = [...(sceneType.methods ?? []), method];
   }
+}
+
+const EXPECTED_PARSED_A3P_STATEMENT_KINDS = [
+  "Comment",
+  "MethodCall",
+  "CountLoop",
+  "IfElse",
+  "ReturnStatement",
+  "VariableDeclaration",
+  "DoInOrder",
+  "DoTogether",
+  "WhileLoop",
+  "ForEachInArrayLoop",
+  "EachInArrayTogether",
+] as const;
+
+const WRITER_ONLY_A3P_STATEMENT_KINDS = [
+  "VariableAssignment",
+  "EventListener",
+  "ForEach",
+] as const;
+
+const EXPECTED_SUPPORTED_A3P_STATEMENT_KINDS = [
+  ...EXPECTED_PARSED_A3P_STATEMENT_KINDS,
+  ...WRITER_ONLY_A3P_STATEMENT_KINDS,
+] as const;
+
+type A3PParserCoverageModule = typeof a3pParserModule & {
+  PARSED_A3P_STATEMENT_KINDS?: readonly string[];
+};
+
+type A3PWriterCoverageModule = typeof a3pWriterModule & {
+  SUPPORTED_A3P_STATEMENT_KINDS?: readonly string[];
+};
+
+interface ParserRoundTripStatementCase {
+  kind: string;
+  statement: AliceStatement;
+  expected: AliceStatement;
+}
+
+const NESTED_COMMENT: AliceStatement = { kind: "Comment", expression: "nested statement survives" };
+
+const PARSER_ROUND_TRIP_STATEMENT_CASES: ParserRoundTripStatementCase[] = [
+  {
+    kind: "Comment",
+    statement: { kind: "Comment", expression: "round-trip comment" },
+    expected: { kind: "Comment", expression: "round-trip comment" },
+  },
+  {
+    kind: "MethodCall",
+    statement: { kind: "MethodCall", object: "this.bunny", method: "say", arguments: ["hello", "world"] },
+    expected: { kind: "MethodCall", object: "this.bunny", method: "say", arguments: ["hello", "world"] },
+  },
+  {
+    kind: "CountLoop",
+    statement: { kind: "CountLoop", count: 3, body: [NESTED_COMMENT] },
+    expected: { kind: "CountLoop", count: 3, body: [NESTED_COMMENT] },
+  },
+  {
+    kind: "IfElse",
+    statement: {
+      kind: "IfElse",
+      condition: "this.bunny.isShowing",
+      ifBody: [{ kind: "Comment", expression: "if branch" }],
+      elseBody: [{ kind: "Comment", expression: "else branch" }],
+    },
+    expected: {
+      kind: "IfElse",
+      condition: "this.bunny.isShowing",
+      ifBody: [{ kind: "Comment", expression: "if branch" }],
+      elseBody: [{ kind: "Comment", expression: "else branch" }],
+    },
+  },
+  {
+    kind: "ReturnStatement",
+    statement: { kind: "ReturnStatement", expression: "this.score" },
+    expected: { kind: "ReturnStatement", expression: "this.score" },
+  },
+  {
+    kind: "VariableDeclaration",
+    statement: { kind: "VariableDeclaration", name: "score", varType: "java.lang.Integer", value: "1" },
+    expected: { kind: "VariableDeclaration", name: "score", varType: "java.lang.Integer", value: "1" },
+  },
+  {
+    kind: "DoInOrder",
+    statement: { kind: "DoInOrder", body: [NESTED_COMMENT] },
+    expected: { kind: "DoInOrder", body: [NESTED_COMMENT] },
+  },
+  {
+    kind: "DoTogether",
+    statement: { kind: "DoTogether", body: [NESTED_COMMENT] },
+    expected: { kind: "DoTogether", body: [NESTED_COMMENT] },
+  },
+  {
+    kind: "WhileLoop",
+    statement: { kind: "WhileLoop", condition: "this.bunny.isShowing", body: [NESTED_COMMENT] },
+    expected: { kind: "WhileLoop", condition: "this.bunny.isShowing", body: [NESTED_COMMENT] },
+  },
+  {
+    kind: "ForEachInArrayLoop",
+    statement: {
+      kind: "ForEachInArrayLoop",
+      itemType: "org.lgna.story.SThing",
+      itemName: "item",
+      collection: "this.animals",
+      body: [NESTED_COMMENT],
+    },
+    expected: {
+      kind: "ForEachInArrayLoop",
+      itemType: "org.lgna.story.SThing",
+      itemName: "item",
+      collection: "this.animals",
+      body: [NESTED_COMMENT],
+    },
+  },
+  {
+    kind: "EachInArrayTogether",
+    statement: {
+      kind: "EachInArrayTogether",
+      itemType: "org.lgna.story.SThing",
+      itemName: "item",
+      collection: "this.animals",
+      body: [NESTED_COMMENT],
+    },
+    expected: {
+      kind: "EachInArrayTogether",
+      itemType: "org.lgna.story.SThing",
+      itemName: "item",
+      collection: "this.animals",
+      body: [NESTED_COMMENT],
+    },
+  },
+];
+
+function sorted(values: readonly string[]): string[] {
+  return [...values].sort();
+}
+
+function expectExactStatementKindSet(actual: readonly string[] | undefined, expected: readonly string[]): void {
+  expect(actual).toBeDefined();
+  expect(sorted(actual ?? [])).toEqual(sorted(expected));
+  expect(new Set(actual).size).toBe(expected.length);
+}
+
+function createStatementCoverageProject(statement: AliceStatement, projectName = `${statement.kind}Coverage`): AliceProject {
+  return {
+    version: "3.6.0.0",
+    projectName,
+    sceneObjects: [],
+    methods: [
+      {
+        name: "run",
+        isFunction: false,
+        returnType: "void",
+        parameters: [],
+        statements: [statement],
+      },
+    ],
+    types: [
+      {
+        name: "Scene",
+        superTypeName: "org.lgna.story.SScene",
+        fields: [],
+        methods: [],
+        constructors: [],
+      },
+    ],
+  };
+}
+
+async function writeAndParseStatement(statement: AliceStatement): Promise<AliceStatement> {
+  const written = await writeA3P(createStatementCoverageProject(statement));
+  const reparsed = await parseA3P(written);
+  const reparsedStatement = reparsed.methods.find((method) => method.name === "run")?.statements[0];
+
+  expect(reparsedStatement).toBeDefined();
+  return reparsedStatement!;
+}
+
+async function writeProgramXmlForStatement(statement: AliceStatement): Promise<string> {
+  const written = await writeA3P(createStatementCoverageProject(statement));
+  const zip = await JSZip.loadAsync(written);
+  const xml = await zip.file("programType.xml")?.async("string");
+
+  expect(xml).toBeDefined();
+  return xml!;
 }
 
 describe("a3p faithful round-trip", { timeout: 60_000 }, () => {
@@ -267,5 +456,97 @@ describe("a3p faithful round-trip", { timeout: 60_000 }, () => {
         }));
 
     expect(customTypes(reparsed)).toEqual(customTypes(original));
+  });
+});
+
+describe("a3p statement coverage contract", () => {
+  it("keeps parser round-trip cases in exact parity with PARSED_A3P_STATEMENT_KINDS", () => {
+    expectExactStatementKindSet(
+      PARSER_ROUND_TRIP_STATEMENT_CASES.map((testCase) => testCase.kind),
+      EXPECTED_PARSED_A3P_STATEMENT_KINDS,
+    );
+    expectExactStatementKindSet(
+      (a3pParserModule as A3PParserCoverageModule).PARSED_A3P_STATEMENT_KINDS,
+      EXPECTED_PARSED_A3P_STATEMENT_KINDS,
+    );
+  });
+
+  it("keeps writer coverage cases in exact parity with SUPPORTED_A3P_STATEMENT_KINDS", () => {
+    expectExactStatementKindSet(
+      [
+        ...PARSER_ROUND_TRIP_STATEMENT_CASES.map((testCase) => testCase.kind),
+        ...WRITER_ONLY_A3P_STATEMENT_KINDS,
+      ],
+      EXPECTED_SUPPORTED_A3P_STATEMENT_KINDS,
+    );
+    expectExactStatementKindSet(
+      (a3pWriterModule as A3PWriterCoverageModule).SUPPORTED_A3P_STATEMENT_KINDS,
+      EXPECTED_SUPPORTED_A3P_STATEMENT_KINDS,
+    );
+  });
+
+  it.each(PARSER_ROUND_TRIP_STATEMENT_CASES)(
+    "round-trips parser-recognized $kind statements through writeA3P/parseA3P",
+    async ({ statement, expected }) => {
+      await expect(writeAndParseStatement(statement)).resolves.toEqual(expected);
+    },
+  );
+
+  it("lowers VariableAssignment statements to Alice assignment expression XML", async () => {
+    const xml = await writeProgramXmlForStatement({
+      kind: "VariableAssignment",
+      name: "this.score",
+      value: "this.score + 1",
+    });
+
+    expect(xml).toContain('type="org.lgna.project.ast.ExpressionStatement"');
+    expect(xml).toContain('type="org.lgna.project.ast.AssignmentExpression"');
+    expect(xml).toContain('name="leftHandSide"');
+    expect(xml).toContain('name="rightHandSide"');
+    expect(xml).toContain("this.score");
+    expect(xml).toContain("this.score + 1");
+  });
+
+  it("lowers EventListener statements to listener method invocations with callback bodies", async () => {
+    const xml = await writeProgramXmlForStatement({
+      kind: "EventListener",
+      object: "this",
+      event: "addSceneActivationListener",
+      body: [{ kind: "MethodCall", object: "this.bunny", method: "say", arguments: ["hello"] }],
+    });
+
+    expect(xml).toContain('type="org.lgna.project.ast.ExpressionStatement"');
+    expect(xml).toContain('type="org.lgna.project.ast.MethodInvocation"');
+    expect(xml).toContain("addSceneActivationListener");
+    expect(xml).toContain('type="org.lgna.project.ast.LambdaExpression"');
+    expect(xml).toContain('name="body"');
+    expect(xml).toContain("say");
+    expect(xml).toContain("hello");
+  });
+
+  it("lowers runtime ForEach statements to Alice ForEachInArrayLoop XML", async () => {
+    const xml = await writeProgramXmlForStatement({
+      kind: "ForEach",
+      itemType: "org.lgna.story.SThing",
+      itemName: "item",
+      collection: "this.animals",
+      body: [{ kind: "MethodCall", object: "item", method: "say", arguments: ["hello"] }],
+    });
+
+    expect(xml).toContain('type="org.lgna.project.ast.ForEachInArrayLoop"');
+    expect(xml).toContain('name="itemType"');
+    expect(xml).toContain("org.lgna.story.SThing");
+    expect(xml).toContain('name="itemName"');
+    expect(xml).toContain("item");
+    expect(xml).toContain('name="array"');
+    expect(xml).toContain("this.animals");
+    expect(xml).toContain("say");
+    expect(xml).toContain("hello");
+  });
+
+  it("throws instead of dropping unsupported statement kinds", async () => {
+    await expect(
+      writeA3P(createStatementCoverageProject({ kind: "TryCatch", tryBody: [], catchBody: [] })),
+    ).rejects.toThrow(/Unsupported A3P statement kind: TryCatch/);
   });
 });

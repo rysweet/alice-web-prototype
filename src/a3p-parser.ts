@@ -16,3 +16,4 @@ export {
   type AliceStatement,
   type AliceTypeDefinition,
 } from "./a3p-parser/types.js";
+export { PARSED_A3P_STATEMENT_KINDS } from "./a3p-parser/scene.js";

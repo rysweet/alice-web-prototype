@@ -15,6 +15,20 @@ import type {
   AliceTypeDefinition,
 } from "./types.js";
 
+export const PARSED_A3P_STATEMENT_KINDS = [
+  "Comment",
+  "MethodCall",
+  "CountLoop",
+  "IfElse",
+  "ReturnStatement",
+  "VariableDeclaration",
+  "DoInOrder",
+  "DoTogether",
+  "WhileLoop",
+  "ForEachInArrayLoop",
+  "EachInArrayTogether",
+] as const;
+
 export function extractSceneObjects(namedUserTypes: Element[], keyMap: Map<string, Element>): AliceObject[] {
   const objects: AliceObject[] = [];
   const sceneType = findSceneType(namedUserTypes, keyMap);
@@ -309,16 +323,30 @@ function parseStatement(node: Element, keyMap: Map<string, Element>): AliceState
     return { kind: "Comment", expression: getPropertyText(node, "text") ?? "" };
   }
   if (nodeType === "org.lgna.project.ast.CountLoop") {
-    return { kind: "CountLoop", count: 1, body: [] };
+    return {
+      kind: "CountLoop",
+      count: parseIntegerProperty(node, "count") ?? 1,
+      body: parseStatementBlock(node, "body", keyMap),
+    };
   }
   if (nodeType === "org.lgna.project.ast.ConditionalStatement") {
-    return { kind: "IfElse", condition: "unknown", ifBody: [], elseBody: [] };
+    return {
+      kind: "IfElse",
+      condition: getPropertyText(node, "condition") ?? "unknown",
+      ifBody: parseStatementBlock(node, "ifBody", keyMap),
+      elseBody: parseStatementBlock(node, "elseBody", keyMap),
+    };
   }
   if (nodeType === "org.lgna.project.ast.ReturnStatement") {
-    return { kind: "ReturnStatement", expression: "unknown" };
+    return { kind: "ReturnStatement", expression: getPropertyText(node, "expression") ?? "unknown" };
   }
   if (nodeType === "org.lgna.project.ast.LocalDeclarationStatement") {
-    return { kind: "VariableDeclaration", name: "unknown", varType: "Object", value: "" };
+    return {
+      kind: "VariableDeclaration",
+      name: getPropertyText(node, "name") ?? "unknown",
+      varType: getTypePropertyName(node, "varType", keyMap) ?? "Object",
+      value: getPropertyText(node, "value") ?? "",
+    };
   }
   if (nodeType === "org.lgna.project.ast.DoInOrder") {
     const body = parseStatementBlock(node, "body", keyMap);
@@ -330,18 +358,42 @@ function parseStatement(node: Element, keyMap: Map<string, Element>): AliceState
   }
   if (nodeType === "org.lgna.project.ast.WhileLoop") {
     const body = parseStatementBlock(node, "body", keyMap);
-    return { kind: "WhileLoop", condition: "unknown", body };
+    return { kind: "WhileLoop", condition: getPropertyText(node, "condition") ?? "unknown", body };
   }
   if (nodeType === "org.lgna.project.ast.ForEachInArrayLoop") {
     const body = parseStatementBlock(node, "body", keyMap);
-    return { kind: "ForEachInArrayLoop", itemType: "Object", itemName: "item", collection: "unknown", body };
+    return {
+      kind: "ForEachInArrayLoop",
+      itemType: getTypePropertyName(node, "itemType", keyMap) ?? "Object",
+      itemName: getPropertyText(node, "itemName") ?? "item",
+      collection: getPropertyText(node, "array") ?? getPropertyText(node, "collection") ?? "unknown",
+      body,
+    };
   }
   if (nodeType === "org.lgna.project.ast.EachInArrayTogether") {
     const body = parseStatementBlock(node, "body", keyMap);
-    return { kind: "EachInArrayTogether", itemType: "Object", itemName: "item", collection: "unknown", body };
+    return {
+      kind: "EachInArrayTogether",
+      itemType: getTypePropertyName(node, "itemType", keyMap) ?? "Object",
+      itemName: getPropertyText(node, "itemName") ?? "item",
+      collection: getPropertyText(node, "array") ?? getPropertyText(node, "collection") ?? "unknown",
+      body,
+    };
   }
 
   return { kind: nodeType.split(".").pop() ?? "Unknown" };
+}
+
+function parseIntegerProperty(node: Element, propertyName: string): number | null {
+  const text = getPropertyText(node, propertyName);
+  if (text === null) return null;
+  const value = Number.parseInt(text, 10);
+  return Number.isFinite(value) ? value : null;
+}
+
+function getTypePropertyName(node: Element, propertyName: string, keyMap: Map<string, Element>): string | null {
+  const typeNode = getPropertyNode(node, propertyName, keyMap);
+  return typeNode ? extractResolvedTypeName(typeNode, keyMap) : null;
 }
 
 function extractArguments(invocationNode: Element, keyMap: Map<string, Element>): string[] {
