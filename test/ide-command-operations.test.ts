@@ -210,7 +210,7 @@ describe("ide-command-operations", () => {
     scene.atmosphereColor = "#0000ff";
     const manager = new UndoRedoManager();
 
-    manager.execute(new SetScenePropertyCommand(scene, "atmosphereColor" as any, "#ff0000"));
+    manager.execute(new SetScenePropertyCommand(scene, "atmosphereColor", "#ff0000"));
     expect(scene.atmosphereColor).toBe("#ff0000");
 
     manager.undo();

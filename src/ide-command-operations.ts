@@ -414,14 +414,14 @@ export class SelectionChangeCommand implements Command {
 // Scene Commands
 // ---------------------------------------------------------------------------
 
-export class SetScenePropertyCommand<K extends string> implements Command {
-  private previousValue: unknown = undefined;
+export class SetScenePropertyCommand<T extends object, K extends string & keyof T> implements Command {
+  private previousValue: T[K] | undefined = undefined;
   private captured = false;
 
   constructor(
-    private readonly target: Record<K, unknown>,
+    private readonly target: T,
     private readonly property: K,
-    private readonly newValue: unknown,
+    private readonly newValue: T[K],
   ) {}
 
   get description(): string {
@@ -436,7 +436,7 @@ export class SetScenePropertyCommand<K extends string> implements Command {
 
   undo(): void {
     if (this.captured) {
-      this.target[this.property] = this.previousValue;
+      this.target[this.property] = this.previousValue as T[K];
     }
   }
 }
