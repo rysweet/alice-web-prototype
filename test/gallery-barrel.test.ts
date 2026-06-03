@@ -7,5 +7,6 @@ describe("gallery barrel exports", () => {
     expect(PublicApi.GalleryUi).toBe(GalleryUi);
     expect(typeof PublicApi.GalleryUi.buildGalleryCatalog).toBe("function");
     expect(typeof PublicApi.GalleryUi.GalleryBrowserView).toBe("function");
+    expect(typeof PublicApi.GalleryUi.GalleryToSceneAdapter).toBe("function");
   });
 });

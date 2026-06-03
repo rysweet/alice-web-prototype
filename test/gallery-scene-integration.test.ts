@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { searchGallery } from "../src/gallery/gallery-data.js";
 import {
   GALLERY_ADD_TO_SCENE_EVENT,
   GallerySceneIntegration,
   type EntityData,
 } from "../src/gallery/gallery-scene-integration.js";
+import { SceneEditor } from "../src/scene-editor.js";
+import { STransport } from "../src/story-api/index.js";
 
 describe("GallerySceneIntegration", () => {
   it("emits a gallery:add-to-scene event with entity data", () => {
@@ -46,5 +49,21 @@ describe("GallerySceneIntegration", () => {
 
     expect(entity.position).toEqual({ x: 0, y: 0, z: 0 });
     expect(entity.orientation).toEqual({ x: 0, y: 0, z: 0, w: 1 });
+  });
+
+  it("bridges searched gallery models into the scene editor", () => {
+    const integration = new GallerySceneIntegration({ eventTarget: new EventTarget() });
+    const editor = new SceneEditor();
+    const adapter = integration.connectSceneEditor(editor);
+    const model = searchGallery("submarine")[0];
+
+    expect(model).toBeDefined();
+    integration.addModelToScene(model!.resourceId);
+
+    expect(editor.selectedName).toBe("submarine");
+    expect(editor.getObject("submarine")).toBeInstanceOf(STransport);
+    expect(editor.scene.entities.has("submarine")).toBe(true);
+
+    adapter.dispose();
   });
 });

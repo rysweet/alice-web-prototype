@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { searchGallery } from "../src/gallery/gallery-data.js";
 import { GalleryCatalog } from "../src/gallery.js";
 import { SceneEditor } from "../src/scene-editor.js";
-import { SBiped, SCamera, SProp } from "../src/story-api/index.js";
+import { SBiped, SCamera, SProp, STransport } from "../src/story-api/index.js";
 
 describe("SceneEditor", () => {
   it("seeds a default ground plane and camera", () => {
@@ -247,6 +248,18 @@ describe("SceneEditor", () => {
     editor.placeObject("marker", "org.lgna.story.SProp");
 
     expect(() => editor.placeObject("marker", "org.lgna.story.SProp")).toThrow(/already exists/);
+  });
+
+  it("accepts gallery-data resource ids and model entries", () => {
+    const editor = new SceneEditor({ gallery: new GalleryCatalog() });
+    const submarine = searchGallery("submarine")[0];
+    const alien = searchGallery("alien")[0];
+
+    expect(submarine).toBeDefined();
+    expect(alien).toBeDefined();
+    expect(editor.placeFromGallery(submarine!.resourceId, "submarine")).toBeInstanceOf(STransport);
+    expect(editor.placeFromGallery(alien!, "alien")).toBeInstanceOf(SBiped);
+    expect(editor.listObjectNames()).toEqual(expect.arrayContaining(["submarine", "alien"]));
   });
 
   it("rejects unknown gallery model identifiers", () => {
