@@ -9,7 +9,7 @@
 
 import { generateProceduralModel } from "./procedural-generators.js";
 import { computeQualityScore, type QualityScoreResult } from "./quality-scoring.js";
-import type { ProceduralModelConfig, ProceduralModelResult } from "./types.js";
+import type { EntityCategory, ProceduralModelConfig, ProceduralModelResult } from "./types.js";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -50,7 +50,7 @@ function defaultScorer(
   joints: readonly ProceduralModelResult["joints"][number][],
   category: string,
 ): QualityScoreResult {
-  return computeQualityScore(geometry, joints, category as import("./types.js").EntityCategory);
+  return computeQualityScore(geometry, joints, category as EntityCategory);
 }
 
 /**

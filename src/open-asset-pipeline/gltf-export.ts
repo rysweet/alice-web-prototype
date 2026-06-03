@@ -63,9 +63,6 @@ export async function exportModelToGlb(
     .setArray(positionData)
     .setBuffer(buffer);
 
-  // Compute min/max for position accessor
-  // Note: @gltf-transform/core computes min/max automatically from the typed array
-
   // Build index accessor
   const indexData = new Uint16Array(geometry.indices);
   const indexAccessor = doc.createAccessor("INDEX")

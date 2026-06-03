@@ -16,10 +16,8 @@ import {
   LightNode,
   type Transform,
 } from "./scene-graph.js";
-import type { Vec3, Orientation } from "./story-api/types";
+import type { Vec3 } from "./story-api/types";
 import { AffineMatrix4x4 } from "./scenegraph-math-affine.js";
-import { OrthogonalMatrix3x3 } from "./scenegraph-math-orientation.js";
-import { Point3, Vector3 } from "./scenegraph-math-vectors.js";
 
 // ── Visitor Interface ──────────────────────────────────────────────
 
@@ -96,7 +94,7 @@ export class TransformCollector implements SceneGraphVisitor<TransformEntry> {
 
 /**
  * Converts a scene-graph Transform (position + quaternion orientation + scale)
- * to an AffineMatrix4x4 (OrthogonalMatrix3x3 + Point3).
+ * to an AffineMatrix4x4 (rotation matrix + translation point).
  */
 export function transformToAffine(transform: Transform): AffineMatrix4x4 {
   const { position, orientation, scale } = transform;
