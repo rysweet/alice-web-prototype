@@ -75,8 +75,6 @@ const PROPORTION_TARGETS: Record<EntityCategory, ProportionTarget> = {
   VEHICLE:   { heightToWidth: 0.35, heightToDepth: 0.6 },
 };
 
-// ── Public API ─────────────────────────────────────────────────────
-
 // ── Internal scoring (bounds pre-computed) ─────────────────────────
 
 function scoreSilhouetteFromBounds(geometry: ModelGeometryData, bounds: Bounds): number {
