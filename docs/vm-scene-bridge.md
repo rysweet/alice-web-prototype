@@ -30,7 +30,7 @@ bridge.registerEntity(rabbit.name, rabbitNode);
 bridge.handleMethodCall(rabbitRuntimeObject, "move", ["FORWARD", 2, 1, "gentle"], vmState);
 ```
 
-`createSceneGraphForProject(project)` maps Alice project objects into scene graph nodes and records entity IDs from the project object names. The helper refactor must preserve those IDs across registration and scene graph updates.
+`createSceneGraphForProject(project)` maps Alice project objects into scene graph nodes, attaches them to the scene graph root, and records entity IDs from the project object names. The helper refactor must preserve those IDs across registration and scene graph updates.
 
 ## Runtime behavior
 
@@ -154,10 +154,10 @@ Responsibilities:
 - Resolve Alice object records into scene-node candidates.
 - Select default transform-capable nodes.
 - Compute stable entity IDs from project object data.
-- Build project scene graph registration data.
+- Build detached project scene-node maps.
 - Provide default mappings for cameras, lights, visuals, groups, and fallback objects.
 
-Entity helpers do not mutate a live project, live scene graph, DOM, animation queue, or VM state. The bridge remains responsible for registration and runtime side effects.
+Entity helpers do not mutate a live project, live scene graph, DOM, animation queue, or VM state. The bridge remains responsible for attaching nodes, registration, and runtime side effects.
 
 ## Configuration
 

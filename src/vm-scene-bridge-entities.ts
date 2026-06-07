@@ -3,17 +3,11 @@ import {
   CameraNode,
   GroupNode,
   LightNode,
-  SceneGraph,
   type SceneGraphNode,
   type Transform,
   VisualNode,
 } from "./scene-graph.js";
 import { IDENTITY_ORIENTATION, UNIT_SCALE } from "./vm-scene-bridge-transforms.js";
-
-export interface ProjectSceneRegistration {
-  readonly sceneGraph: SceneGraph;
-  readonly entityNodes: ReadonlyMap<string, SceneGraphNode>;
-}
 
 export function chooseNodeForObject(object: AliceObject): SceneGraphNode {
   if (/camera/i.test(object.typeName)) {
@@ -54,16 +48,12 @@ export function targetEntityIdOf(value: unknown): string | null {
   return null;
 }
 
-export function createProjectSceneRegistration(
-  project: AliceProject,
-  sceneGraph: SceneGraph = new SceneGraph(),
-): ProjectSceneRegistration {
+export function createProjectSceneNodes(project: AliceProject): ReadonlyMap<string, SceneGraphNode> {
   const entityNodes = new Map<string, SceneGraphNode>();
   for (const object of project.sceneObjects) {
     const node = chooseNodeForObject(object);
     node.localTransform = transformFromObject(object);
-    sceneGraph.root.addChild(node);
     entityNodes.set(object.name, node);
   }
-  return { sceneGraph, entityNodes };
+  return entityNodes;
 }

@@ -35,9 +35,8 @@ import type { AliceMethodBridge, ExecutionResult, RuntimeObject, VMState, VMExec
 import { executeProject, virtualMachine } from "./tweedle-vm-core-setup.js";
 import type { EntryPointExecutionOptions } from "./virtual-machine.js";
 import {
-  createProjectSceneRegistration,
+  createProjectSceneNodes,
   targetEntityIdOf,
-  type ProjectSceneRegistration,
 } from "./vm-scene-bridge-entities.js";
 import {
   durationMs,
@@ -60,8 +59,12 @@ import {
 const DEFAULT_BUBBLE_DURATION_MS = 2000;
 
 export type SceneNode = SceneGraphNode;
-export type { ProjectSceneRegistration };
 export type { ScreenPosition };
+
+export interface ProjectSceneRegistration {
+  readonly sceneGraph: SceneGraph;
+  readonly entityNodes: ReadonlyMap<string, SceneGraphNode>;
+}
 
 export interface SpeechBubbleOverlay {
   readonly entityId: string;
@@ -84,7 +87,11 @@ export interface VmSceneRuntimeOptions extends VmSceneBridgeOptions {
 }
 
 export function createSceneGraphForProject(project: AliceProject, sceneGraph: SceneGraph = new SceneGraph()): ProjectSceneRegistration {
-  return createProjectSceneRegistration(project, sceneGraph);
+  const entityNodes = createProjectSceneNodes(project);
+  for (const node of entityNodes.values()) {
+    sceneGraph.root.addChild(node);
+  }
+  return { sceneGraph, entityNodes };
 }
 
 export class VmSceneBridge implements AliceMethodBridge {

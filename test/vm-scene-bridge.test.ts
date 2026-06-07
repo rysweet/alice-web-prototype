@@ -441,17 +441,21 @@ describe("vm-scene-bridge", () => {
     expect(overlay.childElementCount).toBe(0);
   });
 
-  it("reparents entities with setVehicle while preserving world position", () => {
+  it("reparents entities with setVehicle while preserving world transform", () => {
     const sceneGraph = new SceneGraph();
     const car = new VisualNode("car");
     const bunny = new VisualNode("bunny");
     car.localTransform = {
       ...car.localTransform,
       position: { x: 10, y: 0, z: 0 },
+      orientation: quaternionFromAxisAngle(0, 1, 0, revolutionsToRadians(0.25)),
+      scale: { x: 2, y: 3, z: 4 },
     };
     bunny.localTransform = {
       ...bunny.localTransform,
       position: { x: 1, y: 0, z: -3 },
+      orientation: quaternionFromAxisAngle(0, 0, 1, revolutionsToRadians(0.25)),
+      scale: { x: 0.5, y: 0.75, z: 1.25 },
     };
     sceneGraph.root.addChild(car);
     sceneGraph.root.addChild(bunny);
@@ -459,12 +463,14 @@ describe("vm-scene-bridge", () => {
     const bridge = new VmSceneBridge();
     bridge.registerEntity("car", car);
     bridge.registerEntity("bunny", bunny);
+    const worldBefore = bunny.worldTransform;
 
     bridge.handleMethodCall(runtimeObject("bunny"), "setVehicle", [runtimeObject("car")], testState());
 
     expect(bunny.parent).toBe(car);
-    expect(bunny.worldTransform.position).toEqual({ x: 1, y: 0, z: -3 });
-    expect(bunny.localTransform.position.x).toBeCloseTo(-9, 5);
+    expectVec3Close(bunny.worldTransform.position, worldBefore.position);
+    expectOrientationClose(bunny.worldTransform.orientation, worldBefore.orientation);
+    expectVec3Close(bunny.worldTransform.scale, worldBefore.scale);
   });
 
   it("keeps setVehicle as a world-position-preserving no-op for invalid or self vehicles", () => {

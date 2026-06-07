@@ -87,7 +87,7 @@ describe("vm scene bridge mapping helpers", () => {
 
 describe("vm scene bridge entity helpers", () => {
   it("selects scene node types and default transforms from Alice object metadata", async () => {
-    const { chooseNodeForObject, transformFromObject } = await import("../src/vm-scene-bridge-entities.js");
+    const { chooseNodeForObject, createProjectSceneNodes, transformFromObject } = await import("../src/vm-scene-bridge-entities.js");
 
     expect(chooseNodeForObject(object({ name: "camera", typeName: "SCamera" }))).toBeInstanceOf(CameraNode);
     expect(chooseNodeForObject(object({ name: "sun", typeName: "SSun" }))).toBeInstanceOf(LightNode);
@@ -121,6 +121,20 @@ describe("vm scene bridge entity helpers", () => {
       orientation: { x: 0, y: 1, z: 0, w: 0 },
       scale: { x: 4, y: 5, z: 6 },
     });
+
+    const entityNodes = createProjectSceneNodes({
+      version: "1",
+      projectName: "DetachedNodes",
+      sceneObjects: [
+        object({ name: "camera", typeName: "SCamera" }),
+        object({ name: "prop", typeName: "SProp", position: { x: 1, y: 2, z: 3 } }),
+      ],
+      methods: [],
+    });
+    expect([...entityNodes.keys()]).toEqual(["camera", "prop"]);
+    expect(entityNodes.get("camera")).toBeInstanceOf(CameraNode);
+    expect(entityNodes.get("camera")?.parent).toBeNull();
+    expect(entityNodes.get("prop")?.parent).toBeNull();
   });
 
   it("resolves entity ids only from strings and runtime-like named objects", async () => {
