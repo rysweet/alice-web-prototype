@@ -6,14 +6,20 @@ import {
   getA3PSource,
   type AliceProject,
 } from "../a3p-parser.js";
+import { serializeManifest } from "../project-io/manifest.js";
+import { assertSafeWritablePath } from "../project-io/path-security.js";
+import { writeProjectResources } from "../project-io/resources.js";
+import { writeProjectThumbnail } from "../project-io/thumbnails.js";
 import { appendCommentToMethod, buildProjectXml, ensureXmlTools } from "./document.js";
 import { findSceneTypeDefinition } from "./xml-tools.js";
-import { SPECIAL_RESOURCE_PATHS, type ProjectModification, type WriteA3POptions } from "./types.js";
+import { type ProjectModification, type WriteA3POptions } from "./types.js";
 
 export async function writeA3P(project: AliceProject, options: WriteA3POptions = {}): Promise<Uint8Array> {
   await ensureXmlTools();
   const source = getA3PSource(project);
-  const xmlEntryName = options.xmlEntryName ?? source?.xmlEntryName ?? DEFAULT_A3P_XML_ENTRY;
+  const xmlEntryName = assertSafeWritablePath(
+    options.xmlEntryName ?? source?.xmlEntryName ?? DEFAULT_A3P_XML_ENTRY,
+  );
   const baseXmlText = options.baseXmlText ?? source?.xmlText ?? null;
   const zip = new JSZip();
 
@@ -27,11 +33,9 @@ export async function writeA3P(project: AliceProject, options: WriteA3POptions =
   zip.file(xmlEntryName, buildProjectXml(project, baseXmlText));
 
   if (options.manifest !== undefined && options.manifest !== null) {
-    zip.file("manifest.json", JSON.stringify(options.manifest, null, 2));
+    zip.file("manifest.json", serializeManifest(options.manifest));
   }
-  if (options.thumbnail !== undefined && options.thumbnail !== null) {
-    zip.file("thumbnail.png", options.thumbnail);
-  }
+  writeProjectThumbnail(zip, options.thumbnail ?? null);
 
   return zip.generateAsync({ type: "uint8array" });
 }
@@ -81,16 +85,10 @@ export async function modifyAndWriteA3P(
 async function copySourceEntries(target: JSZip, sourceZip: JSZip, skip: Set<string>): Promise<void> {
   for (const [entryName, entry] of Object.entries(sourceZip.files)) {
     if (skip.has(entryName) || entry.dir) continue;
-    target.file(entryName, await entry.async("uint8array"));
+    target.file(assertSafeWritablePath(entryName), await entry.async("uint8array"));
   }
 }
 
 function writeExplicitResources(zip: JSZip, resources: Map<string, Uint8Array>): void {
-  const orderedResources = [...resources.entries()]
-    .filter(([resourcePath]) => !SPECIAL_RESOURCE_PATHS.has(resourcePath))
-    .sort(([leftPath], [rightPath]) => leftPath.localeCompare(rightPath));
-
-  for (const [resourcePath, bytes] of orderedResources) {
-    zip.file(resourcePath, bytes);
-  }
+  writeProjectResources(zip, resources);
 }

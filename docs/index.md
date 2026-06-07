@@ -35,16 +35,15 @@ so the `eatme` test suite can drive real curriculum workflows.
 ### Tutorials
 
 - [Getting started](./getting-started.md)
-
-### Tutorials
-
 - [Adding open-source 3D models](./tutorial-adding-3d-models.md)
+- [Round-trip an `.a3p` project with Project IO](./tutorial-project-io-round-trip.md)
 
 ### How-to guides and workflows
 
 - [Testing](./testing.md)
 - [IDE operations](./ide-operations.md)
 - [Gadugi test scenarios](./gadugi-test-scenarios.md)
+- [Project IO usage guide](./project-io-usage.md)
 
 ### Reference
 
@@ -59,6 +58,8 @@ so the `eatme` test suite can drive real curriculum workflows.
 - [Model resources](./model-resources.md)
 - [Open-asset pipeline](./open-asset-pipeline.md)
 - [Project IO](./project-io.md)
+- [Project IO API reference](./project-io-api.md)
+- [Project IO configuration](./project-io-configuration.md)
 - [Resource manager](./resource-manager.md)
 - [Scene graph](./scene-graph.md)
 - [Scene manager](./scene-manager.md)

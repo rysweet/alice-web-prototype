@@ -1,3 +1,5 @@
+import { SPECIAL_PROJECT_IO_PATHS } from "../project-io/types.js";
+
 export interface ProjectModification {
   addCommentToMethod?: string;
   commentText?: string;
@@ -13,11 +15,4 @@ export interface WriteA3POptions {
   preserveSourceEntries?: boolean;
 }
 
-export const SPECIAL_RESOURCE_PATHS = new Set([
-  "__original_xml__",
-  "programType.xml",
-  "program.xml",
-  "manifest.json",
-  "thumbnail.png",
-  "version.txt",
-]);
+export const SPECIAL_RESOURCE_PATHS = SPECIAL_PROJECT_IO_PATHS;

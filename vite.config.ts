@@ -7,6 +7,9 @@ export default defineConfig({
   },
   test: {
     root: ".",
-    include: ["test/**/*.test.ts"],
+    include: ["test/**/*.test.ts", "src/**/*.test.ts"],
+    fileParallelism: false,
+    hookTimeout: 30000,
+    testTimeout: 30000,
   },
 });

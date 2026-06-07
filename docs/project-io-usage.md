@@ -1,0 +1,205 @@
+# Project IO usage guide
+
+Use this guide for common `.a3p` project IO tasks.
+
+## Read a project in the browser
+
+```typescript
+import { readProject } from "./src/project-io.js";
+
+const input = document.querySelector<HTMLInputElement>("#project-file");
+
+input?.addEventListener("change", async () => {
+  const file = input.files?.[0];
+  if (!file) return;
+
+  const archive = await readProject(await file.arrayBuffer());
+  console.log(archive.project.projectName);
+  console.log(archive.resourceEntries.map((entry) => entry.path));
+});
+```
+
+## Read and write a project in Node.js
+
+```typescript
+import { readFile, writeFile } from "node:fs/promises";
+import { readProject, writeProject } from "./src/project-io.js";
+
+const sourceBytes = await readFile("lessons/first-world.a3p");
+const archive = await readProject(sourceBytes);
+
+archive.project.projectName = "First World - Edited";
+
+const outputBytes = await writeProject(archive);
+await writeFile("lessons/first-world-edited.a3p", outputBytes);
+```
+
+## Preserve original XML pass-through
+
+`readProject()` stores the migrated project XML in `archive.resources` under
+the internal `__original_xml__` marker. That marker includes the original XML
+entry name, so `writeProject()` can write back `programType.xml` or legacy
+`program.xml` without guessing.
+
+Keep `__original_xml__` in the resource map unless you intentionally want
+Project IO to fall back to explicit XML resources or generated XML.
+Project IO filters this marker from ZIP writes; it is not an archive entry.
+
+```typescript
+const archive = await readProject(projectBytes);
+
+// Safe: keep XML pass-through while changing normal project state.
+archive.project.projectName = "Preserved XML Example";
+
+const output = await writeProject(archive);
+```
+
+If `__original_xml__` is removed, `writeProject()` falls back to these XML
+sources in order:
+
+1. `archive.resources.get("programType.xml")`
+2. `archive.resources.get("program.xml")`
+3. Generated XML from `archive.project`
+
+## Add or replace a resource
+
+Resource paths are archive-relative POSIX paths. Use forward slashes and avoid
+absolute paths.
+
+```typescript
+import { readFile } from "node:fs/promises";
+import { readProject, writeProject } from "./src/project-io.js";
+
+const archive = await readProject(projectBytes);
+const textureBytes = await readFile("assets/textures/checker.png");
+
+archive.resources.set(
+  "resources/textures/checker.png",
+  new Uint8Array(textureBytes),
+);
+
+const output = await writeProject(archive);
+```
+
+Project IO rejects unsafe paths such as:
+
+```typescript
+archive.resources.set("../outside.png", new Uint8Array());
+archive.resources.set("/absolute/path.png", new Uint8Array());
+archive.resources.set("resources\\texture.png", new Uint8Array());
+archive.resources.set("C:/temp/texture.png", new Uint8Array());
+archive.resources.set("//server/share/texture.png", new Uint8Array());
+```
+
+Rejected paths throw `ProjectIoError` with code `unsafe-path`.
+
+## Replace a thumbnail
+
+`archive.thumbnail` maps to root `thumbnail.png`.
+
+```typescript
+import { readFile } from "node:fs/promises";
+import { readProject, writeProject } from "./src/project-io.js";
+
+const archive = await readProject(projectBytes);
+const thumbnail = await readFile("assets/thumbnails/preview.png");
+
+archive.thumbnail = new Uint8Array(thumbnail);
+
+const output = await writeProject(archive);
+```
+
+Project IO stores thumbnail bytes as provided. It does not validate that the
+bytes are a PNG.
+
+## Generate a thumbnail while saving
+
+Pass `generateThumbnailFromScene: true` to render a thumbnail only when
+`archive.thumbnail` is `null`.
+
+```typescript
+import { writeProject } from "./src/project-io.js";
+
+archive.thumbnail = null;
+
+const output = await writeProject(archive, {
+  generateThumbnailFromScene: true,
+});
+
+console.log(archive.thumbnail?.byteLength);
+```
+
+When generation succeeds, `writeProject()` mutates `archive.thumbnail` to the
+generated PNG bytes.
+
+## Handle Project IO errors
+
+```typescript
+import { ProjectIoError, readProject } from "./src/project-io.js";
+
+try {
+  await readProject(projectBytes);
+} catch (error) {
+  if (!(error instanceof ProjectIoError)) {
+    throw error;
+  }
+
+  switch (error.code) {
+    case "missing-program-xml":
+      console.error("This archive does not contain Alice project XML.");
+      break;
+    case "invalid-manifest":
+      console.error("The project manifest is not valid JSON.");
+      break;
+    case "unsafe-path":
+      console.error("The archive contains an unsafe path.");
+      break;
+    case "zip-bomb":
+      console.error("The archive is too large to extract safely.");
+      break;
+    default:
+      console.error(error.message);
+  }
+}
+```
+
+## Use Project IO through `ProjectManager`
+
+`ProjectManager` uses `readProject()` and `writeProject()` for open and save
+workflows. Use it when you want lifecycle state such as dirty tracking, recent
+files, backups, and revert.
+
+```typescript
+import { ProjectManager } from "./src/project-manager.js";
+
+const manager = new ProjectManager();
+
+await manager.open(projectBytes, "lesson.a3p");
+manager.currentArchive!.project.projectName = "Lesson - Edited";
+manager.markDirty();
+
+const savedBytes = await manager.save();
+```
+
+Use `readProject()` and `writeProject()` directly when you only need in-memory
+archive conversion.
+
+## Inspect migration results
+
+```typescript
+const archive = await readProject(projectBytes);
+
+console.log(archive.versionInfo.detectedAliceVersion);
+console.log(archive.versionInfo.versionSource);
+
+for (const step of archive.versionInfo.migrationSteps) {
+  console.log(step);
+}
+```
+
+`readProject()` synchronizes one manifest version field after migration. It uses
+this precedence: `aliceVersion`, `projectVersion`, version-like `version`, then
+`createdWith.version`. If a higher-priority field is updated, lower-priority
+version fields are left unchanged.
+
+Last updated for the refactored Project IO facade and internal module split.

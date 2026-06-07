@@ -1,92 +1,41 @@
-/**
- * Full .a3p project read/write with manifest.json, program.xml, resources, thumbnails,
- * version detection, and migration-aware parsing.
- */
-import JSZip from "jszip";
+import type JSZip from "jszip";
 import {
   DEFAULT_A3P_XML_ENTRY,
-  LEGACY_A3P_XML_ENTRY,
   parseA3PFromZip,
   readA3PXmlEntry,
   type AliceProject,
 } from "./a3p-parser.js";
-import {
-  classifyProjectResource,
-  detectProjectVersion,
-  migrateProjectXml,
-  synchronizeManifestVersion,
-  type ProjectResourceKind,
-  type ProjectVersionInfo,
-} from "./project-migration.js";
 import { writeA3P } from "./a3p-writer.js";
-import { renderSceneToPng } from "./scene-renderer.js";
+import { listSafeZipEntries, loadProjectZip, readZipText } from "./project-io/archive-zip.js";
+import { parseManifestText, syncManifestVersion } from "./project-io/manifest.js";
+import { migrateProjectArchiveXml } from "./project-io/migration.js";
+import { extractProjectResources } from "./project-io/resources.js";
+import {
+  generateThumbnailFromProjectScene,
+  readProjectThumbnail,
+  resolveThumbnailForWrite,
+} from "./project-io/thumbnails.js";
+import {
+  encodeOriginalXml,
+  selectOriginalXmlForWrite,
+} from "./project-io/xml-pass-through.js";
+import {
+  ORIGINAL_XML_RESOURCE_PATH,
+  ProjectIoError,
+  type AliceProjectArchive,
+  type ProjectIoErrorCode,
+  type ProjectResourceDescriptor,
+  type WriteProjectOptions,
+} from "./project-io/types.js";
 
-export type ProjectIoErrorCode =
-  | "corrupted-archive"
-  | "invalid-manifest"
-  | "missing-program-xml"
-  | "unsafe-path"
-  | "xml-parse"
-  | "zip-bomb";
-
-export class ProjectIoError extends Error {
-  readonly code: ProjectIoErrorCode;
-  override readonly cause?: unknown;
-
-  constructor(code: ProjectIoErrorCode, message: string, cause?: unknown) {
-    super(message);
-    this.name = "ProjectIoError";
-    this.code = code;
-    this.cause = cause;
-  }
-}
-
-export interface ProjectResourceDescriptor {
-  path: string;
-  kind: ProjectResourceKind;
-  size: number;
-}
-
-/** Complete archive contents returned by readProject(). */
-export interface AliceProjectArchive {
-  project: AliceProject;
-  manifest: Record<string, unknown> | null;
-  resources: Map<string, Uint8Array>;
-  resourceEntries: ProjectResourceDescriptor[];
-  thumbnail: Uint8Array | null;
-  versionInfo: ProjectVersionInfo;
-}
-
-const MAX_EXTRACT_SIZE = 256 * 1024 * 1024; // 256 MB ZIP bomb protection
-const SPECIAL_ENTRIES = new Set([
-  DEFAULT_A3P_XML_ENTRY,
-  LEGACY_A3P_XML_ENTRY,
-  "manifest.json",
-  "thumbnail.png",
-  "version.txt",
-]);
-
-function validatePath(p: string): void {
-  if (p.includes("..") || p.startsWith("/") || p.includes("\\")) {
-    throw new ProjectIoError("unsafe-path", `Unsafe archive path rejected: "${p}"`);
-  }
-}
-
-function originalXmlMarker(entryName: string): string {
-  return `<!-- ${entryName} -->\n`;
-}
-
-function decodeStoredOriginalXml(bytes: Uint8Array): { entryName: string; xmlText: string } {
-  const stored = new TextDecoder().decode(bytes);
-  const match = stored.match(/^<!--\s+([^>]+?)\s+-->\n/);
-  if (!match) {
-    return { entryName: DEFAULT_A3P_XML_ENTRY, xmlText: stored };
-  }
-  return {
-    entryName: match[1].trim(),
-    xmlText: stored.slice(match[0].length),
-  };
-}
+export {
+  ProjectIoError,
+  type AliceProjectArchive,
+  type ProjectIoErrorCode,
+  type ProjectResourceDescriptor,
+  type WriteProjectOptions,
+};
+export { generateThumbnailFromProjectScene };
 
 /**
  * Read an .a3p archive and return the parsed project, manifest, resources, thumbnail,
@@ -95,22 +44,15 @@ function decodeStoredOriginalXml(bytes: Uint8Array): { entryName: string; xmlTex
 export async function readProject(
   data: ArrayBuffer | Uint8Array,
 ): Promise<AliceProjectArchive> {
-  const zip = await loadZip(data);
+  const zip = await loadProjectZip(data);
+  listSafeZipEntries(zip);
 
-  for (const archivePath of Object.keys(zip.files)) {
-    validatePath(archivePath);
-  }
-
-  const manifest = await readManifest(zip);
+  const manifest = parseManifestText(await readZipText(zip, "manifest.json"));
   const xmlEntry = await readXmlEntry(zip);
-  const versionText = await readOptionalText(zip, "version.txt");
-  const thumbnail = await readThumbnail(zip);
-
-  const migration = migrateProjectXml(
-    xmlEntry.text,
-    detectProjectVersion(versionText, manifest, xmlEntry.text),
-  );
-  const nextManifest = synchronizeManifestVersion(manifest, migration.versionInfo);
+  const versionText = await readZipText(zip, "version.txt");
+  const thumbnail = await readProjectThumbnail(zip);
+  const migration = migrateProjectArchiveXml(xmlEntry.text, versionText, manifest);
+  const nextManifest = syncManifestVersion(manifest, migration.versionInfo);
 
   zip.file(xmlEntry.name, migration.xmlText);
   zip.file("version.txt", migration.versionInfo.detectedAliceVersion);
@@ -118,13 +60,14 @@ export async function readProject(
   const project = await parseProject(zip);
   project.version = migration.versionInfo.detectedAliceVersion;
 
-  const storedXmlBytes = new TextEncoder().encode(
-    originalXmlMarker(xmlEntry.name) + migration.xmlText,
-  );
+  const storedXmlBytes = encodeOriginalXml({
+    entryName: xmlEntry.name,
+    xmlText: migration.xmlText,
+  });
   const resources = new Map<string, Uint8Array>();
-  resources.set("__original_xml__", storedXmlBytes);
+  resources.set(ORIGINAL_XML_RESOURCE_PATH, storedXmlBytes);
 
-  const resourceRecords = await extractResources(zip, storedXmlBytes.length);
+  const resourceRecords = await extractProjectResources(zip, storedXmlBytes.length);
   for (const record of resourceRecords) {
     resources.set(record.path, record.bytes);
   }
@@ -143,20 +86,6 @@ export async function readProject(
   };
 }
 
-export interface WriteProjectOptions {
-  generateThumbnailFromScene?: boolean;
-}
-
-export async function generateThumbnailFromProjectScene(
-  project: AliceProject,
-): Promise<Uint8Array | null> {
-  if (project.sceneObjects.length === 0) {
-    return null;
-  }
-  const rendered = await renderSceneToPng(project, { width: 640, height: 480 });
-  return new Uint8Array(rendered.png);
-}
-
 /**
  * Write an AliceProjectArchive back to .a3p ZIP format (Uint8Array).
  * Uses migrated XML when available, but can synthesize XML for brand-new/empty projects too.
@@ -165,118 +94,17 @@ export async function writeProject(
   archive: AliceProjectArchive,
   options: WriteProjectOptions = {},
 ): Promise<Uint8Array> {
-  for (const resourcePath of archive.resources.keys()) {
-    if (resourcePath === "__original_xml__") continue;
-    validatePath(resourcePath);
-  }
-
-  const storedOriginalXml = archive.resources.get("__original_xml__");
-  const explicitProgramTypeXml = archive.resources.get(DEFAULT_A3P_XML_ENTRY);
-  const explicitLegacyXml = archive.resources.get(LEGACY_A3P_XML_ENTRY);
-
-  let xmlEntryName = DEFAULT_A3P_XML_ENTRY;
-  let baseXmlText: string | null = null;
-
-  if (storedOriginalXml) {
-    const decoded = decodeStoredOriginalXml(storedOriginalXml);
-    xmlEntryName = decoded.entryName;
-    baseXmlText = decoded.xmlText;
-  } else if (explicitProgramTypeXml) {
-    xmlEntryName = DEFAULT_A3P_XML_ENTRY;
-    baseXmlText = new TextDecoder().decode(explicitProgramTypeXml);
-  } else if (explicitLegacyXml) {
-    xmlEntryName = LEGACY_A3P_XML_ENTRY;
-    baseXmlText = new TextDecoder().decode(explicitLegacyXml);
-  }
-
-  const thumbnail = archive.thumbnail
-    ?? (options.generateThumbnailFromScene
-      ? await generateThumbnailFromProjectScene(archive.project)
-      : null);
-  if (thumbnail !== null && archive.thumbnail == null) {
-    archive.thumbnail = thumbnail;
-  }
+  const originalXml = selectOriginalXmlForWrite(archive.resources);
+  const thumbnail = await resolveThumbnailForWrite(archive, options);
 
   return writeA3P(archive.project, {
-    xmlEntryName,
-    baseXmlText,
+    xmlEntryName: originalXml?.entryName ?? DEFAULT_A3P_XML_ENTRY,
+    baseXmlText: originalXml?.xmlText ?? null,
     manifest: archive.manifest,
     thumbnail,
     resources: archive.resources,
     preserveSourceEntries: false,
   });
-}
-
-async function loadZip(data: ArrayBuffer | Uint8Array): Promise<JSZip> {
-  try {
-    return await JSZip.loadAsync(data);
-  } catch (error) {
-    throw new ProjectIoError(
-      "corrupted-archive",
-      "Invalid or truncated .a3p archive.",
-      error,
-    );
-  }
-}
-
-async function readManifest(zip: JSZip): Promise<Record<string, unknown> | null> {
-  const manifestEntry = zip.file("manifest.json");
-  if (!manifestEntry) {
-    return null;
-  }
-
-  let manifestText: string;
-  try {
-    manifestText = await manifestEntry.async("string");
-  } catch (error) {
-    throw new ProjectIoError(
-      "corrupted-archive",
-      "Failed to read manifest.json from .a3p archive.",
-      error,
-    );
-  }
-
-  try {
-    return JSON.parse(manifestText) as Record<string, unknown>;
-  } catch (error) {
-    throw new ProjectIoError(
-      "invalid-manifest",
-      "manifest.json is not valid JSON.",
-      error,
-    );
-  }
-}
-
-async function readOptionalText(zip: JSZip, path: string): Promise<string | null> {
-  const entry = zip.file(path);
-  if (!entry) {
-    return null;
-  }
-  try {
-    return await entry.async("string");
-  } catch (error) {
-    throw new ProjectIoError(
-      "corrupted-archive",
-      `Failed to read ${path} from .a3p archive.`,
-      error,
-    );
-  }
-}
-
-async function readThumbnail(zip: JSZip): Promise<Uint8Array | null> {
-  const thumbEntry = zip.file("thumbnail.png");
-  if (!thumbEntry) {
-    return null;
-  }
-  try {
-    return await thumbEntry.async("uint8array");
-  } catch (error) {
-    throw new ProjectIoError(
-      "corrupted-archive",
-      "Failed to read thumbnail.png from .a3p archive.",
-      error,
-    );
-  }
 }
 
 async function readXmlEntry(zip: JSZip): Promise<{ name: string; text: string }> {
@@ -318,46 +146,4 @@ async function parseProject(zip: JSZip): Promise<AliceProject> {
       error,
     );
   }
-}
-
-async function extractResources(
-  zip: JSZip,
-  initialSize: number,
-): Promise<Array<{ path: string; bytes: Uint8Array; kind: ProjectResourceKind }>> {
-  const resourceEntries: Array<{ path: string; entry: JSZip.JSZipObject }> = [];
-  for (const [archivePath, entry] of Object.entries(zip.files)) {
-    if (entry.dir || SPECIAL_ENTRIES.has(archivePath)) continue;
-    resourceEntries.push({ path: archivePath, entry });
-  }
-
-  const extractedResources = await Promise.all(
-    resourceEntries.map(async ({ path, entry }) => {
-      try {
-        return {
-          path,
-          bytes: await entry.async("uint8array"),
-          kind: classifyProjectResource(path),
-        };
-      } catch (error) {
-        throw new ProjectIoError(
-          "corrupted-archive",
-          `Failed to extract resource \"${path}\" from .a3p archive.`,
-          error,
-        );
-      }
-    }),
-  );
-
-  let totalSize = initialSize;
-  for (const { bytes } of extractedResources) {
-    totalSize += bytes.length;
-    if (totalSize > MAX_EXTRACT_SIZE) {
-      throw new ProjectIoError(
-        "zip-bomb",
-        `Archive extraction exceeds ${MAX_EXTRACT_SIZE} byte limit (ZIP bomb protection).`,
-      );
-    }
-  }
-
-  return extractedResources;
 }
