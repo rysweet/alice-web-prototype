@@ -66,7 +66,7 @@ function registerNodes(nodes: Record<string, SceneGraphNode>): VmSceneBridge {
   return bridge;
 }
 
-function stubState(): VMState {
+function testState(): VMState {
   return {
     stepCounter: 0,
     depth: 0,
@@ -132,7 +132,7 @@ describe("vm-scene-bridge", () => {
 
     const bridge = new VmSceneBridge();
     bridge.registerEntity("bunny", bunny);
-    const state = stubState();
+    const state = testState();
     const entity = runtimeObject("bunny");
 
     expect(bridge.handleMethodCall(entity, "move", ["FORWARD", 2], state)).toBe(true);
@@ -176,7 +176,7 @@ describe("vm-scene-bridge", () => {
     sceneGraph.root.addChild(faceTarget);
 
     const bridge = registerNodes({ bunny, target, faceTarget });
-    const state = stubState();
+    const state = testState();
     const entity = runtimeObject("bunny");
     const targetEntity = runtimeObject("target");
 
@@ -229,7 +229,7 @@ describe("vm-scene-bridge", () => {
     const initialTransform = bunny.localTransform;
     sceneGraph.root.addChild(bunny);
     const bridge = registerNodes({ bunny });
-    const state = stubState();
+    const state = testState();
 
     expect(bridge.handleMethodCall(runtimeObject("ghost"), "move", ["FORWARD", 5], state)).toBe(false);
     expect(bunny.localTransform).toEqual(initialTransform);
@@ -261,7 +261,7 @@ describe("vm-scene-bridge", () => {
     const bridge = new VmSceneBridge({ animationQueue: queue });
     bridge.registerEntity("bunny", bunny);
     const entity = runtimeObject("bunny");
-    const state = stubState();
+    const state = testState();
 
     bridge.handleMethodCall(entity, "move", ["FORWARD", "bad-number"], state);
     expectVec3Close(bunny.worldTransform.position, { x: 0, y: 0, z: 0 });
@@ -329,7 +329,7 @@ describe("vm-scene-bridge", () => {
     const bridge = new VmSceneBridge({ overlayContainer: overlay });
     bridge.registerEntity("bunny", bunny);
 
-    bridge.handleMethodCall(runtimeObject("bunny"), "say", ["hello"], stubState());
+    bridge.handleMethodCall(runtimeObject("bunny"), "say", ["hello"], testState());
 
     const element = bridge.getSpeechBubbleElement("bunny");
     expect(element).not.toBeNull();
@@ -363,7 +363,7 @@ describe("vm-scene-bridge", () => {
     });
     bridge.registerEntity("bunny", bunny);
 
-    bridge.handleMethodCall(runtimeObject("bunny"), "think", ["<b>secret</b>", 0.75], stubState());
+    bridge.handleMethodCall(runtimeObject("bunny"), "think", ["<b>secret</b>", 0.75], testState());
     expect(bridge.getSpeechBubbleElement("bunny")).toBeNull();
 
     queue.update(0);
@@ -389,7 +389,7 @@ describe("vm-scene-bridge", () => {
     overlay.replaceChildren();
     const bridge = new VmSceneBridge({ overlayContainer: overlay });
 
-    expect(bridge.handleMethodCall(runtimeObject("ghost"), "say", ["ignored"], stubState())).toBe(false);
+    expect(bridge.handleMethodCall(runtimeObject("ghost"), "say", ["ignored"], testState())).toBe(false);
     expect(bridge.getSpeechBubbleElement("ghost")).toBeNull();
     expect(overlay.childElementCount).toBe(0);
   });
@@ -413,7 +413,7 @@ describe("vm-scene-bridge", () => {
     bridge.registerEntity("car", car);
     bridge.registerEntity("bunny", bunny);
 
-    bridge.handleMethodCall(runtimeObject("bunny"), "setVehicle", [runtimeObject("car")], stubState());
+    bridge.handleMethodCall(runtimeObject("bunny"), "setVehicle", [runtimeObject("car")], testState());
 
     expect(bunny.parent).toBe(car);
     expect(bunny.worldTransform.position).toEqual({ x: 1, y: 0, z: -3 });
@@ -436,7 +436,7 @@ describe("vm-scene-bridge", () => {
     sceneGraph.root.addChild(bunny);
 
     const bridge = registerNodes({ car, bunny });
-    const state = stubState();
+    const state = testState();
     const entity = runtimeObject("bunny");
 
     bridge.handleMethodCall(entity, "setVehicle", [runtimeObject("car")], state);

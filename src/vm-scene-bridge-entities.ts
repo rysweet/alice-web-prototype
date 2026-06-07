@@ -5,6 +5,7 @@ import {
   LightNode,
   SceneGraph,
   type SceneGraphNode,
+  type Transform,
   VisualNode,
 } from "./scene-graph.js";
 import { IDENTITY_ORIENTATION, UNIT_SCALE } from "./vm-scene-bridge-transforms.js";
@@ -29,7 +30,7 @@ export function chooseNodeForObject(object: AliceObject): SceneGraphNode {
   return node;
 }
 
-export function transformFromObject(object: AliceObject) {
+export function transformFromObject(object: AliceObject): Transform {
   return {
     position: object.position ? { ...object.position } : { x: 0, y: 0, z: 0 },
     orientation: object.orientation ? { ...object.orientation } : { ...IDENTITY_ORIENTATION },

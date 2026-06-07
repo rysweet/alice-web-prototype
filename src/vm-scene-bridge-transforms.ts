@@ -32,7 +32,7 @@ export function cloneTransform(value: Transform): Transform {
   };
 }
 
-export function multiplyVec3(left: Vec3, right: Vec3): Vec3 {
+function multiplyVec3(left: Vec3, right: Vec3): Vec3 {
   return {
     x: left.x * right.x,
     y: left.y * right.y,
@@ -40,7 +40,7 @@ export function multiplyVec3(left: Vec3, right: Vec3): Vec3 {
   };
 }
 
-export function divideVec3(left: Vec3, right: Vec3): Vec3 {
+function divideVec3(left: Vec3, right: Vec3): Vec3 {
   return {
     x: right.x === 0 ? 0 : left.x / right.x,
     y: right.y === 0 ? 0 : left.y / right.y,
@@ -48,7 +48,7 @@ export function divideVec3(left: Vec3, right: Vec3): Vec3 {
   };
 }
 
-export function invertOrientation(orientation: Orientation): Orientation {
+function invertOrientation(orientation: Orientation): Orientation {
   return normalizeQuaternion(quaternionConjugate(orientation));
 }
 

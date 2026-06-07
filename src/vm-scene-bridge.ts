@@ -45,6 +45,7 @@ import {
   numericValue,
   screenPositionOf,
   toColor3,
+  type ScreenPosition,
 } from "./vm-scene-bridge-mapping.js";
 import {
   cloneTransform,
@@ -57,12 +58,7 @@ const DEFAULT_BUBBLE_DURATION_MS = 2000;
 
 export type SceneNode = SceneGraphNode;
 export type { ProjectSceneRegistration };
-
-export interface ScreenPosition {
-  readonly x: number;
-  readonly y: number;
-  readonly visible?: boolean;
-}
+export type { ScreenPosition };
 
 export interface SpeechBubbleOverlay {
   readonly entityId: string;
@@ -230,6 +226,11 @@ export class VmSceneBridge implements AliceMethodBridge {
   #worldFor(entityId: string): Transform {
     const node = this.#requireTransformable(entityId);
     return this.#projectedWorldForNode(node);
+  }
+
+  #targetNodeFor(value: unknown): SceneGraphNode | null {
+    const targetId = targetEntityIdOf(value);
+    return targetId ? this.#entityNodes.get(targetId) ?? null : null;
   }
 
   #setProjectedLocal(entityId: string, local: Transform): void {
@@ -463,8 +464,7 @@ export class VmSceneBridge implements AliceMethodBridge {
   #setVehicle(entityId: string, vehicleValue: unknown): void {
     const node = this.#requireTransformable(entityId);
     const world = this.#worldFor(entityId);
-    const targetId = targetEntityIdOf(vehicleValue);
-    const parent = targetId ? this.#entityNodes.get(targetId) ?? null : null;
+    const parent = this.#targetNodeFor(vehicleValue);
     if (!parent || parent === node || this.#containsDescendant(node, parent)) {
       return;
     }
@@ -488,12 +488,12 @@ export class VmSceneBridge implements AliceMethodBridge {
   }
 
   #place(entityId: string, relationValue: unknown, targetValue: unknown, offsetValue?: unknown): Promise<void> {
-    const targetId = targetEntityIdOf(targetValue);
-    if (!targetId || !this.#entityNodes.has(targetId)) {
+    const target = this.#targetNodeFor(targetValue);
+    if (!target) {
       return Promise.resolve();
     }
     const selfWorld = this.#worldFor(entityId);
-    const targetWorld = this.#worldFor(targetId);
+    const targetWorld = this.#projectedWorldForNode(target);
     const relation = parseSpatialRelation(String(relationValue ?? "ABOVE")) as SpatialRelation;
     const offset = numericValue(offsetValue, 0);
     const relationDistance = (() => {
@@ -513,12 +513,12 @@ export class VmSceneBridge implements AliceMethodBridge {
   }
 
   #pointAt(entityId: string, targetValue: unknown): Promise<void> {
-    const targetId = targetEntityIdOf(targetValue);
-    if (!targetId || !this.#entityNodes.has(targetId)) {
+    const target = this.#targetNodeFor(targetValue);
+    if (!target) {
       return Promise.resolve();
     }
     const world = this.#worldFor(entityId);
-    const targetWorld = this.#worldFor(targetId);
+    const targetWorld = this.#projectedWorldForNode(target);
     const direction = subtractVec3(targetWorld.position, world.position);
     if (magnitudeVec3(direction) === 0) {
       return Promise.resolve();
@@ -527,20 +527,20 @@ export class VmSceneBridge implements AliceMethodBridge {
   }
 
   #orientTo(entityId: string, targetValue: unknown): Promise<void> {
-    const targetId = targetEntityIdOf(targetValue);
-    if (!targetId || !this.#entityNodes.has(targetId)) {
+    const target = this.#targetNodeFor(targetValue);
+    if (!target) {
       return Promise.resolve();
     }
-    return this.#animateWorldOrientation(entityId, this.#worldFor(targetId).orientation, 0, "linear");
+    return this.#animateWorldOrientation(entityId, this.#projectedWorldForNode(target).orientation, 0, "linear");
   }
 
   #moveToward(entityId: string, targetValue: unknown, amountValue: unknown, durationValue?: unknown, styleValue?: unknown): Promise<void> {
-    const targetId = targetEntityIdOf(targetValue);
-    if (!targetId || !this.#entityNodes.has(targetId)) {
+    const target = this.#targetNodeFor(targetValue);
+    if (!target) {
       return Promise.resolve();
     }
     const world = this.#worldFor(entityId);
-    const targetWorld = this.#worldFor(targetId);
+    const targetWorld = this.#projectedWorldForNode(target);
     const direction = subtractVec3(targetWorld.position, world.position);
     const distance = magnitudeVec3(direction);
     const movement = distance > 0
@@ -550,12 +550,12 @@ export class VmSceneBridge implements AliceMethodBridge {
   }
 
   #turnToFace(entityId: string, targetValue: unknown, durationValue?: unknown, styleValue?: unknown): Promise<void> {
-    const targetId = targetEntityIdOf(targetValue);
-    if (!targetId || !this.#entityNodes.has(targetId)) {
+    const target = this.#targetNodeFor(targetValue);
+    if (!target) {
       return Promise.resolve();
     }
     const world = this.#worldFor(entityId);
-    const targetWorld = this.#worldFor(targetId);
+    const targetWorld = this.#projectedWorldForNode(target);
     const planar = {
       x: targetWorld.position.x - world.position.x,
       y: 0,

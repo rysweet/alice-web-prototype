@@ -1,6 +1,11 @@
 import type { AnimationEasing } from "./animation-loop.js";
-import type { ScreenPosition } from "./vm-scene-bridge.js";
 import type { Vec3 } from "./story-api/types.js";
+
+export interface ScreenPosition {
+  readonly x: number;
+  readonly y: number;
+  readonly visible?: boolean;
+}
 
 const COLOR_KEYWORDS: Readonly<Record<string, { r: number; g: number; b: number }>> = Object.freeze({
   WHITE: { r: 1, g: 1, b: 1 },
