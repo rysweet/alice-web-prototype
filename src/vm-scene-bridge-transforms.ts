@@ -80,6 +80,17 @@ export function projectedWorldForNode(
   if (!node) {
     return identityTransform();
   }
-  const local = cloneTransform(localForNode(node) ?? node.localTransform);
-  return combineTransforms(projectedWorldForNode(node.parent, localForNode), local);
+  const chain: SceneGraphNode[] = [];
+  let current: SceneGraphNode | null = node;
+  while (current) {
+    chain.push(current);
+    current = current.parent;
+  }
+
+  let world = identityTransform();
+  for (let index = chain.length - 1; index >= 0; index--) {
+    const currentNode = chain[index]!;
+    world = combineTransforms(world, localForNode(currentNode) ?? currentNode.localTransform);
+  }
+  return world;
 }

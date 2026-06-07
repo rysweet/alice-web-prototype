@@ -182,6 +182,10 @@ export class VmSceneBridge implements AliceMethodBridge {
   }
 
   updateSpeechBubblePositions(): void {
+    if (this.#speechBubbles.size === 0) {
+      return;
+    }
+
     for (const [entityId, overlay] of this.#speechBubbles.entries()) {
       if (!overlay.element) {
         continue;
@@ -197,10 +201,19 @@ export class VmSceneBridge implements AliceMethodBridge {
         entityId,
         node,
       );
-      overlay.element.style.position = "absolute";
-      overlay.element.style.left = `${projected.x}px`;
-      overlay.element.style.top = `${projected.y}px`;
-      overlay.element.style.display = projected.visible === false ? "none" : "block";
+      const style = overlay.element.style;
+      const left = `${projected.x}px`;
+      const top = `${projected.y}px`;
+      const display = projected.visible === false ? "none" : "block";
+      if (style.left !== left) {
+        style.left = left;
+      }
+      if (style.top !== top) {
+        style.top = top;
+      }
+      if (style.display !== display) {
+        style.display = display;
+      }
     }
   }
 
@@ -377,6 +390,7 @@ export class VmSceneBridge implements AliceMethodBridge {
       element.textContent = text;
       element.dataset.entityId = entityId;
       element.dataset.kind = kind;
+      element.style.position = "absolute";
       element.style.pointerEvents = "none";
       element.style.transform = "translate(-50%, -100%)";
       element.style.padding = "4px 8px";
@@ -410,12 +424,9 @@ export class VmSceneBridge implements AliceMethodBridge {
   #move(entityId: string, directionValue: unknown, amountValue: unknown, durationValue?: unknown, styleValue?: unknown): Promise<void> {
     const world = this.#worldFor(entityId);
     const amount = numericValue(amountValue, 0);
-    const direction = typeof directionValue === "string"
-      ? parseMoveDirection(directionValue)
-      : normalizeVec3((directionValue as Vec3 | undefined) ?? vectorFromMoveDirection("FORWARD"));
-    const basis = typeof direction === "string"
-      ? rotateVector(world.orientation, vectorFromMoveDirection(direction))
-      : normalizeVec3(direction);
+    const basis = typeof directionValue === "string"
+      ? rotateVector(world.orientation, vectorFromMoveDirection(parseMoveDirection(directionValue)))
+      : (directionValue as Vec3 | undefined) ?? vectorFromMoveDirection("FORWARD");
     const delta = scaleVec3(normalizeVec3(basis), amount);
     return this.#animateWorldPosition(entityId, addVec3(world.position, delta), durationMs(durationValue), easeFor(styleValue));
   }
@@ -543,9 +554,14 @@ export class VmSceneBridge implements AliceMethodBridge {
     const targetWorld = this.#projectedWorldForNode(target);
     const direction = subtractVec3(targetWorld.position, world.position);
     const distance = magnitudeVec3(direction);
+    const amount = numericValue(amountValue, 0);
     const movement = distance > 0
-      ? scaleVec3(normalizeVec3(direction), numericValue(amountValue, 0))
-      : { x: 0, y: 0, z: numericValue(amountValue, 0) };
+      ? {
+        x: (direction.x / distance) * amount,
+        y: (direction.y / distance) * amount,
+        z: (direction.z / distance) * amount,
+      }
+      : { x: 0, y: 0, z: amount };
     return this.#animateWorldPosition(entityId, addVec3(world.position, movement), durationMs(durationValue), easeFor(styleValue));
   }
 
