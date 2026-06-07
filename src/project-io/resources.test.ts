@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import JSZip from "jszip";
 import { ProjectIoError } from "../project-io.js";
+import { MAX_EXTRACT_SIZE, listSafeZipEntries } from "./archive-zip.js";
 import {
   SPECIAL_PROJECT_IO_PATHS,
   extractProjectResources,
@@ -41,7 +42,7 @@ describe("project-io/resources", () => {
     zip.file("resources/audio/hop.wav", new Uint8Array([6]));
     zip.file("resources/notes.txt", new Uint8Array([7, 8, 9, 10]));
 
-    const resources = await extractProjectResources(zip, 0);
+    const resources = await extractProjectResources(listSafeZipEntries(zip), 0);
 
     expect(resources).toEqual(expect.arrayContaining([
       { path: "resources/models/bunny.a3r", kind: "model", bytes: new Uint8Array([1, 2, 3]) },
@@ -76,5 +77,14 @@ describe("project-io/resources", () => {
     expectUnsafe(() => writeProjectResources(new JSZip(), new Map([
       ["resources/../../evil.txt", new Uint8Array([0])],
     ])));
+  });
+
+  it("enforces extraction limits while reading resources", async () => {
+    const zip = new JSZip();
+    zip.file("resources/too-large.bin", new Uint8Array([1]));
+
+    await expect(extractProjectResources(listSafeZipEntries(zip), MAX_EXTRACT_SIZE)).rejects.toMatchObject({
+      code: "zip-bomb",
+    });
   });
 });

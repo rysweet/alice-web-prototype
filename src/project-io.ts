@@ -46,7 +46,7 @@ export async function readProject(
   data: ArrayBuffer | Uint8Array,
 ): Promise<AliceProjectArchive> {
   const zip = await loadProjectZip(data);
-  listSafeZipEntries(zip);
+  const safeEntries = listSafeZipEntries(zip);
 
   const manifest = parseManifestText(await readZipText(zip, "manifest.json"));
   const xmlEntry = await readXmlEntry(zip);
@@ -68,7 +68,7 @@ export async function readProject(
   const resources = new Map<string, Uint8Array>();
   resources.set(ORIGINAL_XML_RESOURCE_PATH, storedXmlBytes);
 
-  const resourceRecords = await extractProjectResources(zip, storedXmlBytes.length);
+  const resourceRecords = await extractProjectResources(safeEntries, storedXmlBytes.length);
   for (const record of resourceRecords) {
     resources.set(record.path, record.bytes);
   }

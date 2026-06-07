@@ -1,6 +1,10 @@
 import JSZip from "jszip";
 import { classifyProjectResource } from "../project-migration.js";
-import { assertWithinExtractedSizeLimit, listSafeZipEntries, writeZipBytes } from "./archive-zip.js";
+import {
+  addExtractedEntrySize,
+  type SafeZipEntry,
+  writeZipBytes,
+} from "./archive-zip.js";
 import {
   ProjectIoError,
   SPECIAL_PROJECT_IO_PATHS,
@@ -14,36 +18,34 @@ export function isProjectIoSpecialPath(path: string): boolean {
 }
 
 export async function extractProjectResources(
-  zip: JSZip,
+  entries: SafeZipEntry[],
   initialSize: number,
 ): Promise<ProjectResourceRecord[]> {
-  const resourceEntries = listSafeZipEntries(zip).filter(({ path }) => !isProjectIoSpecialPath(path));
+  const resources: ProjectResourceRecord[] = [];
+  let totalSize = initialSize;
 
-  const resources = await Promise.all(
-    resourceEntries.map(async ({ path, entry }) => {
-      try {
-        return {
-          path,
-          bytes: await entry.async("uint8array"),
-          kind: classifyProjectResource(path),
-        };
-      } catch (error) {
-        throw new ProjectIoError(
-          "corrupted-archive",
-          `Failed to extract resource "${path}" from .a3p archive.`,
-          error,
-        );
-      }
-    }),
-  );
+  for (const { path, entry } of entries) {
+    if (isProjectIoSpecialPath(path)) {
+      continue;
+    }
 
-  assertWithinExtractedSizeLimit(
-    initialSize,
-    resources.map((resource) => ({
-      path: resource.path,
-      size: resource.bytes.length,
-    })),
-  );
+    let bytes: Uint8Array;
+    try {
+      bytes = await entry.async("uint8array");
+    } catch (error) {
+      throw new ProjectIoError(
+        "corrupted-archive",
+        `Failed to extract resource "${path}" from .a3p archive.`,
+        error,
+      );
+    }
+    totalSize = addExtractedEntrySize(totalSize, { path, size: bytes.length });
+    resources.push({
+      path,
+      bytes,
+      kind: classifyProjectResource(path),
+    });
+  }
 
   return resources;
 }

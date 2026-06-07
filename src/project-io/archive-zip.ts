@@ -75,15 +75,24 @@ export function writeZipBytes(zip: JSZip, path: string, bytes: Uint8Array): void
 export function assertWithinExtractedSizeLimit(
   initialSize: number,
   entries: Array<{ path: string; size: number }>,
-): void {
+): number {
   let totalSize = initialSize;
   for (const entry of entries) {
-    totalSize += entry.size;
-    if (totalSize > MAX_EXTRACT_SIZE) {
-      throw new ProjectIoError(
-        "zip-bomb",
-        `Archive extraction exceeds ${MAX_EXTRACT_SIZE} byte limit (ZIP bomb protection).`,
-      );
-    }
+    totalSize = addExtractedEntrySize(totalSize, entry);
   }
+  return totalSize;
+}
+
+export function addExtractedEntrySize(
+  currentSize: number,
+  entry: { path: string; size: number },
+): number {
+  const totalSize = currentSize + entry.size;
+  if (totalSize > MAX_EXTRACT_SIZE) {
+    throw new ProjectIoError(
+      "zip-bomb",
+      `Archive extraction exceeds ${MAX_EXTRACT_SIZE} byte limit (ZIP bomb protection).`,
+    );
+  }
+  return totalSize;
 }
