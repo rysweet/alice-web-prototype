@@ -3,7 +3,6 @@ import { collectEntityDiagnostics, describeEntity } from "./entities";
 import {
   createSceneFromProject,
   describeScene,
-  listSceneEntities,
   snapshotScene,
   type Scene,
   type SceneSnapshot,
@@ -47,14 +46,15 @@ export function createDefaultStoryTransform(): {
 }
 
 export function summarizeSceneEntities(scene: Scene): StoryEntitySummary[] {
-  return listSceneEntities(scene).map(({ name }) => {
-    const entity = scene.getEntity(name)!;
-    return {
+  const summaries: StoryEntitySummary[] = [];
+  for (const [name, entity] of scene.entities) {
+    summaries.push({
       name,
       typeName: entity.constructor.name,
       diagnostics: collectEntityDiagnostics(entity),
-    };
-  });
+    });
+  }
+  return summaries;
 }
 
 export function buildStoryWorld(project: AliceProject): {
@@ -116,7 +116,11 @@ export function describeStoryScene(project: AliceProject): string {
 
 export function describeStoryEntities(project: AliceProject): string[] {
   const scene = createSceneFromProject(project);
-  return listSceneEntities(scene).map(({ name }) => describeEntity(scene.getEntity(name)!));
+  const descriptions: string[] = [];
+  for (const entity of scene.entities.values()) {
+    descriptions.push(describeEntity(entity));
+  }
+  return descriptions;
 }
 
 export function projectUsesStoryApiType(project: AliceProject, typeName: string): boolean {

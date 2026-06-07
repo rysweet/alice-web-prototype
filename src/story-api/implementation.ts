@@ -29,12 +29,19 @@ export interface SceneLifecycleSummary {
 export function summarizePropertyChanges<T>(
   changes: readonly PropertyChange<T>[],
 ): PropertyChangeSummary<T> {
+  const values: T[] = [];
+  const previousValues: T[] = [];
+  for (const change of changes) {
+    values.push(change.value);
+    previousValues.push(change.previousValue);
+  }
+
   return {
     count: changes.length,
     initialValue: changes[0]?.previousValue,
-    currentValue: changes.at(-1)?.value,
-    values: changes.map((change) => change.value),
-    previousValues: changes.map((change) => change.previousValue),
+    currentValue: changes.length > 0 ? changes[changes.length - 1].value : undefined,
+    values,
+    previousValues,
   };
 }
 
@@ -91,17 +98,30 @@ export function distinctPropertyValues<T>(
 export function mergePropertyChangeSummaries<T>(
   summaries: readonly PropertyChangeSummary<T>[],
 ): PropertyChangeSummary<T> {
-  const values = summaries.flatMap((summary) => summary.values);
-  const previousValues = summaries.flatMap((summary) => summary.previousValues);
+  const values: T[] = [];
+  const previousValues: T[] = [];
+  let count = 0;
+  let initialValue: T | undefined;
   let currentValue: T | undefined;
   for (const summary of summaries) {
+    count += summary.count;
+    for (const value of summary.values) {
+      values.push(value);
+    }
+    for (const previousValue of summary.previousValues) {
+      previousValues.push(previousValue);
+    }
+    if (initialValue === undefined && summary.initialValue !== undefined) {
+      initialValue = summary.initialValue;
+    }
     if (summary.currentValue !== undefined) {
       currentValue = summary.currentValue;
     }
   }
+
   return {
-    count: summaries.reduce((total, summary) => total + summary.count, 0),
-    initialValue: summaries.find((summary) => summary.initialValue !== undefined)?.initialValue,
+    count,
+    initialValue,
     currentValue,
     values,
     previousValues,

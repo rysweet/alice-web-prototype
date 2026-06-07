@@ -90,11 +90,26 @@ export function copySceneEnvironment(source: Scene, target: Scene): Scene {
 }
 
 export function snapshotScene(scene: Scene): SceneSnapshot {
+  const entityNames: string[] = [];
+  const entityTypes: Record<string, string> = {};
+  for (const [name, entity] of scene.entities) {
+    entityNames.push(name);
+    const typeName = entity.constructor.name;
+    if (name === "__proto__") {
+      Object.defineProperty(entityTypes, name, {
+        value: typeName,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    } else {
+      entityTypes[name] = typeName;
+    }
+  }
+
   return {
-    entityNames: Array.from(scene.entities.keys()),
-    entityTypes: Object.fromEntries(
-      Array.from(scene.entities.entries()).map(([name, entity]) => [name, entity.constructor.name]),
-    ),
+    entityNames,
+    entityTypes,
     isActive: scene.isActive,
     atmosphereColor: scene.getAtmosphereColor(),
     fogDensity: scene.getFogDensity(),
@@ -105,10 +120,11 @@ export function snapshotScene(scene: Scene): SceneSnapshot {
 }
 
 export function listSceneEntities(scene: Scene): Array<{ name: string; typeName: string }> {
-  return Array.from(scene.entities.entries()).map(([name, entity]) => ({
-    name,
-    typeName: entity.constructor.name,
-  }));
+  const entities: Array<{ name: string; typeName: string }> = [];
+  for (const [name, entity] of scene.entities) {
+    entities.push({ name, typeName: entity.constructor.name });
+  }
+  return entities;
 }
 
 export function sceneContainsEntity(scene: Scene, name: string): boolean {

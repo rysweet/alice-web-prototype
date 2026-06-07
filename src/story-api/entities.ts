@@ -58,11 +58,21 @@ export function findJointNode(entity: SJointedModel, joint: string | JointId): J
 }
 
 export function getJointPath(entity: SJointedModel, joint: string | JointId): string[] {
-  const target = findJointNode(entity, joint);
+  const jointName = typeof joint === "string" ? joint : joint.name;
+  const nodes = listJointNodes(entity);
+  const byName = new Map<string, JointNode>();
+  let target: JointNode | null = null;
+  for (const node of nodes) {
+    byName.set(node.name, node);
+    if (target === null && node.name === jointName) {
+      target = node;
+    }
+  }
+
   if (!target) {
     return [];
   }
-  const byName = new Map(listJointNodes(entity).map((node) => [node.name, node]));
+
   const path: string[] = [target.name];
   let currentParent = target.parentName;
   while (currentParent) {
