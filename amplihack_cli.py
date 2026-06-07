@@ -18,19 +18,36 @@ NODE_HEAP_OPTION = "--max-old-space-size=32768"
 SCENARIOS = {
     "a3p-statement-simple": {
         "description": "A3P parser/writer statement inventory contract",
+        "file": "test/a3p-writer.test.ts",
         "pattern": (
-            "keeps parser round-trip cases in exact parity with PARSED_A3P_STATEMENT_KINDS|"
-            "keeps writer coverage cases in exact parity with SUPPORTED_A3P_STATEMENT_KINDS"
+            "keeps parser-recognized statement kinds explicit|"
+            "keeps writer round-trip coverage cases in exact parity with SUPPORTED_A3P_STATEMENT_KINDS"
         ),
     },
     "a3p-statement-integration": {
         "description": "A3P statement round-trip, lowering, and fail-loud coverage",
+        "file": "test/a3p-writer.test.ts",
         "pattern": (
-            "round-trips parser-recognized|"
+            "round-trips writer-supported|"
             "lowers VariableAssignment statements|"
             "lowers EventListener statements|"
-            "lowers runtime ForEach statements|"
+            "rejects TS-only ForEach statements|"
             "throws instead of dropping unsupported statement kinds"
+        ),
+    },
+    "vm-scene-basic": {
+        "description": "VM scene bridge basic runtime method updates visible scene state",
+        "file": "test/vm-scene-bridge.test.ts",
+        "pattern": "intercepts transform and material methods and updates the scene node",
+    },
+    "vm-scene-complex": {
+        "description": "VM scene bridge spatial integration, overlays, and vehicle edge cases",
+        "file": "test/vm-scene-bridge.test.ts",
+        "pattern": (
+            "applies spatial transform methods using world and local transform semantics|"
+            "renders text-only timed say and think overlays and removes them after animation completion|"
+            "reparents entities with setVehicle while preserving world transform|"
+            "keeps setVehicle as a world-position-preserving no-op for invalid or self vehicles"
         ),
     },
 }
@@ -68,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
         "npx",
         "vitest",
         "run",
-        "test/a3p-writer.test.ts",
+        scenario["file"],
         "-t",
         scenario["pattern"],
     ]
