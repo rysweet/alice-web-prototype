@@ -29,9 +29,23 @@ export function numericValue(value: unknown, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+export function finiteVec3(value: unknown, fallback: Vec3): Vec3 {
+  if (typeof value !== "object" || value === null) {
+    return { ...fallback };
+  }
+  const candidate = value as { x?: unknown; y?: unknown; z?: unknown };
+  const x = numericValue(candidate.x, Number.NaN);
+  const y = numericValue(candidate.y, Number.NaN);
+  const z = numericValue(candidate.z, Number.NaN);
+  return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)
+    ? { x, y, z }
+    : { ...fallback };
+}
+
 export function durationMs(value: unknown): number {
   const parsed = numericValue(value, 0);
-  return parsed > 0 ? parsed * 1000 : 0;
+  const milliseconds = parsed * 1000;
+  return parsed > 0 && Number.isFinite(milliseconds) ? milliseconds : 0;
 }
 
 export function easeFor(value: unknown): AnimationEasing {
@@ -61,8 +75,16 @@ export function toColor3(value: unknown): { r: number; g: number; b: number } | 
 
 export function screenPositionOf(worldPosition: Vec3): ScreenPosition {
   return {
-    x: worldPosition.x * 100,
-    y: worldPosition.y * -100,
+    x: numericValue(worldPosition.x, 0) * 100,
+    y: numericValue(worldPosition.y, 0) * -100,
     visible: true,
+  };
+}
+
+export function finiteScreenPosition(value: ScreenPosition): ScreenPosition {
+  return {
+    x: numericValue(value.x, 0),
+    y: numericValue(value.y, 0),
+    visible: value.visible === false ? false : true,
   };
 }

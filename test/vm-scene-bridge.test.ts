@@ -253,6 +253,53 @@ describe("vm-scene-bridge", () => {
     expect(() => bridge.handleMethodCall(runtimeObject("group"), "setOpacity", [0.25], state)).not.toThrow();
   });
 
+  it("keeps malformed vector movement and projected overlay positions finite", () => {
+    const sceneGraph = new SceneGraph();
+    const bunny = new VisualNode("bunny");
+    bunny.localTransform = {
+      ...bunny.localTransform,
+      position: { x: 1, y: 2, z: 3 },
+    };
+    sceneGraph.root.addChild(bunny);
+
+    const overlay = document.getElementById("overlay") as HTMLElement;
+    overlay.replaceChildren();
+    const bridge = new VmSceneBridge({
+      overlayContainer: overlay,
+      projectWorldToScreen: () => ({ x: Number.POSITIVE_INFINITY, y: Number.NaN, visible: false }),
+    });
+    bridge.registerEntity("bunny", bunny);
+    const state = testState();
+    const entity = runtimeObject("bunny");
+
+    bridge.handleMethodCall(entity, "move", [{ x: Number.POSITIVE_INFINITY, y: 0, z: 0 }, 5], state);
+    expectVec3Close(bunny.worldTransform.position, { x: 1, y: 2, z: 3 });
+
+    bridge.handleMethodCall(entity, "move", [{ x: 0, y: 2, z: 0 }, 3], state);
+    expectVec3Close(bunny.worldTransform.position, { x: 1, y: 5, z: 3 });
+
+    bridge.handleMethodCall(entity, "resize", [Number.MAX_VALUE], state);
+    expectVec3Close(bunny.localTransform.scale, {
+      x: Number.MAX_VALUE,
+      y: Number.MAX_VALUE,
+      z: Number.MAX_VALUE,
+    });
+    bridge.handleMethodCall(entity, "resize", [10], state);
+    expectVec3Close(bunny.localTransform.scale, {
+      x: Number.MAX_VALUE,
+      y: Number.MAX_VALUE,
+      z: Number.MAX_VALUE,
+    });
+    bridge.handleMethodCall(entity, "resize", [0], state);
+    expectVec3Close(bunny.localTransform.scale, { x: 0, y: 0, z: 0 });
+
+    bridge.handleMethodCall(entity, "say", ["finite"], state);
+    const element = bridge.getSpeechBubbleElement("bunny");
+    expect(element?.style.left).toBe("0px");
+    expect(element?.style.top).toBe("0px");
+    expect(element?.style.display).toBe("none");
+  });
+
   it("uses mapping defaults for animation duration, easing, numeric values, color, opacity, and node selection", () => {
     const queue = new AnimationQueue();
     const sceneGraph = new SceneGraph();

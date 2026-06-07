@@ -42,6 +42,8 @@ import {
 import {
   durationMs,
   easeFor,
+  finiteScreenPosition,
+  finiteVec3,
   numericValue,
   screenPositionOf,
   toColor3,
@@ -50,6 +52,7 @@ import {
 import {
   cloneTransform,
   identityTransform,
+  isFiniteTransform,
   projectedWorldForNode,
   worldToLocalTransform,
 } from "./vm-scene-bridge-transforms.js";
@@ -196,11 +199,11 @@ export class VmSceneBridge implements AliceMethodBridge {
       }
       const world = node.worldTransform;
       const offset = Math.max(0.5, world.scale.y);
-      const projected = this.#projectWorldToScreen(
+      const projected = finiteScreenPosition(this.#projectWorldToScreen(
         { x: world.position.x, y: world.position.y + offset, z: world.position.z },
         entityId,
         node,
-      );
+      ));
       const style = overlay.element.style;
       const left = `${projected.x}px`;
       const top = `${projected.y}px`;
@@ -246,8 +249,12 @@ export class VmSceneBridge implements AliceMethodBridge {
     return targetId ? this.#entityNodes.get(targetId) ?? null : null;
   }
 
-  #setProjectedLocal(entityId: string, local: Transform): void {
+  #setProjectedLocal(entityId: string, local: Transform): boolean {
+    if (!isFiniteTransform(local)) {
+      return false;
+    }
     this.#projectedLocals.set(entityId, cloneTransform(local));
+    return true;
   }
 
   #applyLocal(entityId: string, patch: Partial<Transform>): void {
@@ -270,7 +277,9 @@ export class VmSceneBridge implements AliceMethodBridge {
   #animateLocalPosition(entityId: string, to: Vec3, duration: number, easing: AnimationEasing): Promise<void> {
     const local = this.#localFor(entityId);
     const targetLocal = { ...local, position: { ...to } };
-    this.#setProjectedLocal(entityId, targetLocal);
+    if (!this.#setProjectedLocal(entityId, targetLocal)) {
+      return Promise.resolve();
+    }
     if (!this.#animationQueue || duration <= 0) {
       this.#applyLocal(entityId, { position: targetLocal.position });
       return Promise.resolve();
@@ -291,7 +300,9 @@ export class VmSceneBridge implements AliceMethodBridge {
   #animateLocalOrientation(entityId: string, to: Orientation, duration: number, easing: AnimationEasing): Promise<void> {
     const local = this.#localFor(entityId);
     const targetLocal = { ...local, orientation: normalizeQuaternion(to) };
-    this.#setProjectedLocal(entityId, targetLocal);
+    if (!this.#setProjectedLocal(entityId, targetLocal)) {
+      return Promise.resolve();
+    }
     if (!this.#animationQueue || duration <= 0) {
       this.#applyLocal(entityId, { orientation: targetLocal.orientation });
       return Promise.resolve();
@@ -312,7 +323,9 @@ export class VmSceneBridge implements AliceMethodBridge {
   #animateLocalScale(entityId: string, to: Vec3, duration: number, easing: AnimationEasing): Promise<void> {
     const local = this.#localFor(entityId);
     const targetLocal = { ...local, scale: { ...to } };
-    this.#setProjectedLocal(entityId, targetLocal);
+    if (!this.#setProjectedLocal(entityId, targetLocal)) {
+      return Promise.resolve();
+    }
     if (!this.#animationQueue || duration <= 0) {
       this.#applyLocal(entityId, { scale: targetLocal.scale });
       return Promise.resolve();
@@ -335,7 +348,9 @@ export class VmSceneBridge implements AliceMethodBridge {
     const node = this.#requireTransformable(entityId);
     const parentWorld = this.#projectedWorldForNode(node.parent);
     const targetWorld = { ...world, position: { ...to } };
-    this.#setProjectedLocal(entityId, worldToLocalTransform(parentWorld, targetWorld));
+    if (!this.#setProjectedLocal(entityId, worldToLocalTransform(parentWorld, targetWorld))) {
+      return Promise.resolve();
+    }
     if (!this.#animationQueue || duration <= 0) {
       this.#applyWorld(entityId, targetWorld);
       return Promise.resolve();
@@ -359,7 +374,9 @@ export class VmSceneBridge implements AliceMethodBridge {
     const node = this.#requireTransformable(entityId);
     const parentWorld = this.#projectedWorldForNode(node.parent);
     const targetWorld = { ...world, orientation: normalizeQuaternion(to) };
-    this.#setProjectedLocal(entityId, worldToLocalTransform(parentWorld, targetWorld));
+    if (!this.#setProjectedLocal(entityId, worldToLocalTransform(parentWorld, targetWorld))) {
+      return Promise.resolve();
+    }
     if (!this.#animationQueue || duration <= 0) {
       this.#applyWorld(entityId, targetWorld);
       return Promise.resolve();
@@ -426,7 +443,9 @@ export class VmSceneBridge implements AliceMethodBridge {
     const amount = numericValue(amountValue, 0);
     const basis = typeof directionValue === "string"
       ? rotateVector(world.orientation, vectorFromMoveDirection(parseMoveDirection(directionValue)))
-      : (directionValue as Vec3 | undefined) ?? vectorFromMoveDirection("FORWARD");
+      : directionValue == null
+        ? vectorFromMoveDirection("FORWARD")
+        : finiteVec3(directionValue, { x: 0, y: 0, z: 0 });
     const delta = scaleVec3(normalizeVec3(basis), amount);
     return this.#animateWorldPosition(entityId, addVec3(world.position, delta), durationMs(durationValue), easeFor(styleValue));
   }
@@ -479,10 +498,12 @@ export class VmSceneBridge implements AliceMethodBridge {
     if (!parent || parent === node || this.#containsDescendant(node, parent)) {
       return;
     }
-    parent.addChild(node);
-    const parentWorld = this.#projectedWorldForNode(node.parent);
+    const parentWorld = this.#projectedWorldForNode(parent);
     const local = worldToLocalTransform(parentWorld, world);
-    this.#setProjectedLocal(entityId, local);
+    if (!this.#setProjectedLocal(entityId, local)) {
+      return;
+    }
+    parent.addChild(node);
     node.localTransform = local;
     this.updateSpeechBubblePositions();
   }
