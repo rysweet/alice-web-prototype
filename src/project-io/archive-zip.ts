@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import { assertSafeArchivePath, assertSafeWritablePath } from "./path-security.js";
+import { assertSafeWritablePath, validateArchivePath } from "./path-security.js";
 import { ProjectIoError } from "./types.js";
 
 export const MAX_EXTRACT_SIZE = 256 * 1024 * 1024;
@@ -24,7 +24,7 @@ export async function loadProjectZip(data: ArrayBuffer | Uint8Array): Promise<JS
 export function listSafeZipEntries(zip: JSZip): SafeZipEntry[] {
   const entries: SafeZipEntry[] = [];
   for (const [archivePath, entry] of Object.entries(zip.files)) {
-    assertSafeArchivePath(archivePath);
+    validateArchivePath(archivePath);
     if (!entry.dir) {
       entries.push({ path: archivePath, entry });
     }
@@ -33,7 +33,7 @@ export function listSafeZipEntries(zip: JSZip): SafeZipEntry[] {
 }
 
 export async function readZipText(zip: JSZip, path: string): Promise<string | null> {
-  const safePath = assertSafeArchivePath(path);
+  const safePath = validateArchivePath(path);
   const entry = zip.file(safePath);
   if (!entry) {
     return null;
@@ -51,7 +51,7 @@ export async function readZipText(zip: JSZip, path: string): Promise<string | nu
 }
 
 export async function readZipBytes(zip: JSZip, path: string): Promise<Uint8Array | null> {
-  const safePath = assertSafeArchivePath(path);
+  const safePath = validateArchivePath(path);
   const entry = zip.file(safePath);
   if (!entry) {
     return null;

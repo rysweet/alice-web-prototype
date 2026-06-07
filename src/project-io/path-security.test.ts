@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ProjectIoError } from "../project-io.js";
 import {
-  assertSafeArchivePath,
   assertSafeWritablePath,
   validateArchivePath,
 } from "./path-security.js";
@@ -22,7 +21,7 @@ describe("project-io/path-security", () => {
     expect(validateArchivePath("resources/images/hero texture.png")).toBe(
       "resources/images/hero texture.png",
     );
-    expect(assertSafeArchivePath("folder.name/file-name_01.a3r")).toBe(
+    expect(validateArchivePath("folder.name/file-name_01.a3r")).toBe(
       "folder.name/file-name_01.a3r",
     );
   });

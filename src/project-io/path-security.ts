@@ -23,10 +23,6 @@ export function validateArchivePath(path: string): string {
   return path;
 }
 
-export function assertSafeArchivePath(path: string): string {
-  return validateArchivePath(path);
-}
-
 export function assertSafeWritablePath(path: string): string {
   const safePath = validateArchivePath(path);
   if (safePath.endsWith("/")) {

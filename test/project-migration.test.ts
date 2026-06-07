@@ -90,6 +90,46 @@ describe("project-migration", () => {
     });
   });
 
+  it("synchronizes the first known direct manifest version field without mutating input", () => {
+    const manifest = {
+      aliceVersion: "3.1.10.0.0",
+      projectVersion: "3.2.0.0",
+      createdWith: { version: "3.3.0.0" },
+    };
+
+    const nextManifest = synchronizeManifestVersion(manifest, {
+      originalAliceVersion: "3.1.10.0.0",
+      detectedAliceVersion: CURRENT_VERSION,
+      manifestVersion: "3.1.10.0.0",
+      xmlVersion: "3.1.10.0.0",
+      versionSource: "manifest",
+      migrated: true,
+      migrationSteps: [],
+    });
+
+    expect(nextManifest).toEqual({
+      aliceVersion: CURRENT_VERSION,
+      projectVersion: "3.2.0.0",
+      createdWith: { version: "3.3.0.0" },
+    });
+    expect(manifest.aliceVersion).toBe("3.1.10.0.0");
+  });
+
+  it("does not invent manifest version fields when none are present", () => {
+    expect(synchronizeManifestVersion(
+      { projectName: "No Version" },
+      {
+        originalAliceVersion: "3.1.10.0.0",
+        detectedAliceVersion: CURRENT_VERSION,
+        manifestVersion: null,
+        xmlVersion: null,
+        versionSource: "default",
+        migrated: true,
+        migrationSteps: [],
+      },
+    )).toEqual({ projectName: "No Version" });
+  });
+
   it("classifies project resources by extension", () => {
     expect(classifyProjectResource("gallery/scene.PNG")).toBe("image");
     expect(classifyProjectResource("audio/theme.MP3")).toBe("audio");

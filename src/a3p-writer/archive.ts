@@ -24,7 +24,7 @@ export async function writeA3P(project: AliceProject, options: WriteA3POptions =
   const zip = new JSZip();
 
   if (options.resources) {
-    writeExplicitResources(zip, options.resources);
+    writeProjectResources(zip, options.resources);
   } else if (options.preserveSourceEntries !== false && source?.zip) {
     await copySourceEntries(zip, source.zip, new Set([xmlEntryName, "version.txt"]));
   }
@@ -87,8 +87,4 @@ async function copySourceEntries(target: JSZip, sourceZip: JSZip, skip: Set<stri
     if (skip.has(entryName) || entry.dir) continue;
     target.file(assertSafeWritablePath(entryName), await entry.async("uint8array"));
   }
-}
-
-function writeExplicitResources(zip: JSZip, resources: Map<string, Uint8Array>): void {
-  writeProjectResources(zip, resources);
 }

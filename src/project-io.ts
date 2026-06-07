@@ -7,7 +7,7 @@ import {
 } from "./a3p-parser.js";
 import { writeA3P } from "./a3p-writer.js";
 import { listSafeZipEntries, loadProjectZip, readZipText } from "./project-io/archive-zip.js";
-import { parseManifestText, syncManifestVersion } from "./project-io/manifest.js";
+import { parseManifestText } from "./project-io/manifest.js";
 import { migrateProjectArchiveXml } from "./project-io/migration.js";
 import { extractProjectResources } from "./project-io/resources.js";
 import {
@@ -27,6 +27,7 @@ import {
   type ProjectResourceDescriptor,
   type WriteProjectOptions,
 } from "./project-io/types.js";
+import { synchronizeManifestVersion } from "./project-migration.js";
 
 export {
   ProjectIoError,
@@ -52,7 +53,7 @@ export async function readProject(
   const versionText = await readZipText(zip, "version.txt");
   const thumbnail = await readProjectThumbnail(zip);
   const migration = migrateProjectArchiveXml(xmlEntry.text, versionText, manifest);
-  const nextManifest = syncManifestVersion(manifest, migration.versionInfo);
+  const nextManifest = synchronizeManifestVersion(manifest, migration.versionInfo);
 
   zip.file(xmlEntry.name, migration.xmlText);
   zip.file("version.txt", migration.versionInfo.detectedAliceVersion);
