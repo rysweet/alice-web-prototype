@@ -32,6 +32,23 @@ export function cloneTransform(value: Transform): Transform {
   };
 }
 
+function isFiniteVec3(value: Vec3): boolean {
+  return Number.isFinite(value.x) && Number.isFinite(value.y) && Number.isFinite(value.z);
+}
+
+function isFiniteOrientation(value: Orientation): boolean {
+  return (
+    Number.isFinite(value.x) &&
+    Number.isFinite(value.y) &&
+    Number.isFinite(value.z) &&
+    Number.isFinite(value.w)
+  );
+}
+
+export function isFiniteTransform(value: Transform): boolean {
+  return isFiniteVec3(value.position) && isFiniteOrientation(value.orientation) && isFiniteVec3(value.scale);
+}
+
 function multiplyVec3(left: Vec3, right: Vec3): Vec3 {
   return {
     x: left.x * right.x,

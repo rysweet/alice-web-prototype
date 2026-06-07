@@ -17,7 +17,7 @@ function object(overrides: Partial<AliceObject> & Pick<AliceObject, "name" | "ty
 
 describe("vm scene bridge transform helpers", () => {
   it("clones identity and supplied transforms without sharing mutable objects", async () => {
-    const { cloneTransform, identityTransform } = await import("../src/vm-scene-bridge-transforms.js");
+    const { cloneTransform, identityTransform, isFiniteTransform } = await import("../src/vm-scene-bridge-transforms.js");
 
     const identity = identityTransform();
     expect(identity).toEqual({
@@ -32,6 +32,8 @@ describe("vm scene bridge transform helpers", () => {
     expect(clone.position).not.toBe(identity.position);
     expect(clone.orientation).not.toBe(identity.orientation);
     expect(clone.scale).not.toBe(identity.scale);
+    expect(isFiniteTransform(identity)).toBe(true);
+    expect(isFiniteTransform({ ...identity, position: { x: Number.NaN, y: 0, z: 0 } })).toBe(false);
   });
 
   it("combines parent and child transforms and converts world transforms back to parent-local space", async () => {
@@ -73,6 +75,7 @@ describe("vm scene bridge mapping helpers", () => {
     expect(numericValue("not numeric", 7)).toBe(7);
     expect(durationMs("1.25")).toBe(1250);
     expect(durationMs("-1")).toBe(0);
+    expect(durationMs(Number.MAX_VALUE)).toBe(0);
     expect(easeFor("GENTLE")).toBe("ease-in-out");
     expect(easeFor("abrupt")).toBe("linear");
     expect(toColor3("#336699")).toEqual({ r: 0x33 / 255, g: 0x66 / 255, b: 0x99 / 255 });
