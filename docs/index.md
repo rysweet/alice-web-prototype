@@ -16,6 +16,7 @@ so the `eatme` test suite can drive real curriculum workflows.
 - [Getting started](./getting-started.md)
 - [Architecture](./architecture.md)
 - [API reference](./api-reference.md)
+- [Server API](./server-api.md)
 - [Testing](./testing.md)
 
 ## Subsystem overview
@@ -28,7 +29,7 @@ so the `eatme` test suite can drive real curriculum workflows.
 | Rendering | Builds and draws 3D scenes in the browser | [Scene graph](./scene-graph.md), [Scene rendering](./scene-rendering.md), [Scene manager](./scene-manager.md) |
 | IDE workflows | Supports editing, running, and curriculum tasks | [IDE operations](./ide-operations.md), [Grading pipeline](./grading-pipeline.md) |
 | Assets and resources | Loads models, images, audio, and project files | [Model resources](./model-resources.md), [Open-asset pipeline](./open-asset-pipeline.md), [Resource manager](./resource-manager.md), [Project IO](./project-io.md), [Image editor](./image-editor.md), [Audio](./audio.md) |
-| eatme integration | Exposes HTTP endpoints and scenario-friendly workflows | [API reference](./api-reference.md), [Gadugi test scenarios](./gadugi-test-scenarios.md) |
+| eatme integration | Exposes HTTP endpoints and scenario-friendly workflows | [API reference](./api-reference.md), [Server API](./server-api.md), [Gadugi test scenarios](./gadugi-test-scenarios.md) |
 
 ## Documentation map
 
@@ -65,6 +66,7 @@ so the `eatme` test suite can drive real curriculum workflows.
 - [Scene manager](./scene-manager.md)
 - [Scene rendering](./scene-rendering.md)
 - [Serialization](./serialization.md)
+- [Server API](./server-api.md)
 - [Statement execution](./statement-execution.md)
 - [SScene listener methods](./sscene-listener-methods.md)
 - [Story API](./story-api.md)

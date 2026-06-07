@@ -521,8 +521,9 @@ class definitions, and Tweedle source code. The web prototype manages
 project state in memory and can serialize it to `.a3p` on save.
 
 Templates are pre-built starting points. The `TemplateLibrary` ships
-with four built-in templates (blank, snow, sea-floor, moon) and supports
-registering custom templates from existing projects.
+with four built-in templates (blank, snow, sea-floor, moon). Custom
+templates can be registered when using the template library in code, but
+the Server API does not provide an endpoint for registering them over HTTP.
 
 ### Scene objects
 

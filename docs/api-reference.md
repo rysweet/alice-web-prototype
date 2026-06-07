@@ -3,6 +3,9 @@
 The REST API gives `eatme` and local scripts a simple way to launch the web
 prototype, change the scene, edit code, run the world, and capture evidence.
 
+For server configuration, state isolation, evidence artifact semantics, and
+route ownership, see [Server API](./server-api.md).
+
 ## Server startup
 
 Build and run the server:
@@ -23,6 +26,8 @@ Base URL examples below use `http://127.0.0.1:3000`.
 | `/api/project/templates` | `GET` | List available project templates |
 | `/api/project/new` | `POST` | Create a new project from a template |
 | `/api/scene/add-object` | `POST` | Add one object to the scene |
+| `/api/code/create-procedure` | `POST` | Create a procedure in the current project state |
+| `/api/code/create-function` | `POST` | Create a function in the current project state |
 | `/api/code/edit-procedure` | `POST` | Append a procedure edit proof |
 | `/api/project/save` | `POST` | Save the current project and proof artifact |
 | `/api/world/run` | `POST` | Run the cached project through the Tweedle VM |
@@ -50,7 +55,7 @@ Example response:
 
 ## `POST /api/launch`
 
-Start a session with an `.a3p` file.
+Start a session with an `.a3p` path.
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/launch \
@@ -69,11 +74,16 @@ Example response:
 ```json
 {
   "status": "launched",
-  "project": "./fixtures/starter.a3p",
+  "project": "/home/alice/alice-web-prototype/fixtures/starter.a3p",
   "projectName": "starter",
   "sceneObjectCount": 2
 }
 ```
+
+Relative request paths are resolved before they are stored or returned. The
+path must be a safe `.a3p` path inside an allowed directory, but it does not
+have to exist at launch time. Existing files are parsed when present; absent
+files launch with the default in-memory scene state.
 
 Error response:
 
@@ -118,8 +128,10 @@ Example response:
 }
 ```
 
-The template list can be extended at runtime by registering custom
-templates built from existing projects.
+The underlying `TemplateLibrary` can register custom templates in code, but
+the Server API only lists and instantiates templates already present in the
+current server state. It does not provide an HTTP endpoint for registering
+custom templates.
 
 ## `POST /api/project/new`
 
@@ -224,6 +236,71 @@ Example response:
     "broad UI automation"
   ],
   "evidenceArtifact": "evidence/first-lesson-code-editor-action-proof.json"
+}
+```
+
+## `POST /api/code/create-procedure`
+
+Create a procedure in the current project state.
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/code/create-procedure \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"walkForward","parameters":[{"name":"distance","type":"DecimalNumber"}]}'
+```
+
+Request body:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `name` | `string` | yes | Procedure name; leading and trailing whitespace is trimmed |
+| `parameters` | `array` | no | Parameter list; each parameter needs a non-empty `name` |
+
+Example response:
+
+```json
+{
+  "status": "created",
+  "name": "walkForward",
+  "kind": "procedure",
+  "parameters": [
+    {
+      "name": "distance",
+      "type": "DecimalNumber"
+    }
+  ],
+  "totalProcedures": 2
+}
+```
+
+## `POST /api/code/create-function`
+
+Create a function in the current project state.
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/code/create-function \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"getDistance","returnType":"DecimalNumber"}'
+```
+
+Request body:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `name` | `string` | yes | Function name; leading and trailing whitespace is trimmed |
+| `returnType` | `string` | yes | Alice return type |
+| `parameters` | `array` | no | Parameter list; each parameter needs a non-empty `name` |
+
+Example response:
+
+```json
+{
+  "status": "created",
+  "name": "getDistance",
+  "kind": "function",
+  "returnType": "DecimalNumber",
+  "parameters": [],
+  "totalProcedures": 2
 }
 ```
 
