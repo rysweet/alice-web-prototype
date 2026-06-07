@@ -219,4 +219,29 @@ describe("server API", () => {
       expect(fs.existsSync(screenshotPath)).toBe(true);
     });
   });
+
+  describe("createServer state isolation", () => {
+    it("keeps mutable project state scoped to each server instance", async () => {
+      const firstApp = createServer({
+        port: 0,
+        evidenceDir: path.join(TEST_EVIDENCE_DIR, "isolated-first"),
+      });
+      const secondApp = createServer({
+        port: 0,
+        evidenceDir: path.join(TEST_EVIDENCE_DIR, "isolated-second"),
+      });
+
+      await request(firstApp).post("/api/launch").send({}).expect(200);
+      const firstAdd = await request(firstApp)
+        .post("/api/scene/add-object")
+        .send({ className: "org.lgna.story.SBiped", name: "bunny" })
+        .expect(200);
+      const secondHealth = await request(secondApp).get("/api/health").expect(200);
+      const secondLaunch = await request(secondApp).post("/api/launch").send({}).expect(200);
+
+      expect(firstAdd.body.sceneFieldCountAfter).toBe(3);
+      expect(secondHealth.body.launched).toBe(false);
+      expect(secondLaunch.body.sceneObjectCount).toBe(2);
+    });
+  });
 });
