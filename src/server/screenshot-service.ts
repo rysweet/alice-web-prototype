@@ -29,7 +29,8 @@ export const screenshotService: ScreenshotService = {
         sceneDescription: result.sceneDescription,
         rendered: true,
       };
-    } catch {
+    } catch (err) {
+      console.error("Failed to render screenshot; writing placeholder:", err);
       await fs.promises.writeFile(screenshotPath, PLACEHOLDER_PNG);
       return {
         status: "captured",

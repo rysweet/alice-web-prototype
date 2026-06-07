@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { validateProjectPath as exportedValidateProjectPath } from "../src/server";
 import { createServerContext } from "../src/server/context";
 import { evidenceService } from "../src/server/evidence-service";
@@ -147,13 +147,23 @@ describe("server module boundary contracts", () => {
 
   it("keeps evidence artifact fallback writes explicit and non-empty", async () => {
     const evidenceDir = trackTempDir(makeTempDir("alice-evidence-service-"));
-    const editedPath = await evidenceService.writeEditedProjectArtifact(
-      path.join(evidenceDir, "missing-source.a3p"),
-      evidenceDir,
-    );
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    expect(editedPath).toBe(path.join(evidenceDir, "edited-project.a3p"));
-    expect(fs.existsSync(editedPath)).toBe(true);
-    expect(fs.statSync(editedPath).size).toBeGreaterThan(0);
+    try {
+      const editedPath = await evidenceService.writeEditedProjectArtifact(
+        path.join(evidenceDir, "missing-source.a3p"),
+        evidenceDir,
+      );
+
+      expect(editedPath).toBe(path.join(evidenceDir, "edited-project.a3p"));
+      expect(consoleError).toHaveBeenCalledWith(
+        "Failed to copy edited project artifact; writing placeholder:",
+        expect.any(Error),
+      );
+      expect(fs.existsSync(editedPath)).toBe(true);
+      expect(fs.statSync(editedPath).size).toBeGreaterThan(0);
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });

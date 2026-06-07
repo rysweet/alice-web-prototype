@@ -58,7 +58,8 @@ export const evidenceService: EvidenceService = {
 
     try {
       await fs.promises.copyFile(sourceProjectPath, editedProjectPath);
-    } catch {
+    } catch (err) {
+      console.error("Failed to copy edited project artifact; writing placeholder:", err);
       await fs.promises.writeFile(editedProjectPath, MINIMAL_A3P_BUFFER);
     }
     return editedProjectPath;
