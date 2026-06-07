@@ -243,6 +243,9 @@ export class CustomTemplate extends BaseProjectTemplate {
 
 export class TemplateLibrary {
   private readonly templates = new Map<string, BaseProjectTemplate>();
+  private cachedTemplateDescriptors: readonly TemplateDescriptor[] | null = null;
+  private cachedTemplateIds: readonly string[] | null = null;
+  private cachedPreviews: readonly TemplatePreview[] | null = null;
 
   constructor(templates: readonly BaseProjectTemplate[] = [
     new BlankTemplate(),
@@ -256,15 +259,21 @@ export class TemplateLibrary {
   }
 
   listTemplates(): TemplateDescriptor[] {
-    return [...this.templates.values()].map((template) => ({
-      id: template.id,
-      name: template.name,
-      description: template.description,
-    }));
+    return this.templateDescriptors().map((template) => ({ ...template }));
   }
 
   listPreviews(): TemplatePreview[] {
-    return [...this.templates.values()].map((template) => template.createPreview());
+    if (!this.cachedPreviews) {
+      this.cachedPreviews = [...this.templates.values()].map((template) => template.createPreview());
+    }
+    return [...this.cachedPreviews];
+  }
+
+  listTemplateIds(): string[] {
+    if (!this.cachedTemplateIds) {
+      this.cachedTemplateIds = this.templateDescriptors().map((template) => template.id);
+    }
+    return [...this.cachedTemplateIds];
   }
 
   getTemplate(id: string): BaseProjectTemplate | null {
@@ -273,7 +282,21 @@ export class TemplateLibrary {
 
   register(template: BaseProjectTemplate): this {
     this.templates.set(template.id, template);
+    this.cachedTemplateDescriptors = null;
+    this.cachedTemplateIds = null;
+    this.cachedPreviews = null;
     return this;
+  }
+
+  private templateDescriptors(): readonly TemplateDescriptor[] {
+    if (!this.cachedTemplateDescriptors) {
+      this.cachedTemplateDescriptors = [...this.templates.values()].map((template) => ({
+        id: template.id,
+        name: template.name,
+        description: template.description,
+      }));
+    }
+    return this.cachedTemplateDescriptors;
   }
 }
 

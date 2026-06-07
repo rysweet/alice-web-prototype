@@ -27,20 +27,36 @@ export interface ProjectService {
   ): Promise<Record<string, unknown>>;
 }
 
+function isMissingProjectFileError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
+
 export const projectService: ProjectService = {
   async launchProject(state, resolvedProjectFile) {
     state.launched = true;
     state.projectPath = resolvedProjectFile;
 
-    if (resolvedProjectFile && fs.existsSync(resolvedProjectFile)) {
-      state.projectName = path.basename(resolvedProjectFile, ".a3p");
+    if (resolvedProjectFile) {
+      let data: Buffer | null = null;
       try {
-        const data = fs.readFileSync(resolvedProjectFile);
-        state.parsedProject = await parseA3P(data);
-        state.projectName = state.parsedProject.projectName || state.projectName;
+        data = await fs.promises.readFile(resolvedProjectFile);
       } catch (err) {
-        console.error("Failed to parse .a3p on launch:", err);
-        state.parsedProject = null;
+        if (!isMissingProjectFileError(err)) {
+          state.projectName = path.basename(resolvedProjectFile, ".a3p");
+          console.error("Failed to parse .a3p on launch:", err);
+          state.parsedProject = null;
+        }
+      }
+
+      if (data) {
+        state.projectName = path.basename(resolvedProjectFile, ".a3p");
+        try {
+          state.parsedProject = await parseA3P(data);
+          state.projectName = state.parsedProject.projectName || state.projectName;
+        } catch (err) {
+          console.error("Failed to parse .a3p on launch:", err);
+          state.parsedProject = null;
+        }
       }
     }
 

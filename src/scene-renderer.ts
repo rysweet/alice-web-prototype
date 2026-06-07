@@ -17,6 +17,11 @@ export interface RenderResult {
 
 let cachedCreateCanvas: typeof import("canvas")["createCanvas"] | null = null;
 
+function sceneTypeName(typeName: string): string {
+  const lastDot = typeName.lastIndexOf(".");
+  return lastDot === -1 ? typeName : typeName.slice(lastDot + 1);
+}
+
 /**
  * Render the Alice scene to a PNG buffer using software rasterization.
  * This is a simplified 2D top-down projection — not full 3D — suitable
@@ -49,16 +54,18 @@ export async function renderSceneToPng(
   ctx.lineTo(options.width, options.height * 0.6);
   ctx.stroke();
 
-  // Draw objects as positioned rectangles with labels
-  const objects = project.sceneObjects.filter(
-    (o) => !o.typeName.includes("SGround") && !o.typeName.includes("SCamera"),
-  );
-
   const centerX = options.width / 2;
   const centerY = options.height * 0.5;
   const scale = 30;
+  const descriptions: string[] = [];
+  let objectCount = 0;
 
-  for (const obj of objects) {
+  for (const obj of project.sceneObjects) {
+    if (obj.typeName.includes("SGround") || obj.typeName.includes("SCamera")) {
+      continue;
+    }
+
+    objectCount += 1;
     const x = centerX + (obj.position?.x ?? 0) * scale;
     const y = centerY - (obj.position?.z ?? 0) * scale;
     const w = (obj.size?.width ?? 1) * scale;
@@ -83,6 +90,7 @@ export async function renderSceneToPng(
     ctx.font = "10px sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(obj.name, x, y - h / 2 - 4);
+    descriptions.push(`${obj.name}(${sceneTypeName(obj.typeName)})`);
   }
 
   // Title
@@ -93,11 +101,11 @@ export async function renderSceneToPng(
   ctx.font = "11px sans-serif";
   ctx.fillText(`${project.sceneObjects.length} objects, ${project.methods.length} methods`, 10, 38);
 
-  const description = objects.map((o) => `${o.name}(${o.typeName.split(".").pop()})`).join(", ");
+  const description = descriptions.join(", ");
 
   return {
     png: canvas.toBuffer("image/png"),
-    objectCount: objects.length,
+    objectCount,
     sceneDescription: description || "empty scene",
   };
 }
