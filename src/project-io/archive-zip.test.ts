@@ -54,11 +54,19 @@ describe("project-io/archive-zip", () => {
   });
 
   it("rejects unsafe archive entries during safe enumeration", async () => {
-    const zip = await JSZip.loadAsync(await createZip({
-      "../programType.xml": "<node />",
-    }));
+    for (const path of [
+      "../programType.xml",
+      "./programType.xml",
+      "resources/../evil.png",
+      "resources//evil.png",
+      "resources\\evil.png",
+    ]) {
+      const zip = await JSZip.loadAsync(await createZip({
+        [path]: "<node />",
+      }));
 
-    await expectProjectIoError(() => listSafeZipEntries(zip), "unsafe-path");
+      await expectProjectIoError(() => listSafeZipEntries(zip), "unsafe-path");
+    }
   });
 
   it("reads and writes ZIP text and bytes through validated paths", async () => {

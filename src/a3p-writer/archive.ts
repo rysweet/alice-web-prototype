@@ -6,6 +6,7 @@ import {
   getA3PSource,
   type AliceProject,
 } from "../a3p-parser.js";
+import { listSafeZipEntries, writeZipBytes } from "../project-io/archive-zip.js";
 import { serializeManifest } from "../project-io/manifest.js";
 import { assertSafeWritablePath } from "../project-io/path-security.js";
 import { writeProjectResources } from "../project-io/resources.js";
@@ -83,8 +84,8 @@ export async function modifyAndWriteA3P(
 }
 
 async function copySourceEntries(target: JSZip, sourceZip: JSZip, skip: Set<string>): Promise<void> {
-  for (const [entryName, entry] of Object.entries(sourceZip.files)) {
-    if (skip.has(entryName) || entry.dir) continue;
-    target.file(assertSafeWritablePath(entryName), await entry.async("uint8array"));
+  for (const { path: entryName, entry } of listSafeZipEntries(sourceZip)) {
+    if (skip.has(entryName)) continue;
+    writeZipBytes(target, entryName, await entry.async("uint8array"));
   }
 }

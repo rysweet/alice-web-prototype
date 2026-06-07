@@ -24,6 +24,9 @@ export async function loadProjectZip(data: ArrayBuffer | Uint8Array): Promise<JS
 export function listSafeZipEntries(zip: JSZip): SafeZipEntry[] {
   const entries: SafeZipEntry[] = [];
   for (const [archivePath, entry] of Object.entries(zip.files)) {
+    if (entry.unsafeOriginalName !== undefined) {
+      validateArchivePath(entry.unsafeOriginalName);
+    }
     validateArchivePath(archivePath);
     if (!entry.dir) {
       entries.push({ path: archivePath, entry });

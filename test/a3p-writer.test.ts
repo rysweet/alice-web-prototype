@@ -335,6 +335,20 @@ describe("a3p faithful round-trip", { timeout: 60_000 }, () => {
     expect(summarizeProject(reparsed)).toEqual(summarizeProject(original));
   });
 
+  it("rejects unsafe original source entry names when preserving parsed resources", async () => {
+    const safeBytes = await writeA3P(createStatementCoverageProject({
+      kind: "Comment",
+      expression: "safe base project",
+    }));
+    const zip = await JSZip.loadAsync(safeBytes);
+    zip.file("resources/../evil.png", new Uint8Array([1, 2, 3]));
+    const parsed = await parseA3P(await zip.generateAsync({ type: "uint8array" }));
+
+    await expect(writeA3P(parsed)).rejects.toMatchObject({
+      code: "unsafe-path",
+    });
+  });
+
   it("writes and re-parses an empty project", async () => {
     const project: AliceProject = {
       version: "3.6.0.0",
