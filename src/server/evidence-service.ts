@@ -51,9 +51,13 @@ export interface EvidenceService {
 export const evidenceService: EvidenceService = {
   async writeEditedProjectArtifact(sourceProjectPath, evidenceDir) {
     const editedProjectPath = path.join(evidenceDir, "edited-project.a3p");
+    if (!sourceProjectPath) {
+      await fs.promises.writeFile(editedProjectPath, MINIMAL_A3P_BUFFER);
+      return editedProjectPath;
+    }
+
     try {
-      const sourcePath = sourceProjectPath ?? "";
-      await fs.promises.copyFile(sourcePath, editedProjectPath);
+      await fs.promises.copyFile(sourceProjectPath, editedProjectPath);
     } catch {
       await fs.promises.writeFile(editedProjectPath, MINIMAL_A3P_BUFFER);
     }

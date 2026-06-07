@@ -1,11 +1,12 @@
 import * as fs from "fs";
 import * as path from "path";
 import { writeA3P } from "../a3p-writer/archive.js";
+import type { TemplateDescriptor } from "../project-templates.js";
 import { DEFAULT_POSITION, type ServerState } from "./state.js";
 import { sanitizeFilename } from "./validation.js";
 
 export interface TemplateService {
-  listTemplates(state: ServerState): unknown[];
+  listTemplates(state: ServerState): TemplateDescriptor[];
   createProject(
     state: ServerState,
     evidenceDir: string,
@@ -29,7 +30,7 @@ export const templateService: TemplateService = {
       return {
         ok: false,
         error: `Unknown template: ${templateId}`,
-        availableTemplates: state.templateLibrary.listTemplates().map((t) => t.id),
+        availableTemplates: state.templateLibrary.listTemplateIds(),
       };
     }
 

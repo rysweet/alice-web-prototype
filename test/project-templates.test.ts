@@ -41,6 +41,12 @@ describe("project-templates", () => {
       "sea-floor",
       "moon",
     ]);
+    expect(library.listTemplateIds()).toEqual([
+      "blank",
+      "snow",
+      "sea-floor",
+      "moon",
+    ]);
     expect(library.listPreviews()[0]?.thumbnail.startsWith("data:image/svg+xml;utf8,")).toBe(true);
   });
 
