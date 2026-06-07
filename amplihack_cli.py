@@ -18,19 +18,45 @@ NODE_HEAP_OPTION = "--max-old-space-size=32768"
 SCENARIOS = {
     "a3p-statement-simple": {
         "description": "A3P parser/writer statement inventory contract",
+        "test_files": ["test/a3p-writer.test.ts"],
         "pattern": (
-            "keeps parser round-trip cases in exact parity with PARSED_A3P_STATEMENT_KINDS|"
-            "keeps writer coverage cases in exact parity with SUPPORTED_A3P_STATEMENT_KINDS"
+            "keeps parser-recognized statement kinds explicit|"
+            "keeps writer round-trip coverage cases in exact parity with SUPPORTED_A3P_STATEMENT_KINDS"
         ),
     },
     "a3p-statement-integration": {
         "description": "A3P statement round-trip, lowering, and fail-loud coverage",
+        "test_files": ["test/a3p-writer.test.ts"],
         "pattern": (
-            "round-trips parser-recognized|"
+            "round-trips writer-supported|"
             "lowers VariableAssignment statements|"
             "lowers EventListener statements|"
-            "lowers runtime ForEach statements|"
+            "rejects TS-only ForEach statements|"
             "throws instead of dropping unsupported statement kinds"
+        ),
+    },
+    "story-api-barrel-simple": {
+        "description": "Story API public barrels stay export-only",
+        "test_files": ["test/story-api-public-barrels.test.ts"],
+        "pattern": (
+            "keeps src/index.ts as an export-only root barrel with the StoryApi namespace|"
+            "keeps src/story-api/index.ts as an export-only barrel"
+        ),
+    },
+    "story-api-barrel-integration": {
+        "description": "Story API public import paths preserve helper behavior",
+        "test_files": [
+            "test/story-api-public-barrels.test.ts",
+            "test/story-api-wrappers.test.ts",
+        ],
+        "pattern": (
+            "keeps directory and index import value surfaces aligned|"
+            "keeps the root StoryApi namespace aligned with direct Story API imports|"
+            "continues exposing story-world helpers from all public Story API import paths|"
+            "builds and summarizes an empty story world without changing helper output shape|"
+            "compares story worlds by public summary fields only|"
+            "applies environment options and snapshots scene state|"
+            "summarizes property change history and scene lifecycle helpers"
         ),
     },
 }
@@ -68,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
         "npx",
         "vitest",
         "run",
-        "test/a3p-writer.test.ts",
+        *scenario["test_files"],
         "-t",
         scenario["pattern"],
     ]
