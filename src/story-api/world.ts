@@ -28,6 +28,7 @@ export const STORY_API_MODULES = Object.freeze([
   "implementation",
   "scene",
   "types",
+  "world",
 ] as const);
 
 export function listStoryApiModules(): readonly string[] {

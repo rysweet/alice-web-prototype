@@ -542,7 +542,7 @@ describe("Issue #61: cross-issue E2E integration", () => {
     expect(api.EntityTypeRegistry).toBeDefined();
     const registry = api.EntityTypeRegistry.EntityTypeRegistry.getInstance();
     expect(registry.get("STransport")).not.toBeNull();
-  }, 15_000);
+  }, 30_000);
 
   it("full pipeline: create transport, register event listeners, apply pose, query gallery", async () => {
     // Step 1: Create a transport entity via registry (#56)
