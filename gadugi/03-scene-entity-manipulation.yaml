@@ -15,6 +15,10 @@ scenario:
 
   tags: [alice, integration, scene, add-object, screenshot, java-parity]
 
+  agents:
+    - name: cli
+      type: cli
+
   prerequisites:
     - "npm run build:server has been run"
 

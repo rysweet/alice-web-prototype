@@ -16,6 +16,10 @@ scenario:
 
   tags: [alice, integration, events, register, fire, proximity, java-parity]
 
+  agents:
+    - name: cli
+      type: cli
+
   prerequisites:
     - "npm run build:server has been run"
 

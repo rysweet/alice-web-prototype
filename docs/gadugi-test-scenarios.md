@@ -16,13 +16,13 @@ prototype's REST API.
 npm run build:server
 
 # Run all gadugi scenarios
-gadugi-agentic-test run gadugi/ --verbose
+gadugi-test run -d gadugi --verbose
 
 # Run a single scenario
-gadugi-agentic-test run gadugi/01-a3p-open-parse-render.yaml
+gadugi-test run -d gadugi --scenario "A3P Open"
 
 # Run with a custom port (avoids conflicts)
-PORT=13579 gadugi-agentic-test run gadugi/ --verbose
+PORT=13579 gadugi-test run -d gadugi --verbose
 ```
 
 ## Scenario Overview
@@ -46,7 +46,7 @@ artifact verification.
 | Server built | `npm run build:server` |
 | Node.js ≥ 18 | `node --version` |
 | Port available | Default `3000`; override with `PORT` env var or `--port` CLI flag |
-| `.a3p` fixture (scenarios 1, 2) | Place a valid `.a3p` file at the path declared in `prerequisites` |
+| `.a3p` fixture (scenarios 1, 2) | Set `A3P_FILE` or use the tracked `.test-roundtrip/modified.a3p` default |
 
 Scenarios 3 and 4 do **not** require a `.a3p` file — they use `POST /api/launch`
 without a project, which seeds the scene with default `ground` + `camera`
@@ -66,6 +66,10 @@ scenario:
   level: 3
   tags: [alice, integration, ...]
 
+  agents:
+    - name: cli
+      type: cli
+
   prerequisites:
     - "Condition that must be true before running"
 
@@ -75,69 +79,58 @@ scenario:
       EVIDENCE_DIR: "./evidence/scenario-name"
 
   steps:
-    # Execute steps (mutate state)
-    - action: launch          # Start the server process
-    - action: http_request    # Send HTTP request to API
-    - action: send_input      # Send stdin to process (for graceful shutdown)
+    - name: "Run the scenario flow"
+      agent: cli
+      action: execute
+      target: >-
+        bash -lc 'set -euo pipefail; npm run build:server; # scenario commands'
+      timeout: 30000
 
-    # Validate steps (assert state)
-    - action: verify_response # Assert HTTP response body/status
-    - action: verify_output   # Assert process stdout/stderr
-    - action: verify_exit_code # Assert process exit code
+```
 
-  cleanup:
-    - action: stop_application
-    - action: shell           # Remove evidence artifacts
+`scenario.agents` is required by the installed `gadugi-test` loader. These
+scenarios use one CLI agent:
+
+```yaml
+agents:
+  - name: cli
+    type: cli
 ```
 
 ### Action Types
 
-#### Execute Actions
+The installed runner's CLI agent accepts command-oriented actions. HTTP calls
+and response assertions should be expressed inside `execute` commands, usually
+with `curl` plus `node -e` JSON assertions, unless a future runner release adds
+native HTTP actions.
 
 | Action | Purpose | Key Fields |
 |---|---|---|
-| `launch` | Start `alice-web serve` process | `target`, `args`, `timeout` |
-| `http_request` | Send HTTP request to the API | `method`, `url`, `body`, `headers` |
-| `send_input` | Write to stdin or send signal to the process | `value`, `signal` |
-
-#### Validate Actions
-
-| Action | Purpose | Key Fields |
-|---|---|---|
-| `verify_response` | Assert HTTP response properties | `status`, `json_path`, `contains`, `matches` |
-| `verify_output` | Assert process stdout content | `contains`, `matches`, `timeout` |
-| `verify_exit_code` | Assert process exit code | `expected` |
-
-#### Lifecycle Actions
-
-| Action | Purpose | Key Fields |
-|---|---|---|
-| `stop_application` | Stop the running server process | `signal`, `timeout` |
-| `shell` | Run an arbitrary shell command | `command`, `description` |
-
-> **Note:** `http_request` may not be natively supported by all gadugi
-> runners. If unsupported, scenarios should fall back to `shell` actions
-> using `curl`. The YAML structure remains the same — only the action
-> type changes.
+| `execute` | Run a shell command and fail the step on non-zero exit | `target`, `timeout` |
+| `run` / `command` / `execute_command` | Aliases for command execution | `target`, `timeout` |
+| `validate_output` | Validate latest command output | `expected` |
+| `validate_exit_code` | Validate latest command exit code | `expected` |
+| `wait_for_output` | Poll captured command output for a regex | `target`, `timeout` |
 
 ### Health Check Gate
 
-Every scenario begins with a health check polling loop after launch. This
-prevents race conditions between server startup and the first API request:
+Runner-compatible scenarios should gate on `/api/health` inside the command
+step after launching the server. This prevents race conditions between server
+startup and the first API request:
 
 ```yaml
-- action: http_request
-  method: GET
-  url: "http://127.0.0.1:${PORT}/api/health"
-  retry:
-    max_attempts: 3
-    interval: 200ms
-  description: "Wait for server to be ready"
-
-- action: verify_response
-  status: 200
-  json_path: "$.status"
-  equals: "running"
+- name: "Run API flow"
+  agent: cli
+  action: execute
+  target: >-
+    bash -lc 'set -euo pipefail;
+    PORT="${PORT:-3000}";
+    for attempt in $(seq 1 50); do
+      if curl -fsS "http://127.0.0.1:$PORT/api/health" > health.json;
+      then break; fi;
+      sleep 0.2;
+    done;
+    node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(\"health.json\", \"utf8\")); if (d.status !== \"running\") throw new Error(\"not ready\");"'
 ```
 
 ## Scenario Details
@@ -330,30 +323,25 @@ Each scenario uses a single port. To run scenarios in parallel, assign
 different ports:
 
 ```bash
-PORT=13579 gadugi-agentic-test run gadugi/01-a3p-open-parse-render.yaml &
-PORT=13580 gadugi-agentic-test run gadugi/03-scene-entity-manipulation.yaml &
+PORT=13579 gadugi-test run -d gadugi --scenario "A3P Open" &
+PORT=13580 gadugi-test run -d gadugi --scenario "Scene Entity" &
 wait
 ```
 
 ### Evidence Directory
 
 Each scenario writes artifacts to its own subdirectory under `EVIDENCE_DIR`.
-The cleanup step removes these artifacts after verification:
-
-```yaml
-cleanup:
-  - action: stop_application
-    signal: SIGTERM
-    timeout: 5s
-  - action: shell
-    command: "rm -rf ${EVIDENCE_DIR}"
-    description: "Remove evidence artifacts"
-```
-
-To preserve artifacts for debugging, skip cleanup:
+Runner-compatible command steps should clean these artifacts with a shell trap:
 
 ```bash
-gadugi-agentic-test run gadugi/03-scene-entity-manipulation.yaml --skip-cleanup
+trap 'kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true; rm -rf "$EVIDENCE_DIR"' EXIT
+```
+
+To preserve artifacts for debugging, temporarily remove the `rm -rf "$EVIDENCE_DIR"`
+part of the scenario command trap while investigating.
+
+```bash
+gadugi-test run -d gadugi --scenario "Scene Entity"
 ```
 
 ## API Surface Covered
@@ -386,6 +374,10 @@ scenario:
   level: 3
   tags: [alice, integration, your-feature]
 
+  agents:
+    - name: cli
+      type: cli
+
   prerequisites:
     - "npm run build:server has been run"
 
@@ -395,57 +387,29 @@ scenario:
       EVIDENCE_DIR: "./evidence/your-scenario"
 
   steps:
-    # 1. Launch server
-    - action: launch
-      target: "node"
-      args: ["dist-server/cli.js", "serve",
-             "--port", "${PORT}",
-             "--evidence-dir", "${EVIDENCE_DIR}"]
-      description: "Start alice-web server"
-      timeout: 10s
+    - name: "Run your API flow"
+      agent: cli
+      action: execute
+      target: >-
+        bash -lc 'set -euo pipefail;
+        PORT="${PORT:-3000}";
+        EVIDENCE_DIR="./evidence/your-scenario";
+        rm -rf "$EVIDENCE_DIR";
+        mkdir -p "$EVIDENCE_DIR";
+        node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" >"$EVIDENCE_DIR/server.log" 2>&1 &
+        SERVER_PID=$!;
+        trap "kill $SERVER_PID 2>/dev/null || true; wait $SERVER_PID 2>/dev/null || true; rm -rf $EVIDENCE_DIR" EXIT;
+        for attempt in $(seq 1 50); do
+          if curl -fsS "http://127.0.0.1:$PORT/api/health" >"$EVIDENCE_DIR/health.json";
+          then break; fi;
+          sleep 0.2;
+        done;
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/launch" -H "Content-Type: application/json" -d "{}" >"$EVIDENCE_DIR/launch.json";
+        node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"launched\") throw new Error(\"launch failed\");" "$EVIDENCE_DIR/launch.json";
+        kill "$SERVER_PID";
+        wait "$SERVER_PID" 2>/dev/null || true'
+      timeout: 30000
 
-    # 2. Health check gate
-    - action: http_request
-      method: GET
-      url: "http://127.0.0.1:${PORT}/api/health"
-      retry:
-        max_attempts: 3
-        interval: 200ms
-
-    - action: verify_response
-      status: 200
-      json_path: "$.status"
-      equals: "running"
-
-    # 3. Launch the project
-    - action: http_request
-      method: POST
-      url: "http://127.0.0.1:${PORT}/api/launch"
-      headers:
-        Content-Type: "application/json"
-      body: '{}'
-
-    - action: verify_response
-      status: 200
-      json_path: "$.status"
-      equals: "launched"
-
-    # 4. Your test steps here...
-
-    # N. Graceful shutdown
-    - action: send_input
-      value: ""
-      signal: SIGTERM
-
-    - action: verify_exit_code
-      expected: 0
-
-  cleanup:
-    - action: stop_application
-      signal: SIGTERM
-      timeout: 5s
-    - action: shell
-      command: "rm -rf ${EVIDENCE_DIR}"
 ```
 
 ### Conventions
@@ -454,15 +418,15 @@ scenario:
    call. The server binds asynchronously; without a gate, early requests fail
    with `ECONNREFUSED`.
 
-2. **Explicit verify after each request** — Every `http_request` step must be
-   followed by a `verify_response` step. This makes failures easy to locate
-   in the gadugi output.
+2. **Explicit verify after each request** — Every `curl` request should be
+   followed by a JSON assertion in the same `execute` command. This makes
+   failures fail the runner step with a non-zero exit code.
 
-3. **Use `json_path` for deep assertions** — Prefer `json_path: "$.status"`
-   with `equals:` over `contains:` for structured JSON responses.
+3. **Use structured JSON assertions** — Prefer `node -e` checks against parsed
+   JSON over substring matching for API responses.
 
-4. **Evidence cleanup** — Always include a cleanup step that removes the
-   evidence directory. Accumulated artifacts consume disk and cause flaky
+4. **Evidence cleanup** — Always include shell-trap cleanup in long-running
+   `execute` commands. Accumulated artifacts consume disk and can cause flaky
    re-runs if stale files from a previous run match assertions.
 
 5. **Localhost only** — All `url` fields use `127.0.0.1`, never `localhost`
@@ -506,7 +470,7 @@ Another process (or a previous test run) is occupying the port:
 lsof -i :3000
 
 # Use a different port
-PORT=13579 gadugi-agentic-test run gadugi/01-a3p-open-parse-render.yaml
+PORT=13579 gadugi-test run -d gadugi --scenario "A3P Open"
 ```
 
 ### Evidence directory not cleaned up
