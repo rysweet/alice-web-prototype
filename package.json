@@ -12,7 +12,8 @@
     "build:server": "tsc -p tsconfig.server.json",
     "serve": "node dist-server/cli.js serve",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.9.10",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.3.0",
+    "@playwright/test": "^1.61.0",
     "@types/express": "^5.0.6",
     "@types/jsdom": "^28.0.3",
     "@types/node": "^25.7.0",
