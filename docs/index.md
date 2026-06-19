@@ -51,6 +51,10 @@ so the `eatme` test suite can drive real curriculum workflows.
 ### Reference
 
 - [API reference](./api-reference.md)
+- [Root TypeScript API barrel](./architecture.md#barrel-re-exports) -
+  `src/index.ts` is the public root export surface. It includes namespace
+  exports such as `StoryApi`, `TweedleParser`, `SceneRenderer`,
+  `PluginSystem`, `PrintSystem`, and `VersionManagement`.
 - [A3P statement round-trip coverage](./a3p-statement-round-trip.md)
 - [Animation system](./animation.md)
 - [Audio](./audio.md)
