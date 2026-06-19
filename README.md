@@ -177,14 +177,19 @@ standard library, and debugger.
 ## REST API
 
 The server exposes endpoints used by the [eatme](https://github.com/rysweet/eatme)
-test suite for automated end-to-end testing:
+test suite for automated end-to-end testing. See the
+[API reference](./docs/api-reference.md) for request and response details.
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/api/health` | GET | Server health check |
 | `/api/launch` | POST | Launch project from template |
+| `/api/project/templates` | GET | List available project templates |
+| `/api/project/new` | POST | Create a project from a template |
 | `/api/scene/add-object` | POST | Add entity to scene |
 | `/api/code/edit-procedure` | POST | Edit a method body |
+| `/api/code/create-procedure` | POST | Create a procedure |
+| `/api/code/create-function` | POST | Create a function |
 | `/api/world/run` | POST | Run the world |
 | `/api/project/save` | POST | Save the project |
 | `/api/screenshot` | GET | Capture current render |
