@@ -1,515 +1,361 @@
-# Gadugi Test Scenarios — Alice TypeScript Web Prototype
+# Gadugi Test Scenarios
 
-End-to-end integration tests for the Alice TypeScript port, written as
-gadugi-compatible YAML scenarios. Each scenario launches the `alice-web serve`
-process, exercises the HTTP API, and verifies the full request-response cycle
-including evidence artifact generation.
+The `gadugi/*.yaml` files are executable end-to-end scenarios for the Alice web
+prototype. They use the installed `gadugi-test` runner to start the local REST
+API server, drive real HTTP user flows with `curl`, assert JSON responses, and
+shut the server down cleanly.
 
-These scenarios verify **Java feature parity** — the same capabilities that
-Java Alice exposes through its desktop UI, tested here through the web
-prototype's REST API.
+The completed scenario set verifies Java Alice parity from the outside in:
+project open and rendering, Tweedle world execution, scene entity manipulation,
+event handling, and save/export round trips.
 
-## Quick Start
+## Quick start
+
+Build the server, then ask `gadugi-test` to discover and validate the
+scenarios:
 
 ```bash
-# Build the server first
 npm run build:server
 
-# Run all gadugi scenarios
-gadugi-test run -d gadugi --verbose
-
-# Run a single scenario
-gadugi-test run -d gadugi --scenario "A3P Open"
-
-# Run with a custom port (avoids conflicts)
-PORT=13579 gadugi-test run -d gadugi --verbose
+NODE_OPTIONS=--max-old-space-size=32768 gadugi-test list -d gadugi
+NODE_OPTIONS=--max-old-space-size=32768 gadugi-test validate -d gadugi
 ```
 
-## Scenario Overview
+Run the fixture-independent scenarios first:
 
-| File | Name | Tests | Java Parity Feature |
-|---|---|---|---|
-| `01-a3p-open-parse-render.yaml` | A3P Open / Parse / Render | Project load → scene query → screenshot | `ProjectImp.open()` → `SceneImp.render()` |
-| `02-tweedle-ast-vm-execution.yaml` | Tweedle AST & VM Execution | Launch → run world → verify execution log | `VirtualMachine.execute()` |
-| `03-scene-entity-manipulation.yaml` | Scene Entity Manipulation | Add object → verify count → screenshot | `SceneEditor.addModel()` |
-| `04-event-system.yaml` | Event System | Register → fire → verify triggers | `EventManager` listeners |
-| `05-save-export-roundtrip.yaml` | Save / Export Round-Trip | Edit → save → re-launch → verify | `ProjectImp.save()` |
+```bash
+NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi -s "Scene Entity Manipulation"
+NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi -s "Event System"
+NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi -s "Save / Export Round-Trip"
+```
 
-All scenarios use **level 3** (integration) — they exercise the full server
-lifecycle from process launch through HTTP API interaction to evidence
-artifact verification.
+Scenarios 01 and 02 need an Alice project file. Run them when
+`.test-roundtrip/modified.a3p` exists or `A3P_FILE` points to another fixture:
 
-## Prerequisites
+```bash
+A3P_FILE=.test-roundtrip/modified.a3p \
+NODE_OPTIONS=--max-old-space-size=32768 \
+  gadugi-test run -d gadugi -s "A3P Open / Parse / Render"
 
-| Requirement | How to Satisfy |
-|---|---|
-| Server built | `npm run build:server` |
-| Node.js ≥ 18 | `node --version` |
-| Port available | Default `3000`; override with `PORT` env var or `--port` CLI flag |
-| `.a3p` fixture (scenarios 1, 2) | Set `A3P_FILE` or use the tracked `.test-roundtrip/modified.a3p` default |
+A3P_FILE=.test-roundtrip/modified.a3p \
+NODE_OPTIONS=--max-old-space-size=32768 \
+  gadugi-test run -d gadugi -s "Tweedle AST & VM Execution"
+```
 
-Scenarios 3 and 4 do **not** require a `.a3p` file — they use `POST /api/launch`
-without a project, which seeds the scene with default `ground` + `camera`
-objects.
+Run the full suite after the fixture-independent scenarios pass and the required
+`.a3p` fixture is available:
 
-## Scenario Schema
+```bash
+NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi
+```
 
-Every scenario follows the gadugi outside-in-testing YAML convention:
+## Scenario inventory
+
+| File | Scenario | User flow |
+| --- | --- | --- |
+| `gadugi/01-a3p-open-parse-render.yaml` | `A3P Open / Parse / Render` | Open a `.a3p` project, parse scene objects, capture a render |
+| `gadugi/02-tweedle-ast-vm-execution.yaml` | `Tweedle AST & VM Execution` | Open a `.a3p` project and run the world through the Tweedle VM |
+| `gadugi/03-scene-entity-manipulation.yaml` | `Scene Entity Manipulation` | Launch a blank scene, add entities, reject invalid input, capture a render |
+| `gadugi/04-event-system.yaml` | `Event System` | Register events, fire matching and non-matching events, reject invalid input |
+| `gadugi/05-save-export-roundtrip.yaml` | `Save / Export Round-Trip` | Edit a project, save it, relaunch, and verify the saved project opens |
+
+The files are level 3 integration tests. They exercise the built server process
+and REST API rather than importing TypeScript modules directly.
+
+## Compatibility gate
+
+`gadugi-test validate` checks that scenario files load, but it does not reject
+every stale native runner action. The scenarios must also pass this static gate
+with no matches:
+
+```bash
+rg 'cleanup:|action:\s*(launch|http_request|verify_response|verify_output|send_input|verify_exit_code|stop_application|shell)|retry:' gadugi
+```
+
+Any match means the scenario still uses the old action schema and must be
+rewritten to the execute-only pattern before it is considered runnable.
+
+## Runner-compatible scenario format
+
+The installed `gadugi-test` CLI is the source of truth for scenario execution.
+The Alice scenarios use one supported action style:
 
 ```yaml
-scenario:
-  name: "Human-readable scenario name"
-  description: |
-    Multi-line description of what the scenario tests
-    and which Java Alice feature it maps to.
-  type: cli
-  level: 3
-  tags: [alice, integration, ...]
-
-  agents:
-    - name: cli
-      type: cli
-
-  prerequisites:
-    - "Condition that must be true before running"
-
-  environment:
-    variables:
-      PORT: "${PORT:-3000}"
-      EVIDENCE_DIR: "./evidence/scenario-name"
-
-  steps:
-    - name: "Run the scenario flow"
-      agent: cli
-      action: execute
-      target: >-
-        bash -lc 'set -euo pipefail; npm run build:server; # scenario commands'
-      timeout: 30000
-
+steps:
+  - name: "Run the scenario flow"
+    agent: cli
+    action: execute
+    target: >-
+      bash -lc 'set -euo pipefail;
+      # start server, poll health, curl APIs, assert JSON, cleanup'
+    timeout: 30000
 ```
 
-`scenario.agents` is required by the installed `gadugi-test` loader. These
-scenarios use one CLI agent:
+Do not use native runner actions for launch, HTTP calls, response checks,
+stdin/signal handling, exit-code checks, or cleanup. Put those operations inside
+the `action: execute` shell flow so local runs and CI use the same behavior.
 
-```yaml
-agents:
-  - name: cli
-    type: cli
-```
+Each scenario includes:
 
-### Action Types
-
-The installed runner's CLI agent accepts command-oriented actions. HTTP calls
-and response assertions should be expressed inside `execute` commands, usually
-with `curl` plus `node -e` JSON assertions, unless a future runner release adds
-native HTTP actions.
-
-| Action | Purpose | Key Fields |
-|---|---|---|
-| `execute` | Run a shell command and fail the step on non-zero exit | `target`, `timeout` |
-| `run` / `command` / `execute_command` | Aliases for command execution | `target`, `timeout` |
-| `validate_output` | Validate latest command output | `expected` |
-| `validate_exit_code` | Validate latest command exit code | `expected` |
-| `wait_for_output` | Poll captured command output for a regex | `target`, `timeout` |
-
-### Health Check Gate
-
-Runner-compatible scenarios should gate on `/api/health` inside the command
-step after launching the server. This prevents race conditions between server
-startup and the first API request:
-
-```yaml
-- name: "Run API flow"
-  agent: cli
-  action: execute
-  target: >-
-    bash -lc 'set -euo pipefail;
-    PORT="${PORT:-3000}";
-    for attempt in $(seq 1 50); do
-      if curl -fsS "http://127.0.0.1:$PORT/api/health" > health.json;
-      then break; fi;
-      sleep 0.2;
-    done;
-    node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(\"health.json\", \"utf8\")); if (d.status !== \"running\") throw new Error(\"not ready\");"'
-```
-
-## Scenario Details
-
-### 01 — A3P Open / Parse / Render
-
-**File:** `gadugi/01-a3p-open-parse-render.yaml`
-
-Tests the complete lifecycle of opening an Alice project file: launch the
-server with a `.a3p` project path, verify the parser extracts scene objects,
-and capture a screenshot.
-
-**Steps:**
-
-1. Launch `alice-web serve --port $PORT --evidence-dir $EVIDENCE_DIR --project $A3P_FILE`
-2. Health check gate
-3. `POST /api/launch` with project path → verify `status: "launched"`, `projectName` present
-4. `GET /api/screenshot` → verify `status: "captured"`, `objectCount >= 2`
-5. Send SIGTERM, verify exit code 0
-
-**Validates:**
-- `.a3p` ZIP/XML parsing succeeds
-- Scene objects are extracted from the project
-- Scene renderer produces a screenshot (PNG artifact)
-- Server shuts down cleanly after project load
-
-**Prerequisites:**
-- Valid `.a3p` file at the configured path
-
-**Evidence artifacts produced:**
-- `screenshot.png` — rendered scene image
-
----
-
-### 02 — Tweedle AST & VM Execution
-
-**File:** `gadugi/02-tweedle-ast-vm-execution.yaml`
-
-Tests the Tweedle virtual machine by launching a project and executing its
-methods via `POST /api/world/run`. Verifies that the execution log contains
-the expected statement types.
-
-**Steps:**
-
-1. Launch `alice-web serve --port $PORT --evidence-dir $EVIDENCE_DIR --project $A3P_FILE`
-2. Health check gate
-3. `POST /api/launch` with project → verify launched
-4. `POST /api/world/run` → verify `status: "completed"`, `statements_executed >= 1`, `execution_log` is array
-5. Send SIGTERM, verify exit code 0
-
-**Validates:**
-- Tweedle parser extracts AST from `.a3p` project
-- VM executes all methods without errors
-- Execution log contains structured `{step, kind, detail}` entries
-- `schema_version` matches `eatme.alice-run-world-result/v1`
-
-**Prerequisites:**
-- Valid `.a3p` file with at least one Tweedle method
-
-**Evidence artifacts produced:**
-- `run-world-result.json` — full execution log with schema version
-
----
-
-### 03 — Scene Entity Manipulation
-
-**File:** `gadugi/03-scene-entity-manipulation.yaml`
-
-Tests adding objects to the scene and capturing a screenshot. Does not
-require a `.a3p` file — the server seeds default `ground` + `camera` on
-launch.
-
-**Steps:**
-
-1. Launch `alice-web serve --port $PORT --evidence-dir $EVIDENCE_DIR`
-2. Health check gate
-3. `POST /api/launch` (no project) → verify `sceneObjectCount: 2` (ground + camera)
-4. `POST /api/scene/add-object` with `className: "org.lgna.story.SBiped"`, `name: "bunny"` → verify `status: "added"`, `sceneFieldCountAfter: 3`
-5. `POST /api/scene/add-object` with `className: "org.lgna.story.SProp"`, `name: "tree"` → verify `sceneFieldCountAfter: 4`
-6. `GET /api/screenshot` → verify `objectCount >= 4`
-7. Send SIGTERM, verify exit code 0
-
-**Validates:**
-- Default scene seeds ground + camera
-- `add-object` increments scene field count
-- Object names are assigned correctly (explicit or derived from className)
-- Evidence artifact `scene-object-added.json` is written per addition
-- Screenshot reflects the updated scene
-
-**Prerequisites:**
-- None (no `.a3p` file needed)
-
-**Evidence artifacts produced:**
-- `scene-object-added.json` — one per add-object call
-- `screenshot.png` — scene with all 4 objects
-
----
-
-### 04 — Event System
-
-**File:** `gadugi/04-event-system.yaml`
-
-Tests all three event types: `sceneActivated`, `keyPress`, and `proximity`.
-Registers handlers, fires events, and verifies the correct handlers trigger.
-
-**Steps:**
-
-1. Launch `alice-web serve --port $PORT --evidence-dir $EVIDENCE_DIR`
-2. Health check gate
-3. `POST /api/launch` → verify launched
-4. Register `sceneActivated` handler → verify `registrationId: "evt-1"`
-5. Register `keyPress` handler for `"Space"` → verify `registrationId: "evt-2"`
-6. Add two objects (`bunny`, `cat`) for proximity test
-7. Register `proximity` handler for `["bunny", "cat"]` with threshold 3.0 → verify `registrationId: "evt-3"`
-8. Fire `sceneActivated` → verify `triggered` contains `evt-1`, length 1
-9. Fire `keyPress` with `payload.key: "Space"` → verify `triggered` contains `evt-2`
-10. Fire `keyPress` with `payload.key: "ArrowUp"` → verify `triggered` is empty
-11. Fire `proximity` with `sourceObject: "bunny"` → verify `triggered` contains `evt-3` (both at origin, distance = 0)
-12. Send SIGTERM, verify exit code 0
-
-**Validates:**
-- Registration assigns sequential IDs (`evt-1`, `evt-2`, …)
-- `sceneActivated` triggers unconditionally
-- `keyPress` filters by key match
-- Non-matching key fires produce empty triggered array
-- `proximity` triggers when distance ≤ threshold (0 ≤ 3.0)
-- Evidence artifacts written for both register and fire
-
-**Prerequisites:**
-- None (no `.a3p` file needed)
-
-**Evidence artifacts produced:**
-- `event-register.json` — one per registration (overwritten)
-- `event-fire.json` — one per fire (overwritten)
-
----
-
-### 05 — Save / Export Round-Trip
-
-**File:** `gadugi/05-save-export-roundtrip.yaml`
-
-Tests the full edit-and-save cycle: launch, edit a procedure, save the
-project, then re-launch with the saved file and verify edits survived.
-Maps Java Alice's `modifyAndWriteA3P` through the server API.
-
-**Steps:**
-
-1. Launch `alice-web serve --port $PORT --evidence-dir $EVIDENCE_DIR`
-2. Health check gate
-3. `POST /api/launch` → verify launched
-4. `POST /api/code/edit-procedure` with `editSpec: "append-comment:gadugi-round-trip-proof"` → verify `status: "proved"`, `edited_project_artifact: "edited-project.a3p"`
-5. `POST /api/project/save` → verify `status: "saved"`, `saved_project_artifact` present
-6. Send SIGTERM, verify clean exit
-7. Re-launch server (no `--project` flag — project path passed via API body)
-8. Health check gate
-9. `POST /api/launch` with saved project → verify `status: "launched"`
-10. Send SIGTERM, verify exit code 0
-
-**Validates:**
-- Procedure edit produces proof artifacts
-- Project save writes `.a3p` file to evidence directory
-- Saved project can be re-opened by a fresh server instance
-- Edit → save → re-open round-trip completes without errors
-
-**Prerequisites:**
-- None (uses in-memory defaults, no external `.a3p` needed)
-
-**Evidence artifacts produced:**
-- `edited-project.a3p` — modified project binary
-- `first-lesson-code-editor-action-proof.json` — edit proof
-- `project-save/saved-project.a3p` — saved project file
-- `project-save/desktop-save-operation-result.json` — save proof
-
----
+1. `set -euo pipefail`.
+2. Quoted `PORT`, `EVIDENCE_DIR`, `A3P_FILE`, URL, and artifact paths.
+3. Explicit server startup with `node dist-server/cli.js serve`.
+4. Health polling against `http://127.0.0.1:$PORT/api/health`.
+5. `curl` API calls that write response JSON into the evidence directory.
+6. `node -e` assertions against parsed JSON responses.
+7. A captured `SERVER_PID`.
+8. A shell `trap` that kills only the captured server PID and safely removes
+   the scenario evidence directory.
 
 ## Configuration
 
-### Environment Variables
+| Variable | Default | Used by | Description |
+| --- | --- | --- | --- |
+| `NODE_OPTIONS` | none | all scenarios | Use `--max-old-space-size=32768` for local and CI parity |
+| `PORT` | scenario-specific `3101`-`3105` | all scenarios | Local REST API port; each scenario has a unique default so full-suite runs can execute in parallel |
+| `EVIDENCE_DIR` | scenario-specific path under `./evidence/` with a shell PID suffix | all scenarios | Temporary response, log, and artifact directory |
+| `A3P_FILE` | `.test-roundtrip/modified.a3p` where applicable | scenarios 01 and 02 | Alice project fixture to open and execute |
 
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `3000` | Server listen port |
-| `EVIDENCE_DIR` | `./evidence/<scenario-name>` | Evidence artifact output directory |
-| `A3P_FILE` | _(none)_ | Path to `.a3p` project file (scenarios 1, 2) |
-| `NODE_OPTIONS` | _(none)_ | Node.js options (e.g., `--max-old-space-size=32768`) |
-
-### Port Conflicts
-
-Each scenario uses a single port. To run scenarios in parallel, assign
-different ports:
+Use a different port if another local service is already bound to a scenario's
+default port. Prefer overriding `PORT` only for single-scenario runs because the
+full suite runs scenarios in parallel:
 
 ```bash
-PORT=13579 gadugi-test run -d gadugi --scenario "A3P Open" &
-PORT=13580 gadugi-test run -d gadugi --scenario "Scene Entity" &
-wait
+PORT=13579 NODE_OPTIONS=--max-old-space-size=32768 \
+  gadugi-test run -d gadugi -s "Scene Entity Manipulation"
 ```
 
-### Evidence Directory
+## Scenario shell lifecycle
 
-Each scenario writes artifacts to its own subdirectory under `EVIDENCE_DIR`.
-Runner-compatible command steps should clean these artifacts with a shell trap:
-
-```bash
-trap 'kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true; rm -rf "$EVIDENCE_DIR"' EXIT
-```
-
-To preserve artifacts for debugging, temporarily remove the `rm -rf "$EVIDENCE_DIR"`
-part of the scenario command trap while investigating.
-
-```bash
-gadugi-test run -d gadugi --scenario "Scene Entity"
-```
-
-## API Surface Covered
-
-The five scenarios collectively cover every endpoint in `src/server.ts`:
-
-| Endpoint | Method | Scenario(s) |
-|---|---|---|
-| `/api/health` | GET | 01, 02, 03, 04, 05 (health gate) |
-| `/api/launch` | POST | 01, 02, 03, 04, 05 |
-| `/api/scene/add-object` | POST | 03, 04 |
-| `/api/code/edit-procedure` | POST | 05 |
-| `/api/project/save` | POST | 05 |
-| `/api/world/run` | POST | 02 |
-| `/api/screenshot` | GET | 01, 03 |
-| `/api/events/register` | POST | 04 |
-| `/api/events/fire` | POST | 04 |
-
-## Writing New Scenarios
-
-### Template
+A runner-compatible scenario starts the server in the background and owns its
+full lifecycle inside the same `execute` step:
 
 ```yaml
-scenario:
-  name: "Your Scenario Name"
-  description: |
-    What this scenario tests and which Java Alice
-    feature it maps to.
-  type: cli
-  level: 3
-  tags: [alice, integration, your-feature]
-
-  agents:
-    - name: cli
-      type: cli
-
-  prerequisites:
-    - "npm run build:server has been run"
-
-  environment:
-    variables:
-      PORT: "${PORT:-3000}"
-      EVIDENCE_DIR: "./evidence/your-scenario"
-
-  steps:
-    - name: "Run your API flow"
-      agent: cli
-      action: execute
-      target: >-
-        bash -lc 'set -euo pipefail;
-        PORT="${PORT:-3000}";
-        EVIDENCE_DIR="./evidence/your-scenario";
+steps:
+  - name: "Run API flow"
+    agent: cli
+    action: execute
+    target: >-
+      bash -lc 'set -euo pipefail;
+      PORT="${PORT:-3000}";
+      case "$PORT" in (*[!0-9]*|"") echo "PORT must be numeric" >&2; exit 2;; esac;
+      EVIDENCE_DIR="./evidence/example";
+      case "$EVIDENCE_DIR" in (""|"/"|".") echo "unsafe EVIDENCE_DIR" >&2; exit 2;; esac;
+      HEALTH_JSON="$EVIDENCE_DIR/health.json";
+      LAUNCH_JSON="$EVIDENCE_DIR/launch.json";
+      SERVER_LOG="$EVIDENCE_DIR/server.log";
+      rm -rf "$EVIDENCE_DIR";
+      mkdir -p "$EVIDENCE_DIR";
+      SERVER_PID="";
+      cleanup() {
+        status=$?;
+        if [ -n "${SERVER_PID:-}" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
+          kill "$SERVER_PID" 2>/dev/null || true;
+          wait "$SERVER_PID" 2>/dev/null || true;
+        fi;
         rm -rf "$EVIDENCE_DIR";
-        mkdir -p "$EVIDENCE_DIR";
-        node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" >"$EVIDENCE_DIR/server.log" 2>&1 &
-        SERVER_PID=$!;
-        trap "kill $SERVER_PID 2>/dev/null || true; wait $SERVER_PID 2>/dev/null || true; rm -rf $EVIDENCE_DIR" EXIT;
-        for attempt in $(seq 1 50); do
-          if curl -fsS "http://127.0.0.1:$PORT/api/health" >"$EVIDENCE_DIR/health.json";
-          then break; fi;
-          sleep 0.2;
-        done;
-        curl -fsS -X POST "http://127.0.0.1:$PORT/api/launch" -H "Content-Type: application/json" -d "{}" >"$EVIDENCE_DIR/launch.json";
-        node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"launched\") throw new Error(\"launch failed\");" "$EVIDENCE_DIR/launch.json";
-        kill "$SERVER_PID";
-        wait "$SERVER_PID" 2>/dev/null || true'
-      timeout: 30000
-
+        exit "$status";
+      };
+      trap cleanup EXIT;
+      node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" >"$SERVER_LOG" 2>&1 &
+      SERVER_PID=$!;
+      READY=0;
+      for attempt in $(seq 1 50); do
+        if curl -fsS "http://127.0.0.1:$PORT/api/health" >"$HEALTH_JSON"; then
+          READY=1;
+          break;
+        fi;
+        sleep 0.2;
+      done;
+      test "$READY" = 1;
+      node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"running\") throw new Error(\"health failed\");" "$HEALTH_JSON";
+      curl -fsS -X POST "http://127.0.0.1:$PORT/api/launch" -H "Content-Type: application/json" -d "{}" >"$LAUNCH_JSON";
+      node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"launched\") throw new Error(\"launch failed\");" "$LAUNCH_JSON";
+      kill "$SERVER_PID";
+      wait "$SERVER_PID" 2>/dev/null || true;
+      SERVER_PID="";
+      grep -q "shutting down" "$SERVER_LOG"'
+    timeout: 30000
 ```
 
-### Conventions
+Keep cleanup inside the shell command. Top-level cleanup blocks are not used
+because the installed runner does not execute the old cleanup action schema.
 
-1. **Health check first** — Always poll `/api/health` before the first API
-   call. The server binds asynchronously; without a gate, early requests fail
-   with `ECONNREFUSED`.
+## API coverage
 
-2. **Explicit verify after each request** — Every `curl` request should be
-   followed by a JSON assertion in the same `execute` command. This makes
-   failures fail the runner step with a non-zero exit code.
+The scenarios cover the server endpoints that the eatme parity harness also
+uses.
 
-3. **Use structured JSON assertions** — Prefer `node -e` checks against parsed
-   JSON over substring matching for API responses.
+| Endpoint | Method | Covered by |
+| --- | --- | --- |
+| `/api/health` | `GET` | all scenarios |
+| `/api/launch` | `POST` | all scenarios |
+| `/api/screenshot` | `GET` | 01, 03 |
+| `/api/world/run` | `POST` | 02 |
+| `/api/scene/add-object` | `POST` | 03, 04 |
+| `/api/events/register` | `POST` | 04 |
+| `/api/events/fire` | `POST` | 04 |
+| `/api/code/edit-procedure` | `POST` | 05 |
+| `/api/project/save` | `POST` | 05 |
 
-4. **Evidence cleanup** — Always include shell-trap cleanup in long-running
-   `execute` commands. Accumulated artifacts consume disk and can cause flaky
-   re-runs if stale files from a previous run match assertions.
+## Scenario details
 
-5. **Localhost only** — All `url` fields use `127.0.0.1`, never `localhost`
-   (avoids DNS resolution and IPv6 ambiguity). The server itself binds to
-   `127.0.0.1` (see `cli.ts`).
+### A3P Open / Parse / Render
 
-6. **No secrets in YAML** — Scenarios contain only localhost URLs, port
-   numbers, and static test data. No credentials, tokens, or external URLs.
+`gadugi/01-a3p-open-parse-render.yaml` opens an Alice project file and verifies
+that the server can parse and render it.
 
-## Relationship to Existing Tests
+Flow:
 
-| Test Layer | Location | What It Tests |
-|---|---|---|
-| Unit tests | `test/*.test.ts` | Individual modules (parser, VM, renderer) |
-| **Gadugi scenarios** | **`gadugi/*.yaml`** | **Full server lifecycle through HTTP API** |
-| Eatme hooks | `tools/eatme-*` | CLI hook interface for Java harness comparison |
+1. Start `alice-web serve` with `--project "$A3P_FILE"`.
+2. Poll `/api/health` until the server reports `status: "running"`.
+3. `POST /api/launch` with the project path.
+4. Assert `status: "launched"`, a non-empty `projectName`, and at least two
+   scene objects.
+5. `GET /api/screenshot`.
+6. Assert `status: "captured"` and the screenshot artifact path; when the
+   renderer returns `objectCount`, assert at least two objects.
+7. Stop the captured server process and verify shutdown was logged.
 
-Gadugi scenarios sit between unit tests and the eatme harness. They test the
-same HTTP API that eatme validates, but from the outside-in — no knowledge
-of internal types, no imports, just HTTP requests and JSON assertions.
+### Tweedle AST & VM Execution
+
+`gadugi/02-tweedle-ast-vm-execution.yaml` opens an Alice project and runs its
+world through the Tweedle VM.
+
+Flow:
+
+1. Start `alice-web serve` with `--project "$A3P_FILE"`.
+2. Launch the project through `/api/launch`.
+3. `POST /api/world/run`.
+4. Assert `status: "completed"`.
+5. Assert `schema_version` is `eatme.alice-run-world-result/v1`.
+6. Assert at least one statement and procedure executed, the execution log is
+   an array, and no VM errors were returned.
+7. Stop the captured server process.
+
+### Scene Entity Manipulation
+
+`gadugi/03-scene-entity-manipulation.yaml` launches the default scene, adds
+entities, checks validation behavior, and captures a render.
+
+Flow:
+
+1. Start `alice-web serve` without a project.
+2. `POST /api/launch` with `{}` and assert the default ground and camera exist.
+3. Add a biped named `bunny`.
+4. Add a prop named `tree`.
+5. Add a flyer without an explicit name and assert the server derives the name
+   from `className`.
+6. Attempt to add an object without `className` and assert the API returns the
+   expected `400` error JSON.
+7. Capture a screenshot and assert the artifact path; when the renderer returns
+   `objectCount`, assert the count includes the three added renderable objects.
+8. Stop the captured server process.
+
+### Event System
+
+`gadugi/04-event-system.yaml` verifies event registration, event firing, and
+negative validation cases.
+
+Flow:
+
+1. Start `alice-web serve` without a project.
+2. Launch the default scene.
+3. Register `sceneActivated`, `keyPress`, and `proximity` handlers.
+4. Add `bunny` and `cat` before proximity registration.
+5. Assert registrations receive sequential IDs such as `evt-1`, `evt-2`, and
+   `evt-3`.
+6. Assert invalid registrations return explicit `400` error JSON.
+7. Fire `sceneActivated` and assert only the scene handler triggers.
+8. Fire `keyPress` with `Space` and assert the key handler triggers.
+9. Fire `keyPress` with `ArrowUp` and assert no handler triggers.
+10. Fire `proximity` and assert the proximity handler triggers.
+11. Assert invalid fire requests return explicit `400` error JSON.
+12. Stop the captured server process.
+
+### Save / Export Round-Trip
+
+`gadugi/05-save-export-roundtrip.yaml` verifies edit, save, relaunch, and
+round-trip behavior.
+
+Flow:
+
+1. Start `alice-web serve` without a project.
+2. Launch the default project.
+3. `POST /api/code/edit-procedure` with
+   `append-comment:gadugi-round-trip-proof`.
+4. Assert the edit proof schema and artifact names.
+5. `POST /api/project/save`.
+6. Assert the save schema and saved artifact names.
+7. Assert `project-save/saved-project.a3p` exists.
+8. Stop the first captured server process.
+9. Start a fresh server on the same port.
+10. Launch the saved `.a3p` file.
+11. Assert the saved project launches and contains scene objects.
+12. Stop the second captured server process.
+
+## Writing new scenarios
+
+Use a single `execute` step per end-to-end flow. Add helper shell functions
+inside the command when the scenario needs to start, stop, or poll more than
+once.
+
+Recommended conventions:
+
+1. Validate `PORT` before using it in URLs.
+2. Reject unsafe `EVIDENCE_DIR` values before `rm -rf`.
+3. Write every API response to a named JSON file.
+4. Assert response shape with parsed JSON, not substring checks.
+5. Use `curl -fsS` for successful requests.
+6. For expected `400` responses, capture the status code and assert both the
+   status and JSON error body.
+7. Use only `127.0.0.1` URLs.
+8. Kill only the captured `SERVER_PID`.
+9. Keep all test data local and static; do not add external URLs or secrets.
 
 ## Troubleshooting
 
-### `ECONNREFUSED` on first request
+### `Unsupported CLI action`
 
-The health check gate isn't waiting long enough. Increase `max_attempts` or
-`interval`:
+The scenario still contains an action that the installed runner does not
+execute. Replace the step with `action: execute` and move the operation into
+the shell command.
 
-```yaml
-retry:
-  max_attempts: 20
-  interval: 1000ms
-```
+### `ECONNREFUSED`
+
+The server was not ready before the first API request. Keep the health polling
+loop before every API call sequence that follows a server start.
 
 ### Port already in use
 
-Another process (or a previous test run) is occupying the port:
+Run the scenario on another port:
 
 ```bash
-# Find what's using the port
-lsof -i :3000
-
-# Use a different port
-PORT=13579 gadugi-test run -d gadugi --scenario "A3P Open"
+PORT=13579 NODE_OPTIONS=--max-old-space-size=32768 \
+  gadugi-test run -d gadugi -s "Scene Entity Manipulation"
 ```
 
-### Evidence directory not cleaned up
+### A3P fixture missing
 
-If a previous run crashed before cleanup, stale artifacts can cause false
-passes. Remove manually:
+Set `A3P_FILE` for scenarios 01 and 02:
+
+```bash
+A3P_FILE=/path/to/project.a3p \
+NODE_OPTIONS=--max-old-space-size=32768 \
+  gadugi-test run -d gadugi -s "Tweedle AST & VM Execution"
+```
+
+### Evidence directory remains after failure
+
+The scenario trap removes evidence on normal failures. If a process is killed
+outside the trap, remove the directory manually:
 
 ```bash
 rm -rf ./evidence/
 ```
 
-### `.a3p` file not found
+## Related documentation
 
-Scenarios 01 and 02 require a `.a3p` file. Either:
-- Set the `A3P_FILE` environment variable to point to a valid file
-- Place a `.a3p` file at the default path listed in the scenario prerequisites
-
-### Screenshot returns `placeholder: true`
-
-The `canvas` npm package requires native dependencies. If the rendering
-pipeline fails, the server returns a 1×1 placeholder PNG. The scenario
-still passes (it checks `status: "captured"`) but the screenshot won't be
-meaningful. Install canvas dependencies:
-
-```bash
-# Ubuntu/Debian
-sudo apt-get install -y libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev build-essential g++
-npm rebuild canvas
-```
-
-## File Layout
-
-```
-gadugi/
-  01-a3p-open-parse-render.yaml      # A3P project lifecycle
-  02-tweedle-ast-vm-execution.yaml    # Tweedle VM execution
-  03-scene-entity-manipulation.yaml   # Scene add-object + screenshot
-  04-event-system.yaml                # Event register / fire / proximity
-  05-save-export-roundtrip.yaml       # Edit → save → re-open cycle
-docs/
-  gadugi-test-scenarios.md            # This file
-```
+- [Testing](./testing.md)
+- [Server API](./server-api.md)
+- [API reference](./api-reference.md)

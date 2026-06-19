@@ -22,33 +22,31 @@ scenario:
     - "npm run build:server has been run"
     - "Valid .a3p file with at least one Tweedle method at A3P_FILE path"
 
-  environment:
-    variables:
-      PORT: "${PORT:-3000}"
-      EVIDENCE_DIR: "./evidence/02-tweedle-ast-vm-execution"
-      A3P_FILE: "${A3P_FILE}"
-
   steps:
     - name: "Run A3P Tweedle VM execution flow"
       agent: cli
       action: execute
       target: >-
         bash -lc 'set -euo pipefail;
-        PORT="${PORT:-3000}";
-        EVIDENCE_DIR="./evidence/02-tweedle-ast-vm-execution";
+        PORT="${PORT:-3102}";
+        case "$PORT" in (*[!0-9]*|"") echo "PORT must be numeric" >&2; exit 2;; esac;
+        EVIDENCE_DIR="./evidence/02-tweedle-ast-vm-execution-$$";
         A3P_FILE="${A3P_FILE:-.test-roundtrip/modified.a3p}";
+        test -f "$A3P_FILE" || { echo "A3P_FILE does not exist: $A3P_FILE" >&2; exit 2; };
+        case "$EVIDENCE_DIR" in (""|"/"|".") echo "unsafe EVIDENCE_DIR: $EVIDENCE_DIR" >&2; exit 2;; esac;
         HEALTH_JSON="$EVIDENCE_DIR/health.json";
         LAUNCH_JSON="$EVIDENCE_DIR/launch.json";
         RUN_JSON="$EVIDENCE_DIR/run-world.json";
         SERVER_LOG="$EVIDENCE_DIR/server.log";
+        SERVER_PID="";
         rm -rf "$EVIDENCE_DIR";
         mkdir -p "$EVIDENCE_DIR";
-        node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" --project "$A3P_FILE" >"$SERVER_LOG" 2>&1 &
-        SERVER_PID=$!;
         cleanup() { status=$?; if [ -n "${SERVER_PID:-}" ] && kill -0 "$SERVER_PID" 2>/dev/null; then kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true; fi; rm -rf "$EVIDENCE_DIR"; exit "$status"; };
         trap cleanup EXIT;
+        node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" --project "$A3P_FILE" >"$SERVER_LOG" 2>&1 &
+        SERVER_PID=$!;
         READY=0;
-        for attempt in $(seq 1 50); do if curl -fsS "http://127.0.0.1:$PORT/api/health" >"$HEALTH_JSON"; then READY=1; break; fi; sleep 0.2; done;
+        for attempt in $(seq 1 50); do if curl -fsS "http://127.0.0.1:$PORT/api/health" >"$HEALTH_JSON" 2>/dev/null; then READY=1; break; fi; sleep 0.2; done;
         test "$READY" = 1;
         grep -Eq "\"status\"[[:space:]]*:[[:space:]]*\"listening\"" "$SERVER_LOG";
         node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"running\") throw new Error(\"health status was not running\");" "$HEALTH_JSON";
@@ -62,13 +60,3 @@ scenario:
         grep -q "shutting down" "$SERVER_LOG"'
       timeout: 30000
       expected: ""
-
-  cleanup:
-    - action: stop_application
-      signal: SIGTERM
-      timeout: 5s
-      description: "Ensure server process is terminated"
-
-    - action: shell
-      command: "rm -rf ${EVIDENCE_DIR}"
-      description: "Remove evidence artifacts"

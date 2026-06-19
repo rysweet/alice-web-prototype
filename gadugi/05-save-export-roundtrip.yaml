@@ -22,19 +22,16 @@ scenario:
   prerequisites:
     - "npm run build:server has been run"
 
-  environment:
-    variables:
-      PORT: "${PORT:-3000}"
-      EVIDENCE_DIR: "./evidence/05-save-export-roundtrip"
-
   steps:
     - name: "Run save, export, and reload round-trip"
       agent: cli
       action: execute
       target: >-
         bash -lc 'set -euo pipefail;
-        PORT="${PORT:-3000}";
-        EVIDENCE_DIR="./evidence/05-save-export-roundtrip";
+        PORT="${PORT:-3105}";
+        case "$PORT" in (*[!0-9]*|"") echo "PORT must be numeric" >&2; exit 2;; esac;
+        EVIDENCE_DIR="./evidence/05-save-export-roundtrip-$$";
+        case "$EVIDENCE_DIR" in (""|"/"|".") echo "unsafe EVIDENCE_DIR: $EVIDENCE_DIR" >&2; exit 2;; esac;
         HEALTH_JSON="$EVIDENCE_DIR/health.json";
         LAUNCH_JSON="$EVIDENCE_DIR/launch.json";
         EDIT_JSON="$EVIDENCE_DIR/edit.json";
@@ -45,7 +42,7 @@ scenario:
         mkdir -p "$EVIDENCE_DIR";
         cleanup() { status=$?; if [ -n "${SERVER_PID:-}" ] && kill -0 "$SERVER_PID" 2>/dev/null; then kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true; fi; rm -rf "$EVIDENCE_DIR"; exit "$status"; };
         trap cleanup EXIT;
-        wait_for_health() { local log_file="$1"; READY=0; for attempt in $(seq 1 50); do if curl -fsS "http://127.0.0.1:$PORT/api/health" >"$HEALTH_JSON"; then READY=1; break; fi; sleep 0.2; done; test "$READY" = 1; grep -Eq "\"status\"[[:space:]]*:[[:space:]]*\"listening\"" "$log_file"; node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"running\") throw new Error(\"health status was not running\");" "$HEALTH_JSON"; };
+        wait_for_health() { local log_file="$1"; READY=0; for attempt in $(seq 1 50); do if curl -fsS "http://127.0.0.1:$PORT/api/health" >"$HEALTH_JSON" 2>/dev/null; then READY=1; break; fi; sleep 0.2; done; test "$READY" = 1; grep -Eq "\"status\"[[:space:]]*:[[:space:]]*\"listening\"" "$log_file"; node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"running\") throw new Error(\"health status was not running\");" "$HEALTH_JSON"; };
         stop_server() { local log_file="$1"; kill "$SERVER_PID"; wait "$SERVER_PID" 2>/dev/null || true; SERVER_PID=""; grep -q "shutting down" "$log_file"; };
         SERVER_LOG="$EVIDENCE_DIR/server-1.log";
         node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" >"$SERVER_LOG" 2>&1 &
@@ -68,13 +65,3 @@ scenario:
         stop_server "$SERVER_LOG"'
       timeout: 45000
       expected: ""
-
-  cleanup:
-    - action: stop_application
-      signal: SIGTERM
-      timeout: 5s
-      description: "Ensure any server process is terminated"
-
-    - action: shell
-      command: "rm -rf ${EVIDENCE_DIR}"
-      description: "Remove evidence artifacts"

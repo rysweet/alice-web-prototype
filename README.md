@@ -198,6 +198,25 @@ npm test              # Run all tests
 npm run test:watch    # Watch mode
 ```
 
+The Gadugi scenario set uses the runner-compatible `action: execute` contract.
+After required A3P fixtures are available, run the outside-in scenarios against
+the built REST API server:
+
+```bash
+npm run build:server
+NODE_OPTIONS=--max-old-space-size=32768 gadugi-test list -d gadugi
+NODE_OPTIONS=--max-old-space-size=32768 gadugi-test validate -d gadugi
+rg 'cleanup:|action:\s*(launch|http_request|verify_response|verify_output|send_input|verify_exit_code|stop_application|shell)|retry:' gadugi
+
+NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi -s "Scene Entity Manipulation"
+NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi -s "Event System"
+NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi -s "Save / Export Round-Trip"
+```
+
+See [Gadugi test scenarios](./docs/gadugi-test-scenarios.md) for scenario
+configuration, A3P fixture runs, full-suite usage, and the runner-compatible
+YAML pattern.
+
 ## Building
 
 ```bash
