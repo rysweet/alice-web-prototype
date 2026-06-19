@@ -12,8 +12,38 @@ import { registerWorldRoutes } from "./server/routes/world-routes.js";
 export type { ServerOptions } from "./server/context.js";
 export { validateProjectPath } from "./server/validation.js";
 
+const SECURITY_HEADERS = {
+  "Content-Security-Policy": [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "img-src 'self' data: blob:",
+    "media-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    "connect-src 'self' ws: wss:",
+    "worker-src 'self' blob:",
+  ].join("; "),
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Resource-Policy": "same-origin",
+  "Permissions-Policy": "camera=(), geolocation=(), microphone=()",
+  "Referrer-Policy": "no-referrer",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+} as const;
+
 export function createServer(options: ServerOptions): express.Express {
   const app = express();
+  app.disable("x-powered-by");
+  app.use((_req, res, next) => {
+    for (const [header, value] of Object.entries(SECURITY_HEADERS)) {
+      res.setHeader(header, value);
+    }
+    next();
+  });
   app.use(express.json({ limit: "1mb" }));
 
   const context = createServerContext(options);

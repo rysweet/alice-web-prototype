@@ -29,6 +29,36 @@ describe("server API", () => {
       expect(res.body.runtime).toBe("typescript-web-prototype");
       expect(typeof res.body.pid).toBe("number");
     });
+
+    it("sends browser defense-in-depth headers without exposing Express", async () => {
+      const res = await request(app).get("/api/health").expect(200);
+
+      expect(res.headers["x-powered-by"]).toBeUndefined();
+      expect(res.headers["content-security-policy"]).toBe(
+        [
+          "default-src 'self'",
+          "base-uri 'self'",
+          "object-src 'none'",
+          "frame-ancestors 'none'",
+          "form-action 'self'",
+          "img-src 'self' data: blob:",
+          "media-src 'self' data: blob:",
+          "font-src 'self' data:",
+          "script-src 'self' 'unsafe-inline'",
+          "style-src 'self' 'unsafe-inline'",
+          "connect-src 'self' ws: wss:",
+          "worker-src 'self' blob:",
+        ].join("; "),
+      );
+      expect(res.headers["cross-origin-opener-policy"]).toBe("same-origin");
+      expect(res.headers["cross-origin-resource-policy"]).toBe("same-origin");
+      expect(res.headers["permissions-policy"]).toBe(
+        "camera=(), geolocation=(), microphone=()",
+      );
+      expect(res.headers["referrer-policy"]).toBe("no-referrer");
+      expect(res.headers["x-content-type-options"]).toBe("nosniff");
+      expect(res.headers["x-frame-options"]).toBe("DENY");
+    });
   });
 
   describe("POST /api/launch", () => {
