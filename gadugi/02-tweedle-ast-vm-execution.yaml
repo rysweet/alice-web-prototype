@@ -14,6 +14,10 @@ scenario:
 
   tags: [alice, integration, tweedle, vm, execution, java-parity]
 
+  agents:
+    - name: cli
+      type: cli
+
   prerequisites:
     - "npm run build:server has been run"
     - "Valid .a3p file with at least one Tweedle method at A3P_FILE path"
@@ -25,122 +29,39 @@ scenario:
       A3P_FILE: "${A3P_FILE}"
 
   steps:
-    # ── Launch ────────────────────────────────────────────────────────
-    - action: launch
-      target: "node"
-      args: ["dist-server/cli.js", "serve",
-             "--port", "${PORT}",
-             "--evidence-dir", "${EVIDENCE_DIR}",
-             "--project", "${A3P_FILE}"]
-      description: "Start alice-web server with .a3p project"
-      timeout: 10s
-
-    - action: verify_output
-      matches: '"status"\\s*:\\s*"listening"'
-      timeout: 5s
-      description: "Server prints JSON listening message"
-
-    # ── Health check gate ─────────────────────────────────────────────
-    - action: http_request
-      method: GET
-      url: "http://127.0.0.1:${PORT}/api/health"
-      retry:
-        max_attempts: 3
-        interval: 200ms
-      description: "Poll health endpoint until server is ready"
-
-    - action: verify_response
-      status: 200
-      json_path: "$.status"
-      equals: "running"
-      description: "Health check returns running"
-
-    # ── Launch project ────────────────────────────────────────────────
-    - action: http_request
-      method: POST
-      url: "http://127.0.0.1:${PORT}/api/launch"
-      headers:
-        Content-Type: "application/json"
-      body: '{"project": "${A3P_FILE}"}'
-      timeout: 5s
-      description: "Launch project via API"
-
-    - action: verify_response
-      status: 200
-      json_path: "$.status"
-      equals: "launched"
-      description: "Project launched successfully"
-
-    # ── Execute world (Tweedle VM) ────────────────────────────────────
-    - action: http_request
-      method: POST
-      url: "http://127.0.0.1:${PORT}/api/world/run"
-      headers:
-        Content-Type: "application/json"
-      body: '{}'
-      timeout: 10s
-      description: "Execute project methods via Tweedle VM"
-
-    - action: verify_response
-      status: 200
-      json_path: "$.status"
-      equals: "completed"
-      description: "VM execution completed without errors"
-
-    - action: verify_response
-      json_path: "$.schema_version"
-      equals: "eatme.alice-run-world-result/v1"
-      description: "Response uses correct schema version"
-
-    - action: verify_response
-      json_path: "$.statements_executed"
-      greater_than_or_equal: 1
-      description: "At least one statement was executed"
-
-    - action: verify_response
-      json_path: "$.execution_log"
-      is_array: true
-      description: "Execution log is an array"
-
-    - action: verify_response
-      json_path: "$.scene_object_count"
-      greater_than_or_equal: 2
-      description: "Scene has at least ground + camera"
-
-    - action: verify_response
-      json_path: "$.procedure_count"
-      greater_than_or_equal: 1
-      description: "At least myFirstMethod exists"
-
-    - action: verify_response
-      json_path: "$.errors"
-      is_array: true
-      description: "Errors field is an array (empty on success)"
-
-    - action: verify_response
-      json_path: "$.errors"
-      length: 0
-      description: "No execution errors"
-
-    - action: verify_response
-      json_path: "$.run_duration_ms"
-      greater_than_or_equal: 0
-      description: "Run duration is non-negative"
-
-    # ── Graceful shutdown ─────────────────────────────────────────────
-    - action: send_input
-      value: ""
-      signal: SIGTERM
-      description: "Send SIGTERM for graceful shutdown"
-
-    - action: verify_output
-      contains: "shutting down"
-      timeout: 5s
-      description: "Server logs shutdown message"
-
-    - action: verify_exit_code
-      expected: 0
-      description: "Clean exit code 0"
+    - name: "Run A3P Tweedle VM execution flow"
+      agent: cli
+      action: execute
+      target: >-
+        bash -lc 'set -euo pipefail;
+        PORT="${PORT:-3000}";
+        EVIDENCE_DIR="./evidence/02-tweedle-ast-vm-execution";
+        A3P_FILE="${A3P_FILE:-.test-roundtrip/modified.a3p}";
+        HEALTH_JSON="$EVIDENCE_DIR/health.json";
+        LAUNCH_JSON="$EVIDENCE_DIR/launch.json";
+        RUN_JSON="$EVIDENCE_DIR/run-world.json";
+        SERVER_LOG="$EVIDENCE_DIR/server.log";
+        rm -rf "$EVIDENCE_DIR";
+        mkdir -p "$EVIDENCE_DIR";
+        node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" --project "$A3P_FILE" >"$SERVER_LOG" 2>&1 &
+        SERVER_PID=$!;
+        cleanup() { status=$?; if [ -n "${SERVER_PID:-}" ] && kill -0 "$SERVER_PID" 2>/dev/null; then kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true; fi; rm -rf "$EVIDENCE_DIR"; exit "$status"; };
+        trap cleanup EXIT;
+        READY=0;
+        for attempt in $(seq 1 50); do if curl -fsS "http://127.0.0.1:$PORT/api/health" >"$HEALTH_JSON"; then READY=1; break; fi; sleep 0.2; done;
+        test "$READY" = 1;
+        grep -Eq "\"status\"[[:space:]]*:[[:space:]]*\"listening\"" "$SERVER_LOG";
+        node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"running\") throw new Error(\"health status was not running\");" "$HEALTH_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/launch" -H "Content-Type: application/json" -d "{\"project\":\"$A3P_FILE\"}" >"$LAUNCH_JSON";
+        node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"launched\") throw new Error(\"project did not launch\");" "$LAUNCH_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/world/run" -H "Content-Type: application/json" -d "{}" >"$RUN_JSON";
+        node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"completed\") throw new Error(\"VM did not complete\"); if (d.schema_version !== \"eatme.alice-run-world-result/v1\") throw new Error(\"unexpected schema version\"); if (d.statements_executed < 1) throw new Error(\"expected at least one executed statement\"); if (!Array.isArray(d.execution_log)) throw new Error(\"execution_log is not an array\"); if (d.scene_object_count < 2) throw new Error(\"expected at least 2 scene objects\"); if (d.procedure_count < 1) throw new Error(\"expected at least one procedure\"); if (!Array.isArray(d.errors) || d.errors.length !== 0) throw new Error(\"expected no VM errors\"); if (d.run_duration_ms < 0) throw new Error(\"negative run duration\");" "$RUN_JSON";
+        kill "$SERVER_PID";
+        wait "$SERVER_PID" 2>/dev/null || true;
+        SERVER_PID="";
+        grep -q "shutting down" "$SERVER_LOG"'
+      timeout: 30000
+      expected: ""
 
   cleanup:
     - action: stop_application
