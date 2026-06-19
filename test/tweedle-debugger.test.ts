@@ -72,6 +72,35 @@ describe("tweedle-debugger", () => {
     ]);
   });
 
+  it("surfaces unsupported watch expressions as errors without executing them", () => {
+    const sentinel = "__aliceTweedleDebuggerWatchPwned";
+    const globals = globalThis as Record<string, unknown>;
+    delete globals[sentinel];
+    const watches = new WatchList();
+    const context = new ExecutionContext();
+    context.pushFrame("main", { count: 1 });
+    watches.add(`globalThis.${sentinel} = true`);
+
+    const [result] = watches.evaluate(context);
+
+    expect(result?.value).toBeUndefined();
+    expect(result?.error).toMatch(/Unsupported debugger expression/);
+    expect(globals[sentinel]).toBeUndefined();
+  });
+
+  it("supports arithmetic and comparison expressions in debugger watches and conditions", () => {
+    const debuggerInstance = new TweedleDebugger(program, () => 1);
+    debuggerInstance.watches.add("(input + doubled) >= 3");
+    debuggerInstance.setBreakpoint(Breakpoint.conditional(11, "doubled / input === 2"));
+
+    const paused = debuggerInstance.continue();
+
+    expect(paused.reason).toBe("breakpoint");
+    expect(paused.watches).toEqual([
+      { expression: "(input + doubled) >= 3", value: true, error: null },
+    ]);
+  });
+
   it("steps through execution with the wrapper step controller", () => {
     const runner = new ProgramRunner(program, () => 1);
     const controller = new StepController(runner);
