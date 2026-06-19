@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import request from "supertest";
+import { createServer } from "../src/server";
 import { screenshotService } from "../src/server/screenshot-service";
 import { createInitialServerState } from "../src/server/state";
 import * as fs from "fs";
@@ -29,7 +31,7 @@ afterEach(() => {
 });
 
 describe("screenshot fallback contract", () => {
-  it("returns a successful placeholder response when rendering fails", async () => {
+  it("returns a failed placeholder response when rendering fails", async () => {
     const evidenceDir = trackTempDir(makeTempDir("alice-screenshot-fallback-"));
     const screenshotPath = path.join(evidenceDir, "screenshot.png");
 
@@ -39,9 +41,28 @@ describe("screenshot fallback contract", () => {
     );
 
     expect(response).toEqual({
-      status: "captured",
+      status: "failed",
       path: screenshotPath,
       placeholder: true,
+      rendered: false,
+      error: "Screenshot rendering failed",
+    });
+    expect(fs.existsSync(screenshotPath)).toBe(true);
+    expect(fs.statSync(screenshotPath).size).toBeGreaterThan(0);
+  });
+
+  it("returns non-2xx from the screenshot route when rendering fails", async () => {
+    const evidenceDir = trackTempDir(makeTempDir("alice-screenshot-route-fallback-"));
+    const screenshotPath = path.join(evidenceDir, "screenshot.png");
+    const app = createServer({ port: 0, evidenceDir });
+
+    const res = await request(app).get("/api/screenshot").expect(500);
+
+    expect(res.body).toEqual({
+      status: "failed",
+      path: screenshotPath,
+      placeholder: true,
+      rendered: false,
       error: "Screenshot rendering failed",
     });
     expect(fs.existsSync(screenshotPath)).toBe(true);

@@ -214,6 +214,8 @@ describe("server API", () => {
       const res = await request(app).get("/api/screenshot").expect(200);
       expect(res.body.status).toBe("captured");
       expect(res.body.path).toContain("screenshot.png");
+      expect(res.body.rendered).toBe(true);
+      expect(res.body.placeholder).toBeUndefined();
 
       const screenshotPath = path.join(TEST_EVIDENCE_DIR, "screenshot.png");
       expect(fs.existsSync(screenshotPath)).toBe(true);

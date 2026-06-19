@@ -7,6 +7,6 @@ export function registerScreenshotRoutes(app: Express, context: ServerContext): 
       context.evidenceDir,
       context.state,
     );
-    res.json(response);
+    res.status(response.status === "captured" ? 200 : 500).json(response);
   });
 }
