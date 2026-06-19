@@ -90,6 +90,32 @@ describe("standalone project generation", () => {
     expect(generated.files.has("src/main/resources/standalone-project.json")).toBe(true);
   });
 
+  it("accepts strict Maven-compatible version strings", () => {
+    for (const version of ["1.2.3", "1.2.3-SNAPSHOT", "2026.06.19_rc-1"]) {
+      const generated = generateStandaloneJavaProject(createArchive(), {
+        packageName: "org.alice.demo",
+        version,
+      });
+
+      expect(String(generated.files.get("pom.xml"))).toContain(`<version>${version}</version>`);
+      expect(String(generated.files.get("build.gradle"))).toContain(`version = "${version}"`);
+    }
+  });
+
+  it("rejects malicious version strings before rendering POM XML", () => {
+    expect(() => generateStandaloneJavaProject(createArchive(), {
+      packageName: "org.alice.demo",
+      buildSystem: "maven",
+      version: "1.0.0</version><name>Injected</name><version>1.0.0",
+    })).toThrow(/Maven version/);
+
+    expect(() => generateStandaloneJavaProject(createArchive(), {
+      packageName: "org.alice.demo",
+      buildSystem: "maven",
+      version: "1.0.0&injected",
+    })).toThrow(/Maven version/);
+  });
+
   it("sanitizes duplicate and unsafe resource paths for packaging", () => {
     const generated = generateStandaloneJavaProject(createArchive(), {
       packageName: "org.alice.demo",
