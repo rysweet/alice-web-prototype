@@ -1,9 +1,29 @@
 import { describe, it, expect } from "vitest";
+import JSZip from "jszip";
 import { validateProjectPath } from "../src/server";
 import * as path from "path";
 import * as fs from "fs";
 import request from "supertest";
 import { createServer } from "../src/server";
+
+const SYNTHETIC_XML = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<node key="1" type="org.lgna.project.ast.NamedUserType" uuid="aaa" version="3.10062">
+  <property name="name"><value type="java.lang.String">Program</value></property>
+  <property name="superType">
+    <node key="2" type="org.lgna.project.ast.JavaType" uuid="bbb">
+      <type name="org.lgna.story.SProgram"/>
+    </node>
+  </property>
+  <property name="fields"><collection type="java.util.ArrayList"/></property>
+  <property name="methods"><collection type="java.util.ArrayList"/></property>
+</node>`;
+
+async function buildSyntheticA3P(): Promise<Uint8Array> {
+  const zip = new JSZip();
+  zip.file("version.txt", "3.6.0.0");
+  zip.file("programType.xml", SYNTHETIC_XML);
+  return zip.generateAsync({ type: "uint8array" });
+}
 
 describe("validateProjectPath", () => {
   const allowedDirs = ["/home/user/projects"];
@@ -145,6 +165,30 @@ describe("POST /api/launch — path traversal protection", () => {
       expect(res.body.error).toContain("outside allowed");
     } finally {
       fs.rmSync(evidenceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("allows the configured projectPath directory when no explicit allowed dirs are supplied", async () => {
+    const fixtureRoot = path.resolve(__dirname, `../.test-path-traversal6-${Date.now()}`);
+    const projectDir = path.join(fixtureRoot, "starter-projects");
+    const evidenceDir = path.join(fixtureRoot, "evidence");
+    const projectPath = path.join(projectDir, "starter.a3p");
+    fs.mkdirSync(projectDir, { recursive: true });
+    fs.mkdirSync(evidenceDir, { recursive: true });
+    fs.writeFileSync(projectPath, await buildSyntheticA3P());
+    try {
+      const app = createServer({
+        port: 0,
+        evidenceDir,
+        projectPath,
+      });
+
+      const res = await request(app).post("/api/launch").send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.project).toBe(projectPath);
+    } finally {
+      fs.rmSync(fixtureRoot, { recursive: true, force: true });
     }
   });
 });
