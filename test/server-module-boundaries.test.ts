@@ -101,14 +101,30 @@ describe("server module boundary contracts", () => {
     state.eventSystem.register({ eventType: "sceneActivated", handlerName: "beforeLaunch" });
     expect(state.eventSystem.totalRegistrations).toBe(1);
 
-    const missingProject = path.join(trackTempDir(makeTempDir("alice-launch-root-")), "missing.a3p");
-    await projectService.launchProject(state, missingProject);
+    const result = await projectService.launchProject(state, null);
 
+    expect(result.ok).toBe(true);
     expect(state.launched).toBe(true);
-    expect(state.projectPath).toBe(missingProject);
+    expect(state.projectPath).toBe(null);
     expect(state.projectName).toBe("Program");
     expect([...state.sceneObjects.keys()]).toEqual(["ground", "camera"]);
     expect(state.eventSystem.totalRegistrations).toBe(0);
+  });
+
+  it("rejects missing requested projects without mutating launch state", async () => {
+    const state = createInitialServerState();
+    const missingProject = path.join(trackTempDir(makeTempDir("alice-launch-root-")), "missing.a3p");
+
+    const result = await projectService.launchProject(state, missingProject);
+
+    expect(result).toEqual({
+      ok: false,
+      error: `project file not found: ${missingProject}`,
+    });
+    expect(state.launched).toBe(false);
+    expect(state.projectPath).toBe(null);
+    expect(state.projectName).toBe("Program");
+    expect(state.sceneObjects.size).toBe(0);
   });
 
   it("orchestrates template new-project behavior through state and artifact writes", async () => {

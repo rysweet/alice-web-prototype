@@ -1,3 +1,4 @@
+import * as fs from "fs";
 import * as path from "path";
 
 /** Strip path separators and traversal sequences from a user-supplied name. */
@@ -17,6 +18,18 @@ function getResolvedDirs(allowedProjectDirs: readonly string[]): string[] {
     resolvedDirCache.set(allowedProjectDirs, resolved);
   }
   return resolved;
+}
+
+function isPathWithinAllowedDirs(projectPath: string, allowedDirs: readonly string[]): boolean {
+  return allowedDirs.some(
+    (allowedDir) =>
+      projectPath === allowedDir ||
+      projectPath.startsWith(`${allowedDir}${path.sep}`),
+  );
+}
+
+async function resolveExistingAllowedDirs(allowedProjectDirs: readonly string[]): Promise<string[]> {
+  return Promise.all(allowedProjectDirs.map((dir) => fs.promises.realpath(dir)));
 }
 
 /**
@@ -47,11 +60,7 @@ export function validateProjectPath(
   }
 
   const resolvedAllowedDirs = getResolvedDirs(allowedProjectDirs);
-  const isWithinAllowedDir = resolvedAllowedDirs.some(
-    (allowedDir) =>
-      resolvedPath === allowedDir ||
-      resolvedPath.startsWith(`${allowedDir}${path.sep}`),
-  );
+  const isWithinAllowedDir = isPathWithinAllowedDirs(resolvedPath, resolvedAllowedDirs);
 
   if (!isWithinAllowedDir) {
     return {
@@ -61,4 +70,36 @@ export function validateProjectPath(
   }
 
   return { valid: true, resolvedPath };
+}
+
+export async function validateExistingProjectRealPath(
+  projectPath: string,
+  allowedProjectDirs: readonly string[],
+): Promise<{ valid: true; resolvedPath: string } | { valid: false; error: string }> {
+  let realProjectPath: string;
+  try {
+    realProjectPath = await fs.promises.realpath(projectPath);
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return { valid: false, error: `project file not found: ${projectPath}` };
+    }
+    return { valid: false, error: `project file could not be read: ${projectPath}` };
+  }
+
+  if (!realProjectPath.endsWith(".a3p")) {
+    return { valid: false, error: "project path must be an .a3p file" };
+  }
+
+  let realAllowedDirs: string[];
+  try {
+    realAllowedDirs = await resolveExistingAllowedDirs(allowedProjectDirs);
+  } catch {
+    return { valid: false, error: "allowed project directory could not be resolved" };
+  }
+
+  if (!isPathWithinAllowedDirs(realProjectPath, realAllowedDirs)) {
+    return { valid: false, error: "project path is outside allowed directories" };
+  }
+
+  return { valid: true, resolvedPath: realProjectPath };
 }

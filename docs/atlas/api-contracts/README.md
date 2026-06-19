@@ -11,7 +11,7 @@ This layer maps the Express REST surface in `src/server.ts` and the adjacent par
 | Method | Path | Request shape | Success response shape | Guards / errors | Key collaborators |
 | --- | --- | --- | --- | --- | --- |
 | GET | `/api/health` | none | `{ status, launched, pid, uptime, runtime }` | none | in-memory `ServerState` |
-| POST | `/api/launch` | `{ project?: string }` | `{ status: "launched", project, projectName, sceneObjectCount }` | `400 { error }` when `project` is present but does not end with `.a3p` | `fs`, `parseA3P`, seeded scene objects |
+| POST | `/api/launch` | `{ project?: string }` | `{ status: "launched", project, projectName, sceneObjectCount }` | `400 { error }` when requested project path is invalid, outside allowed dirs, missing, unreadable, or corrupt | `fs`, `parseA3P`, seeded scene objects |
 | POST | `/api/scene/add-object` | `{ className: string, name?: string }` | `{ status: "added", objectName, className, sceneFieldCountAfter, evidenceArtifact }` | `400 { error: "className is required" }` | `ServerState.sceneObjects`, `writeSceneObjectAdded()` |
 | POST | `/api/code/edit-procedure` | `{ procedureSelector?: string, editSpec?: string }` | `{ schema_version, status: "proved", procedure_selector, edited_project_artifact, action_proof, doesNotClaim, evidenceArtifact }` | no explicit validation beyond defaults | `ServerState.procedures`, `writeEditProcedureProof()` |
 | POST | `/api/project/save` | `{ saveSelector?: string, targetPath?: string }` | `{ schema_version, status: "saved", save_selector, saved_project_artifact, save_artifact, evidenceArtifact }` | none | evidence dir, placeholder/copy `.a3p`, `writeSaveProof()` |
