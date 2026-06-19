@@ -1,8 +1,79 @@
 import * as path from "path";
 
+export const MAX_ROUTE_BODY_STRING_LENGTH = 1024;
+
 /** Strip path separators and traversal sequences from a user-supplied name. */
 export function sanitizeFilename(name: string): string {
   return name.replace(/[/\\]/g, "_").replace(/\.\./g, "_");
+}
+
+export type JsonObjectBodyResult =
+  | { ok: true; body: Record<string, unknown> }
+  | { ok: false; error: string };
+
+export type StringFieldResult =
+  | { ok: true; value: string | undefined }
+  | { ok: false; error: string };
+
+export type RequiredStringFieldResult =
+  | { ok: true; value: string }
+  | { ok: false; error: string };
+
+export function readJsonObjectBody(body: unknown): JsonObjectBodyResult {
+  if (body === undefined) {
+    return { ok: true, body: {} };
+  }
+
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, error: "request body must be a JSON object" };
+  }
+
+  return { ok: true, body: body as Record<string, unknown> };
+}
+
+export function readRequiredStringField(
+  body: Record<string, unknown>,
+  fieldName: string,
+): RequiredStringFieldResult {
+  const result = readOptionalStringField(body, fieldName);
+  if (!result.ok) {
+    return result;
+  }
+  if (result.value === undefined) {
+    return {
+      ok: false,
+      error: `${fieldName} is required and must be a non-empty string`,
+    };
+  }
+  return { ok: true, value: result.value };
+}
+
+export function readOptionalStringField(
+  body: Record<string, unknown>,
+  fieldName: string,
+): StringFieldResult {
+  const value = body[fieldName];
+  if (value === undefined) {
+    return { ok: true, value: undefined };
+  }
+
+  if (typeof value !== "string") {
+    return { ok: false, error: `${fieldName} must be a string` };
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { ok: false, error: `${fieldName} must be a non-empty string` };
+  }
+
+  if (trimmed.length > MAX_ROUTE_BODY_STRING_LENGTH) {
+    return {
+      ok: false,
+      error: `${fieldName} must be ${MAX_ROUTE_BODY_STRING_LENGTH} characters or fewer`,
+    };
+  }
+
+  return { ok: true, value: trimmed };
 }
 
 /** Matches percent-encoded dot (%2e), forward-slash (%2f), or backslash (%5c). */
