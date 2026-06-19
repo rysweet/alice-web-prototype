@@ -1,17 +1,9 @@
 export * from "./expanded-entities";
 
 import { SJointedModel, SModel, SThing } from "./expanded-entities";
-import type { BoundingBox, JointId, JointNode, Orientation, Position, Size } from "./expanded-types";
-import { cloneBoundingBox, flattenJointHierarchy, isBoundingBox } from "./expanded-types";
+import type { BoundingBox, JointId, JointNode } from "./expanded-types";
+import { flattenJointHierarchy, isBoundingBox } from "./expanded-types";
 import { describeSpeechBubble } from "./types";
-
-export interface EntityTransformSnapshot {
-  readonly name: string | null;
-  readonly typeName: string;
-  readonly position: Position | null;
-  readonly orientation: Orientation | null;
-  readonly size: Size | null;
-}
 
 export interface EntityDiagnostics {
   readonly name: string | null;
@@ -25,11 +17,6 @@ export interface EntityDiagnostics {
 
 export function getEntityBoundingBox(entity: SThing): BoundingBox | null {
   return entity.imp.getBoundingBox();
-}
-
-export function cloneEntityBoundingBox(entity: SThing): BoundingBox | null {
-  const box = getEntityBoundingBox(entity);
-  return box ? cloneBoundingBox(box) : null;
 }
 
 export function hasEntityBoundingBox(entity: SThing): boolean {
@@ -108,19 +95,6 @@ export function describeEntity(entity: SThing): string {
   return `${name} (${entity.constructor.name}, ${boxText})`;
 }
 
-export function captureEntityTransform(entity: SThing): EntityTransformSnapshot {
-  const position = "position" in entity ? (entity as SThing & { position: Position }).position : null;
-  const orientation = "orientation" in entity ? (entity as SThing & { orientation: Orientation }).orientation : null;
-  const size = "size" in entity ? (entity as SThing & { size: Size }).size : null;
-  return {
-    name: entity.name,
-    typeName: entity.constructor.name,
-    position,
-    orientation,
-    size,
-  };
-}
-
 export function collectEntityDiagnostics(entity: SThing): EntityDiagnostics {
   const supportsJoints = entity instanceof SJointedModel;
   return {
@@ -147,13 +121,6 @@ export function requireEntityName(entity: SThing): string {
   return name;
 }
 
-export function ensureJointedModel(entity: SThing): SJointedModel {
-  if (!(entity instanceof SJointedModel)) {
-    throw new TypeError(`${entity.constructor.name} does not support joints`);
-  }
-  return entity;
-}
-
 export function getSharedJointNames(
   left: SJointedModel,
   right: SJointedModel,
@@ -176,10 +143,4 @@ export function getJointHierarchySummary(entity: SJointedModel): Array<{
   };
   visit(entity.getJointHierarchy(), 0);
   return summary;
-}
-
-export function describeJointedModel(entity: SJointedModel): string {
-  const diagnostics = collectEntityDiagnostics(entity);
-  const root = entity.getJointHierarchy()[0]?.name ?? "<none>";
-  return `${diagnostics.typeName}[name=${diagnostics.name ?? "unnamed"}, joints=${diagnostics.jointCount}, root=${root}]`;
 }

@@ -12,7 +12,7 @@ This layer approximates the public API surface by combining the `src/index.ts` b
 
 - `src/index.ts` re-exports 165 namespaces.
 - 85 exported namespaces have at least one local consumer.
-- 80 exported namespaces are local dead-export candidates: they are exported from the barrel but never imported elsewhere in `src/` or `test/`.
+- 80 exported namespaces have no local imports in `src/` or `test/`; this is a public-surface scan signal, not proof that the exported code is dead.
 
 ## Most imported exported modules
 
@@ -31,9 +31,9 @@ This layer approximates the public API surface by combining the `src/index.ts` b
 | `statement-executor` | 6 | VM setup and virtual-machine tests |
 | `tweedle-codegen` | 6 | print/compile flow and tests |
 
-## Dead-export candidate notes
+## Public-surface scan notes
 
-These are static-approximation candidates, not proven dead code. Likely buckets include:
+These are static-approximation candidates for API review, not unresolved bug reports or proven dead code. Likely buckets include:
 
 - IDE/UI surfaces such as `accessibility`, `alice-ide-state`, `dialog-system`, `image-editor`, and `workspace`
 - Scene/runtime surfaces such as `scene-graph`, `scene-layout`, `scene-management`, `render-materials`, and `render-picking`

@@ -20,9 +20,9 @@
 <text text-anchor="middle" x="895" y="-561" font-family="Helvetica,sans-Serif" font-size="10.00">Representative consumers</text>
 </g>
 <g id="clust3" class="cluster">
-<title>cluster_dead</title>
+<title>cluster_api_review</title>
 <path fill="none" stroke="#fca5a5" d="M416,-694C416,-694 988,-694 988,-694 994,-694 1000,-700 1000,-706 1000,-706 1000,-1033 1000,-1033 1000,-1039 994,-1045 988,-1045 988,-1045 416,-1045 416,-1045 410,-1045 404,-1039 404,-1033 404,-1033 404,-706 404,-706 404,-700 410,-694 416,-694"/>
-<text text-anchor="middle" x="702" y="-1033" font-family="Helvetica,sans-Serif" font-size="10.00">Local dead&#45;export candidates</text>
+<text text-anchor="middle" x="702" y="-1033" font-family="Helvetica,sans-Serif" font-size="10.00">Public-surface review signals</text>
 </g>
 <!-- barrel -->
 <g id="node1" class="node">
@@ -214,16 +214,16 @@
 <path fill="none" stroke="#475569" d="M154.79,-410.13C180.87,-445.5 244.05,-523.29 318,-558 345.94,-571.12 377.96,-578.68 408.78,-582.87"/>
 <polygon fill="#475569" stroke="#475569" points="408.39,-586.35 418.74,-584.12 409.26,-579.4 408.39,-586.35"/>
 </g>
-<!-- dead_summary -->
+<!-- api_review_summary -->
 <g id="node21" class="node">
-<title>dead_summary</title>
+<title>api_review_summary</title>
 <path fill="#fef2f2" stroke="#334155" d="M656,-828C656,-828 424,-828 424,-828 418,-828 412,-822 412,-816 412,-816 412,-802 412,-802 412,-796 418,-790 424,-790 424,-790 656,-790 656,-790 662,-790 668,-796 668,-802 668,-802 668,-816 668,-816 668,-822 662,-828 656,-828"/>
 <text text-anchor="middle" x="540" y="-812.8" font-family="Helvetica,sans-Serif" font-size="14.00">80 namespaces have zero imports</text>
 <text text-anchor="middle" x="540" y="-797.8" font-family="Helvetica,sans-Serif" font-size="14.00">in src/ or test/</text>
 </g>
-<!-- barrel&#45;&gt;dead_summary -->
+<!-- barrel&#45;&gt;api_review_summary -->
 <g id="edge25" class="edge">
-<title>barrel&#45;&gt;dead_summary</title>
+<title>barrel&#45;&gt;api_review_summary</title>
 <path fill="none" stroke="#dc2626" stroke-dasharray="5,2" d="M148.6,-410C167.74,-460.11 227.68,-603.18 318,-690 363.65,-733.88 428.68,-766.29 476.39,-786.11"/>
 <polygon fill="#dc2626" stroke="#dc2626" points="475.1,-789.37 485.68,-789.9 477.75,-782.88 475.1,-789.37"/>
 </g>
@@ -329,9 +329,9 @@
 <path fill="none" stroke="#475569" d="M624.15,-78.34C670.57,-76.7 726.11,-83.62 762,-118 816.37,-170.08 739.6,-229.51 790.5,-285 801.73,-297.24 817.74,-304.22 833.83,-308.13"/>
 <polygon fill="#475569" stroke="#475569" points="833.31,-311.59 843.81,-310.18 834.72,-304.74 833.31,-311.59"/>
 </g>
-<!-- dead_ui -->
+<!-- api_review_ui -->
 <g id="node22" class="node">
-<title>dead_ui</title>
+<title>api_review_ui</title>
 <path fill="#fef2f2" stroke="#334155" d="M951,-800C951,-800 839,-800 839,-800 833,-800 827,-794 827,-788 827,-788 827,-714 827,-714 827,-708 833,-702 839,-702 839,-702 951,-702 951,-702 957,-702 963,-708 963,-714 963,-714 963,-788 963,-788 963,-794 957,-800 951,-800"/>
 <text text-anchor="middle" x="895" y="-784.8" font-family="Helvetica,sans-Serif" font-size="14.00">IDE/UI examples:</text>
 <text text-anchor="middle" x="895" y="-769.8" font-family="Helvetica,sans-Serif" font-size="14.00">accessibility</text>
@@ -340,15 +340,15 @@
 <text text-anchor="middle" x="895" y="-724.8" font-family="Helvetica,sans-Serif" font-size="14.00">image&#45;editor</text>
 <text text-anchor="middle" x="895" y="-709.8" font-family="Helvetica,sans-Serif" font-size="14.00">workspace</text>
 </g>
-<!-- dead_summary&#45;&gt;dead_ui -->
+<!-- api_review_summary&#45;&gt;api_review_ui -->
 <g id="edge26" class="edge">
-<title>dead_summary&#45;&gt;dead_ui</title>
+<title>api_review_summary&#45;&gt;api_review_ui</title>
 <path fill="none" stroke="#dc2626" stroke-dasharray="5,2" d="M657.07,-789.93C709.49,-781.32 770,-771.37 816.75,-763.69"/>
 <polygon fill="#dc2626" stroke="#dc2626" points="817.5,-767.12 826.81,-762.04 816.37,-760.21 817.5,-767.12"/>
 </g>
-<!-- dead_scene -->
+<!-- api_review_scene -->
 <g id="node23" class="node">
-<title>dead_scene</title>
+<title>api_review_scene</title>
 <path fill="#fef2f2" stroke="#334155" d="M980,-916C980,-916 810,-916 810,-916 804,-916 798,-910 798,-904 798,-904 798,-830 798,-830 798,-824 804,-818 810,-818 810,-818 980,-818 980,-818 986,-818 992,-824 992,-830 992,-830 992,-904 992,-904 992,-910 986,-916 980,-916"/>
 <text text-anchor="middle" x="895" y="-900.8" font-family="Helvetica,sans-Serif" font-size="14.00">Scene/runtime examples:</text>
 <text text-anchor="middle" x="895" y="-885.8" font-family="Helvetica,sans-Serif" font-size="14.00">scene&#45;graph</text>
@@ -357,15 +357,15 @@
 <text text-anchor="middle" x="895" y="-840.8" font-family="Helvetica,sans-Serif" font-size="14.00">render&#45;materials</text>
 <text text-anchor="middle" x="895" y="-825.8" font-family="Helvetica,sans-Serif" font-size="14.00">render&#45;picking</text>
 </g>
-<!-- dead_summary&#45;&gt;dead_scene -->
+<!-- api_review_summary&#45;&gt;api_review_scene -->
 <g id="edge27" class="edge">
-<title>dead_summary&#45;&gt;dead_scene</title>
+<title>api_review_summary&#45;&gt;api_review_scene</title>
 <path fill="none" stroke="#dc2626" stroke-dasharray="5,2" d="M657.07,-828.07C699.22,-835 746.58,-842.78 787.83,-849.55"/>
 <polygon fill="#dc2626" stroke="#dc2626" points="787.46,-853.04 797.9,-851.21 788.6,-846.13 787.46,-853.04"/>
 </g>
-<!-- dead_api -->
+<!-- api_review_runtime -->
 <g id="node24" class="node">
-<title>dead_api</title>
+<title>api_review_runtime</title>
 <path fill="#fef2f2" stroke="#334155" d="M970,-1017.5C970,-1017.5 820,-1017.5 820,-1017.5 814,-1017.5 808,-1011.5 808,-1005.5 808,-1005.5 808,-946.5 808,-946.5 808,-940.5 814,-934.5 820,-934.5 820,-934.5 970,-934.5 970,-934.5 976,-934.5 982,-940.5 982,-946.5 982,-946.5 982,-1005.5 982,-1005.5 982,-1011.5 976,-1017.5 970,-1017.5"/>
 <text text-anchor="middle" x="895" y="-1002.3" font-family="Helvetica,sans-Serif" font-size="14.00">API/runtime examples:</text>
 <text text-anchor="middle" x="895" y="-987.3" font-family="Helvetica,sans-Serif" font-size="14.00">story&#45;api&#45;events</text>
@@ -373,9 +373,9 @@
 <text text-anchor="middle" x="895" y="-957.3" font-family="Helvetica,sans-Serif" font-size="14.00">tweedle&#45;runtime</text>
 <text text-anchor="middle" x="895" y="-942.3" font-family="Helvetica,sans-Serif" font-size="14.00">web&#45;runtime</text>
 </g>
-<!-- dead_summary&#45;&gt;dead_api -->
+<!-- api_review_summary&#45;&gt;api_review_runtime -->
 <g id="edge28" class="edge">
-<title>dead_summary&#45;&gt;dead_api</title>
+<title>api_review_summary&#45;&gt;api_review_runtime</title>
 <path fill="none" stroke="#dc2626" stroke-dasharray="5,2" d="M581.49,-828.16C634.01,-853 727.28,-897.13 798.3,-930.72"/>
 <polygon fill="#dc2626" stroke="#dc2626" points="797.19,-934.07 807.72,-935.18 800.18,-927.74 797.19,-934.07"/>
 </g>

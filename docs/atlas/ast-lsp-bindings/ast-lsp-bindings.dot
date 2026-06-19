@@ -37,14 +37,14 @@ digraph ast_lsp_bindings {
         tests [shape=box, label="test/*.test.ts", fillcolor="#F0FDF4"];
     }
 
-    subgraph cluster_dead {
-        label="Local dead-export candidates";
+    subgraph cluster_api_review {
+        label="Public-surface review signals";
         color="#FCA5A5";
         style="rounded";
-        dead_summary [shape=box, label="80 namespaces have zero imports\nin src/ or test/", fillcolor="#FEF2F2"];
-        dead_ui [shape=box, label="IDE/UI examples:\naccessibility\nalice-ide-state\ndialog-system\nimage-editor\nworkspace", fillcolor="#FEF2F2"];
-        dead_scene [shape=box, label="Scene/runtime examples:\nscene-graph\nscene-layout\nscene-management\nrender-materials\nrender-picking", fillcolor="#FEF2F2"];
-        dead_api [shape=box, label="API/runtime examples:\nstory-api-events\nentity-lifecycle\ntweedle-runtime\nweb-runtime", fillcolor="#FEF2F2"];
+        api_review_summary [shape=box, label="80 namespaces have zero imports\nin src/ or test/", fillcolor="#FEF2F2"];
+        api_review_ui [shape=box, label="IDE/UI examples:\naccessibility\nalice-ide-state\ndialog-system\nimage-editor\nworkspace", fillcolor="#FEF2F2"];
+        api_review_scene [shape=box, label="Scene/runtime examples:\nscene-graph\nscene-layout\nscene-management\nrender-materials\nrender-picking", fillcolor="#FEF2F2"];
+        api_review_runtime [shape=box, label="API/runtime examples:\nstory-api-events\nentity-lifecycle\ntweedle-runtime\nweb-runtime", fillcolor="#FEF2F2"];
     }
 
     barrel -> a3p;
@@ -73,8 +73,8 @@ digraph ast_lsp_bindings {
     story_api -> tests;
     animation -> tests;
 
-    barrel -> dead_summary [style=dashed, color="#DC2626"];
-    dead_summary -> dead_ui [style=dashed, color="#DC2626"];
-    dead_summary -> dead_scene [style=dashed, color="#DC2626"];
-    dead_summary -> dead_api [style=dashed, color="#DC2626"];
+    barrel -> api_review_summary [style=dashed, color="#DC2626"];
+    api_review_summary -> api_review_ui [style=dashed, color="#DC2626"];
+    api_review_summary -> api_review_scene [style=dashed, color="#DC2626"];
+    api_review_summary -> api_review_runtime [style=dashed, color="#DC2626"];
 }

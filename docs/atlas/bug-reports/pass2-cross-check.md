@@ -10,11 +10,6 @@
 **Pass 2 verdict:** CONFIRMED
 **Rationale:** I reached the same conclusion from the layer READMEs alone, then verified it in code. `docs/atlas/runtime-topology/README.md:11-19` says the shipped runtime is a local Express API plus the browser viewer in `src/main.ts`, and `docs/atlas/api-contracts/README.md:13-21` enumerates only 9 REST routes with no collaboration surface. In code, `src/server.ts:1-14,67-415` wires only launch/scene/code/save/run/screenshot/events routes, `src/cli.ts:119-125` only boots that server, and `src/main.ts:14-17,104-123,149-163` only loads an `.a3p` file into the renderer. `src/collaboration.ts` exists and is exported from `src/index.ts:24`, but it is not connected to any runtime entrypoint.
 
-## Spot-check confirmed dead exported helpers in smaller modules
-**Pass 1 verdict:** Low — Spot-check confirmed dead exported helpers in smaller modules
-**Pass 2 verdict:** CONFIRMED
-**Rationale:** The local-consumer claim holds up. `docs/atlas/ast-lsp-bindings/README.md:13-16` already labels these as local dead-export candidates, and my grep spot-checks found no in-repo consumers outside their defining files for `walkBinaryExpression` (`src/search/resolvers.ts:85-91`) or `cloneEntityBoundingBox`, `captureEntityTransform`, `ensureJointedModel`, and `describeJointedModel` (`src/story-api/entities.ts:30-33,101-112,140-145,171-175`). That supports Pass 1's conclusion for the repo-local atlas scope, even though external package consumers cannot be ruled out from this repository alone.
-
 ## Event registration docs under-declare the request contract
 **Pass 1 verdict:** Medium — Event registration docs under-declare the request contract
 **Pass 2 verdict:** CONFIRMED
