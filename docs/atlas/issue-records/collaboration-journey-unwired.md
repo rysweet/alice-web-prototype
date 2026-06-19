@@ -2,7 +2,6 @@
 
 **Layer**: user-journeys × runtime-topology
 **Severity**: High
-**Pass**: 1
 **Evidence**:
 - `docs/atlas/user-journeys/journey-collaborative-edit.mmd:4-28` documents a live collaborative-edit path with shared sessions, sync, and peer mailboxes.
 - `docs/atlas/runtime-topology/README.md:11-19` and `docs/atlas/api-contracts/README.md:13-21` describe only the viewer client plus 9 REST endpoints; there is no collaboration transport, route, or service on the runtime path.

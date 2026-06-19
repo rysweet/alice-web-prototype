@@ -2,7 +2,6 @@
 
 **Layer**: api-contracts × data-flow
 **Severity**: High
-**Pass**: 1
 **Evidence**:
 - `docs/atlas/data-flow/data-flow.mmd:31-37` routes `POST /api/project/save` through `writeA3P / writeProject` into a JSZip-backed archive sink.
 - `src/server.ts:219-245` never calls `writeA3P()` or `writeProject()`; it copies the existing `.a3p` or writes a placeholder buffer, then records a proof artifact.
