@@ -151,6 +151,37 @@ describe("web-runtime", () => {
     ]);
   });
 
+  it("disconnects the previous native resize observer before re-observing", () => {
+    const nativeObservers: Array<{
+      observe: (target: unknown) => void;
+      disconnect: () => void;
+    }> = [];
+    class NativeResizeObserver {
+      readonly observe = vi.fn((_target: unknown) => undefined);
+      readonly disconnect = vi.fn(() => undefined);
+
+      constructor(
+        _callback: (entries: Array<{ target: unknown; contentRect: { width: number; height: number } }>) => void,
+      ) {
+        nativeObservers.push(this);
+      }
+    }
+    const observer = new BrowserResizeObserver(() => undefined, {
+      observerFactory: NativeResizeObserver,
+    });
+    const firstTarget = { id: "first" };
+    const secondTarget = { id: "second" };
+
+    observer.observe(firstTarget);
+    observer.observe(secondTarget);
+
+    expect(nativeObservers).toHaveLength(2);
+    expect(nativeObservers[0]?.observe).toHaveBeenCalledWith(firstTarget);
+    expect(nativeObservers[0]?.disconnect).toHaveBeenCalledTimes(1);
+    expect(nativeObservers[1]?.observe).toHaveBeenCalledWith(secondTarget);
+    expect(nativeObservers[1]?.disconnect).not.toHaveBeenCalled();
+  });
+
   it("enters, exits, and toggles fullscreen state", async () => {
     const enter = vi.fn(async () => undefined);
     const exit = vi.fn(async () => undefined);

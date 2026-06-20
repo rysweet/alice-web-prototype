@@ -268,6 +268,7 @@ export class ResizeObserver {
   observe(target: unknown): void {
     this.observedTarget = target;
     if (this.observerFactory) {
+      this.nativeObserver?.disconnect();
       this.nativeObserver = new this.observerFactory((entries) => {
         for (const entry of entries) {
           this.callback({
