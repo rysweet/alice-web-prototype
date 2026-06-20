@@ -26,14 +26,37 @@ import {
 } from "../ast-nodes.js";
 import { DataTransferHelper, HTML5DragSourceAdapter, HTML5DropZoneAdapter, type DataTransferLike, type DragEventLike } from "../drag-drop-html5-adapter.js";
 import type { CodeBlockPayload } from "../drag-drop-bridge.js";
-import type { ToolboxTemplateDescriptor } from "./block-toolbox.js";
+import type { ToolboxCategory, ToolboxTemplateDescriptor } from "./block-toolbox.js";
 
-interface DragDescriptor {
-  readonly source: "toolbox" | "statement";
-  readonly template?: ToolboxTemplateDescriptor;
+const MAX_DRAG_INDEX = 100_000;
+const DEFAULT_TOOLBOX_TEMPLATE: ToolboxTemplateDescriptor = {
+  kind: "method-call",
+  category: "Actions",
+  label: "call method",
+};
+const BUILTIN_TEMPLATE_KINDS = new Set([
+  "if",
+  "while",
+  "for-each",
+  "count",
+  "do-in-order",
+  "do-together",
+  "local",
+  "comment",
+]);
+
+type DragDescriptor = ToolboxDragDescriptor | StatementDragDescriptor;
+
+interface ToolboxDragDescriptor {
+  readonly source: "toolbox";
+  readonly template: ToolboxTemplateDescriptor;
+}
+
+interface StatementDragDescriptor {
+  readonly source: "statement";
   readonly statementId?: string;
-  readonly ownerId?: string;
-  readonly index?: number;
+  readonly ownerId: string;
+  readonly index: number;
 }
 
 export interface BlockDragHandlerOptions {
@@ -73,6 +96,9 @@ export class BlockDragHandler {
     }
 
     const payload = this.createPayload(element);
+    if (!payload) {
+      return;
+    }
     const source = new HTML5DragSourceAdapter({
       elementId: element.dataset.nodeId ?? element.dataset.statementKind ?? "toolbox-item",
       payload,
@@ -87,6 +113,9 @@ export class BlockDragHandler {
     if (!zone) {
       return;
     }
+    if (!this.readAcceptedPayload(zone, dragEvent)) {
+      return;
+    }
     const adapter = this.createDropAdapter(zone, () => undefined);
     if (adapter.handleDragOver(dragEvent)) {
       this.setActiveIndicator(zone);
@@ -97,6 +126,9 @@ export class BlockDragHandler {
     const dragEvent = event as unknown as DragEventLike & { target: EventTarget | null };
     const zone = this.findDropZone(dragEvent.target);
     if (!zone) {
+      return;
+    }
+    if (!this.readAcceptedPayload(zone, dragEvent)) {
       return;
     }
     const adapter = this.createDropAdapter(zone, (payload) => this.commitDrop(zone, payload));
@@ -113,15 +145,11 @@ export class BlockDragHandler {
     this.clearIndicators();
   };
 
-  private createPayload(element: HTMLElement): CodeBlockPayload {
-    const descriptor = element.dataset.dragSource === "toolbox"
-      ? { source: "toolbox", template: parseTemplateDescriptor(element.dataset.template) }
-      : {
-        source: "statement",
-        statementId: element.dataset.nodeId,
-        ownerId: element.dataset.ownerId,
-        index: Number(element.dataset.index ?? "0"),
-      };
+  private createPayload(element: HTMLElement): CodeBlockPayload | null {
+    const descriptor = createDragDescriptor(element);
+    if (!descriptor) {
+      return null;
+    }
     return {
       type: "code-block",
       statementKind: element.dataset.statementKind ?? element.dataset.statementType ?? "statement",
@@ -151,48 +179,75 @@ export class BlockDragHandler {
     );
   }
 
-  private commitDrop(zone: HTMLElement, payload: CodeBlockPayload): void {
+  private readAcceptedPayload(zone: HTMLElement, event: DragEventLike): CodeBlockPayload | null {
+    if (!event.dataTransfer) {
+      return null;
+    }
+    const payload = DataTransferHelper.readPayload(event.dataTransfer);
+    if (!payload || payload.type !== "code-block") {
+      return null;
+    }
     const descriptor = parseDragDescriptor(payload.template);
+    if (!descriptor || !this.canCommitDescriptor(zone, descriptor)) {
+      return null;
+    }
+    return payload;
+  }
+
+  private canCommitDescriptor(zone: HTMLElement, descriptor: DragDescriptor): boolean {
     if (zone.dataset.dropZone === "trash") {
-      if (descriptor.source === "statement" && descriptor.ownerId && typeof descriptor.index === "number") {
-        const owner = this.findOwnerById(descriptor.ownerId);
-        if (owner) {
-          removeStatement(owner, descriptor.index);
-          this.options.onMutate();
-        }
-      }
-      return;
+      return this.resolveStatementSource(descriptor) !== null;
+    }
+    const target = this.resolveInsertTarget(zone);
+    if (!target) {
+      return false;
+    }
+    if (descriptor.source === "toolbox") {
+      return this.isAllowedToolboxTemplate(descriptor.template);
+    }
+    return this.resolveStatementSource(descriptor) !== null;
+  }
+
+  private commitDrop(zone: HTMLElement, payload: CodeBlockPayload): boolean {
+    const descriptor = parseDragDescriptor(payload.template);
+    if (!descriptor || !this.canCommitDescriptor(zone, descriptor)) {
+      return false;
     }
 
-    const ownerId = zone.dataset.ownerId;
-    const insertIndex = Number(zone.dataset.insertIndex ?? "0");
-    if (!ownerId) {
-      return;
+    if (zone.dataset.dropZone === "trash") {
+      const source = this.resolveStatementSource(descriptor);
+      if (source) {
+        removeStatement(source.owner, source.index);
+        this.options.onMutate();
+        return true;
+      }
+      return false;
     }
-    const owner = this.findOwnerById(ownerId);
-    if (!owner) {
-      return;
+
+    const target = this.resolveInsertTarget(zone);
+    if (!target) {
+      return false;
     }
+    const { owner, insertIndex } = target;
 
     if (descriptor.source === "toolbox" && descriptor.template) {
       insertStatement(owner, insertIndex, this.createStatement(descriptor.template));
       this.options.onMutate();
-      return;
+      return true;
     }
 
-    if (descriptor.source === "statement" && descriptor.ownerId && typeof descriptor.index === "number") {
-      const sourceOwner = this.findOwnerById(descriptor.ownerId);
-      if (!sourceOwner) {
-        return;
-      }
-      if (sourceOwner === owner) {
-        moveStatement(owner, descriptor.index, insertIndex);
+    const source = this.resolveStatementSource(descriptor);
+    if (source) {
+      if (source.owner === owner) {
+        moveStatement(owner, source.index, insertIndex);
       } else {
-        const statement = removeStatement(sourceOwner, descriptor.index);
+        const statement = removeStatement(source.owner, source.index);
         insertStatement(owner, insertIndex, statement);
       }
       this.options.onMutate();
+      return true;
     }
+    return false;
   }
 
   private createStatement(template: ToolboxTemplateDescriptor) {
@@ -237,6 +292,43 @@ export class BlockDragHandler {
     return found;
   }
 
+  private resolveInsertTarget(zone: HTMLElement): { owner: BlockNode; insertIndex: number } | null {
+    const ownerId = zone.dataset.ownerId;
+    if (!ownerId) {
+      return null;
+    }
+    const owner = this.findOwnerById(ownerId);
+    if (!owner) {
+      return null;
+    }
+    const insertIndex = parseDropIndex(zone.dataset.insertIndex ?? "0", owner.body.length);
+    return insertIndex === null ? null : { owner, insertIndex };
+  }
+
+  private resolveStatementSource(descriptor: DragDescriptor): { owner: BlockNode; index: number } | null {
+    if (descriptor.source !== "statement") {
+      return null;
+    }
+    const owner = this.findOwnerById(descriptor.ownerId);
+    if (!owner || !isIndexWithinBody(descriptor.index, owner.body.length)) {
+      return null;
+    }
+    return { owner, index: descriptor.index };
+  }
+
+  private isAllowedToolboxTemplate(template: ToolboxTemplateDescriptor): boolean {
+    if (BUILTIN_TEMPLATE_KINDS.has(template.kind)) {
+      return true;
+    }
+    if (template.kind !== "method-call") {
+      return false;
+    }
+    if (!template.methodName) {
+      return this.options.currentType === null;
+    }
+    return this.options.currentType?.methods.some((method) => method !== this.options.procedure && method.name === template.methodName) ?? false;
+  }
+
   private setActiveIndicator(zone: HTMLElement): void {
     if (this.activeIndicator === zone) {
       return;
@@ -253,31 +345,128 @@ export class BlockDragHandler {
   }
 }
 
-function parseDragDescriptor(raw: string): DragDescriptor {
-  const parsed = JSON.parse(raw) as Partial<DragDescriptor>;
+function parseDragDescriptor(raw: string): DragDescriptor | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!isRecord(parsed)) {
+    return null;
+  }
   if (parsed.source === "toolbox") {
-    return { source: "toolbox", template: parsed.template ? coerceTemplate(parsed.template) : undefined };
+    if (!isRecord(parsed.template)) {
+      return null;
+    }
+    const template = parseToolboxTemplateDescriptor(parsed.template);
+    return template ? { source: "toolbox", template } : null;
+  }
+  if (parsed.source === "statement") {
+    if (typeof parsed.ownerId !== "string" || !isBoundedDragIndex(parsed.index)) {
+      return null;
+    }
+    const statementId = typeof parsed.statementId === "string" ? parsed.statementId : undefined;
+    return {
+      source: "statement",
+      statementId,
+      ownerId: parsed.ownerId,
+      index: parsed.index,
+    };
+  }
+  return null;
+}
+
+function createDragDescriptor(element: HTMLElement): DragDescriptor | null {
+  if (element.dataset.dragSource === "toolbox") {
+    const template = parseTemplateDescriptor(element.dataset.template);
+    return template ? { source: "toolbox", template } : null;
+  }
+  if (element.dataset.dragSource === "statement") {
+    const index = parseDragIndex(element.dataset.index);
+    if (!element.dataset.ownerId || index === null) {
+      return null;
+    }
+    return {
+      source: "statement",
+      statementId: element.dataset.nodeId,
+      ownerId: element.dataset.ownerId,
+      index,
+    };
+  }
+  return null;
+}
+
+function parseTemplateDescriptor(raw: string | undefined): ToolboxTemplateDescriptor | null {
+  if (!raw) {
+    return DEFAULT_TOOLBOX_TEMPLATE;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return isRecord(parsed) ? parseToolboxTemplateDescriptor(parsed) : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseToolboxTemplateDescriptor(template: Record<string, unknown>): ToolboxTemplateDescriptor | null {
+  const kind = nonEmptyString(template.kind);
+  const category = isToolboxCategory(template.category) ? template.category : null;
+  const label = nonEmptyString(template.label);
+  if (!kind || !category || !label) {
+    return null;
+  }
+  const methodName = template.methodName === undefined ? undefined : nonEmptyString(template.methodName);
+  if (template.methodName !== undefined && !methodName) {
+    return null;
+  }
+  if (template.parameterTypes !== undefined && !isStringArray(template.parameterTypes)) {
+    return null;
   }
   return {
-    source: "statement",
-    statementId: typeof parsed.statementId === "string" ? parsed.statementId : undefined,
-    ownerId: typeof parsed.ownerId === "string" ? parsed.ownerId : undefined,
-    index: typeof parsed.index === "number" ? parsed.index : undefined,
+    kind,
+    category,
+    label,
+    methodName,
+    parameterTypes: isStringArray(template.parameterTypes) ? template.parameterTypes : undefined,
   };
 }
 
-function parseTemplateDescriptor(raw: string | undefined): ToolboxTemplateDescriptor {
-  return raw ? coerceTemplate(JSON.parse(raw) as Partial<ToolboxTemplateDescriptor>) : { kind: "method-call", category: "Actions", label: "call method" };
+function parseDropIndex(raw: string, maxInclusive: number): number | null {
+  const index = parseDragIndex(raw);
+  return index !== null && index <= maxInclusive ? index : null;
 }
 
-function coerceTemplate(template: Partial<ToolboxTemplateDescriptor>): ToolboxTemplateDescriptor {
-  return {
-    kind: template.kind ?? "method-call",
-    category: template.category ?? "Actions",
-    label: template.label ?? template.methodName ?? template.kind ?? "statement",
-    methodName: template.methodName,
-    parameterTypes: template.parameterTypes,
-  };
+function parseDragIndex(raw: string | undefined): number | null {
+  if (raw === undefined || !/^\d+$/.test(raw)) {
+    return null;
+  }
+  const index = Number(raw);
+  return isBoundedDragIndex(index) ? index : null;
+}
+
+function isIndexWithinBody(index: number, bodyLength: number): boolean {
+  return isBoundedDragIndex(index) && index < bodyLength;
+}
+
+function isBoundedDragIndex(index: unknown): index is number {
+  return typeof index === "number" && Number.isSafeInteger(index) && index >= 0 && index <= MAX_DRAG_INDEX;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isToolboxCategory(value: unknown): value is ToolboxCategory {
+  return value === "Control" || value === "Actions" || value === "Variables" || value === "Comments";
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 export function createDataTransferStore(initialData: Record<string, string> = {}): DataTransferLike {
