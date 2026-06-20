@@ -11,24 +11,21 @@ import * as fs from "fs";
 import * as path from "path";
 import type { Express } from "express";
 import request from "supertest";
+import { REPOSITORY_A3P_FIXTURE } from "./fixtures/a3p-fixtures";
 
 const EVIDENCE_DIR = path.resolve(__dirname, "../.test-silver-thread-evidence");
-const ALICE_HOME = process.env.ALICE_HOME ?? path.resolve(__dirname, "../../../alice");
-const STARTER_PROJECT = path.join(
-  ALICE_HOME,
-  "core/resources/target/distribution/application/starter-projects/amazonMinimum.a3p",
-);
+const STARTER_PROJECT = REPOSITORY_A3P_FIXTURE;
+const STARTER_PROJECT_NAME = path.basename(STARTER_PROJECT, ".a3p");
 
 describe("silver thread: complete student journey", () => {
   let app: Express;
-  const hasStarterProject = fs.existsSync(STARTER_PROJECT);
 
   beforeAll(() => {
     fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
     app = createServer({
       port: 0,
       evidenceDir: EVIDENCE_DIR,
-      projectPath: hasStarterProject ? STARTER_PROJECT : undefined,
+      projectPath: STARTER_PROJECT,
     });
   });
 
@@ -39,10 +36,8 @@ describe("silver thread: complete student journey", () => {
   it("step 1: launch with starter project", async () => {
     const res = await request(app).post("/api/launch").send({}).expect(200);
     expect(res.body.status).toBe("launched");
-    if (hasStarterProject) {
-      expect(res.body.projectName).toBe("amazonMinimum");
-      expect(res.body.sceneObjectCount).toBeGreaterThanOrEqual(2);
-    }
+    expect(res.body.projectName).toBe(STARTER_PROJECT_NAME);
+    expect(res.body.sceneObjectCount).toBeGreaterThanOrEqual(2);
   });
 
   it("step 2: add object to scene", async () => {

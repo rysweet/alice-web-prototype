@@ -48,7 +48,7 @@ const scenarioSpecs: ScenarioSpec[] = [
       "org.lgna.story.SBiped",
       "org.lgna.story.SProp",
       "org.lgna.story.SFlyer",
-      "className is required",
+      "className is required and must be a non-empty string",
       "/api/screenshot",
       "objectCount",
     ],
