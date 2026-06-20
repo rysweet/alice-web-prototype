@@ -90,6 +90,35 @@ describe("standalone project generation", () => {
     expect(generated.files.has("src/main/resources/standalone-project.json")).toBe(true);
   });
 
+  it("keeps newline-bearing statement text inside generated Java comments", () => {
+    const archive = createArchive();
+    archive.project.methods = [{
+      name: "maliciousStatements",
+      isFunction: false,
+      returnType: "void",
+      parameters: [],
+      statements: [
+        { kind: "MethodCall", object: "hero", method: "say\nSystem.exit(1);", arguments: ["hello"] },
+        { kind: "WhileLoop", condition: "isReady()\r\nthrow new RuntimeException();" },
+        { kind: "Return", expression: "result\u2028Runtime.getRuntime().exec(\"calc\")\u2029after" },
+      ],
+    }];
+
+    const generated = generateStandaloneJavaProject(archive, {
+      packageName: "org.alice.demo",
+    });
+    const programSource = String(generated.files.get("src/main/java/org/alice/demo/Program.java"));
+    const maliciousLines = programSource
+      .split("\n")
+      .filter((line) => line.includes("System.exit")
+        || line.includes("RuntimeException")
+        || line.includes("Runtime.getRuntime"));
+
+    expect(programSource).not.toMatch(/[\r\u2028\u2029]/u);
+    expect(maliciousLines).toHaveLength(3);
+    expect(maliciousLines.every((line) => /^\s*\/\//.test(line))).toBe(true);
+  });
+
   it("sanitizes duplicate and unsafe resource paths for packaging", () => {
     const generated = generateStandaloneJavaProject(createArchive(), {
       packageName: "org.alice.demo",
