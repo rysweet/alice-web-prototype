@@ -63,6 +63,13 @@ export interface TypeImportPlan {
   warnings: string[];
 }
 
+export interface TypeBrowserLike {
+  allTypes(includeBuiltins?: boolean): AbstractType[];
+  resolveType(nameOrType: ClassDeclaration | AbstractType | TypeRef | string | null): AbstractType | null;
+  registerType(type: ClassDeclaration): void;
+  unregisterType(name: string): boolean;
+}
+
 export class TypeBrowserError extends Error {
   constructor(message: string) {
     super(message);

@@ -131,6 +131,22 @@ export class SThing implements ImplementableEntity {
   }
 }
 
+export type SSceneListenerDispatch =
+  | { readonly listener: "mouseClickOnScreen"; readonly event: MouseClickOnScreenEvent }
+  | { readonly listener: "mouseClickOnObject"; readonly event: MouseClickOnObjectEvent }
+  | { readonly listener: "keyPress"; readonly event: KeyListenerEvent }
+  | { readonly listener: "arrowKeyPress"; readonly event: ArrowKeyEvent }
+  | { readonly listener: "numberKeyPress"; readonly event: NumberKeyEvent }
+  | { readonly listener: "pointOfViewChange"; readonly event: PointOfViewChangeEvent }
+  | { readonly listener: "collisionStart"; readonly entity: SThing; readonly event: CollisionTransitionEvent }
+  | { readonly listener: "collisionEnd"; readonly entity: SThing; readonly event: CollisionTransitionEvent }
+  | { readonly listener: "occlusionStart"; readonly entity: SThing; readonly event: OcclusionEvent }
+  | { readonly listener: "occlusionEnd"; readonly entity: SThing; readonly event: OcclusionEvent }
+  | { readonly listener: "whileInView"; readonly entity: SThing; readonly event: ViewEvent }
+  | { readonly listener: "whileOcclusion"; readonly entity: SThing; readonly event: OcclusionEvent }
+  | { readonly listener: "proximityEnter"; readonly entity: SThing; readonly event: ProximityTransitionEvent }
+  | { readonly listener: "proximityExit"; readonly entity: SThing; readonly event: ProximityTransitionEvent };
+
 export class SGround extends SThing {
   constructor() {
     super((owner) => new GroundImp(owner));
@@ -285,6 +301,81 @@ export class SScene extends SThing {
   readonly #arrowKeyPressListeners = new Set<(event: ArrowKeyEvent) => void>();
   readonly #numberKeyPressListeners = new Set<(event: NumberKeyEvent) => void>();
   readonly #pointOfViewChangeListeners = new Set<(event: PointOfViewChangeEvent) => void>();
+
+  #dispatchSimpleListener<E>(listeners: ReadonlySet<(event: E) => void>, event: E): void {
+    for (const listener of [...listeners]) {
+      listener(event);
+    }
+  }
+
+  #dispatchEntityListener<E>(
+    store: ReadonlyMap<SThing, ReadonlySet<(event: E) => void>>,
+    entity: SThing,
+    event: E,
+  ): void {
+    const listeners = store.get(entity);
+    if (!listeners) return;
+    this.#dispatchSimpleListener(listeners, event);
+  }
+
+  #dispatchProximityListener(
+    store: ReadonlyMap<SThing, ReadonlyMap<(event: ProximityTransitionEvent) => void, number>>,
+    entity: SThing,
+    event: ProximityTransitionEvent,
+  ): void {
+    const listeners = store.get(entity);
+    if (!listeners) return;
+    for (const listener of [...listeners.keys()]) {
+      listener(event);
+    }
+  }
+
+  dispatchListenerEvent(dispatch: SSceneListenerDispatch): void {
+    switch (dispatch.listener) {
+      case "mouseClickOnScreen":
+        this.#dispatchSimpleListener(this.#mouseClickOnScreenListeners, dispatch.event);
+        break;
+      case "mouseClickOnObject":
+        this.#dispatchSimpleListener(this.#mouseClickOnObjectListeners, dispatch.event);
+        break;
+      case "keyPress":
+        this.#dispatchSimpleListener(this.#keyPressListeners, dispatch.event);
+        break;
+      case "arrowKeyPress":
+        this.#dispatchSimpleListener(this.#arrowKeyPressListeners, dispatch.event);
+        break;
+      case "numberKeyPress":
+        this.#dispatchSimpleListener(this.#numberKeyPressListeners, dispatch.event);
+        break;
+      case "pointOfViewChange":
+        this.#dispatchSimpleListener(this.#pointOfViewChangeListeners, dispatch.event);
+        break;
+      case "collisionStart":
+        this.#dispatchEntityListener(this.#collisionStartListeners, dispatch.entity, dispatch.event);
+        break;
+      case "collisionEnd":
+        this.#dispatchEntityListener(this.#collisionEndListeners, dispatch.entity, dispatch.event);
+        break;
+      case "occlusionStart":
+        this.#dispatchEntityListener(this.#occlusionStartListeners, dispatch.entity, dispatch.event);
+        break;
+      case "occlusionEnd":
+        this.#dispatchEntityListener(this.#occlusionEndListeners, dispatch.entity, dispatch.event);
+        break;
+      case "whileInView":
+        this.#dispatchEntityListener(this.#whileInViewListeners, dispatch.entity, dispatch.event);
+        break;
+      case "whileOcclusion":
+        this.#dispatchEntityListener(this.#whileOcclusionListeners, dispatch.entity, dispatch.event);
+        break;
+      case "proximityEnter":
+        this.#dispatchProximityListener(this.#proximityEnterListeners, dispatch.entity, dispatch.event);
+        break;
+      case "proximityExit":
+        this.#dispatchProximityListener(this.#proximityExitListeners, dispatch.entity, dispatch.event);
+        break;
+    }
+  }
 
   addMouseClickOnScreenListener(listener: (event: MouseClickOnScreenEvent) => void): void {
     this.#mouseClickOnScreenListeners.add(listener);

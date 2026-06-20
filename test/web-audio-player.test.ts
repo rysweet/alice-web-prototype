@@ -3,6 +3,7 @@ import {
   AudioPlayer,
   SoundResourceManager,
   type AudioResource,
+  type AudioBufferLike,
   WebAudioPlayer,
   type StubAudioContext,
   type StubGainNode,
@@ -30,11 +31,45 @@ function makeResource(overrides?: Partial<AudioResource>): AudioResource {
   };
 }
 
+function makeAudioContext(spies?: {
+  gainConnect?: ReturnType<typeof vi.fn>;
+  sourceConnect?: ReturnType<typeof vi.fn>;
+  sourceStart?: ReturnType<typeof vi.fn>;
+  sourceStop?: ReturnType<typeof vi.fn>;
+  createdSources?: StubAudioBufferSourceNode[];
+}): StubAudioContext {
+  return {
+    sampleRate: 48000,
+    currentTime: 0,
+    state: "running",
+    destination: { channelCount: 2 },
+    createGain(): StubGainNode {
+      return {
+        gain: { value: 1 },
+        connect: spies?.gainConnect ?? vi.fn(),
+      };
+    },
+    createBufferSource(): StubAudioBufferSourceNode {
+      const source: StubAudioBufferSourceNode = {
+        buffer: null,
+        loop: false,
+        onended: null,
+        connect: spies?.sourceConnect ?? vi.fn(),
+        start: spies?.sourceStart ?? vi.fn(),
+        stop: spies?.sourceStop ?? vi.fn(),
+      };
+      spies?.createdSources?.push(source);
+      return source;
+    },
+    decodeAudioData: vi.fn(async () => ({ duration: 3 })),
+  };
+}
+
 // ---------------------------------------------------------------------------
-// Stub interface types
+// Runtime interface types
 // ---------------------------------------------------------------------------
 
-describe("WebAudioPlayer — stub interfaces are exported", () => {
+describe("WebAudioPlayer — runtime interfaces are exported", () => {
   it("exports StubAudioContext interface (compile-time check)", () => {
     const ctx: StubAudioContext = {
       sampleRate: 44100,
@@ -56,6 +91,7 @@ describe("WebAudioPlayer — stub interfaces are exported", () => {
           stop() {},
         };
       },
+      decodeAudioData: async () => ({ duration: 1 }),
     };
     expect(ctx.sampleRate).toBe(44100);
   });
@@ -110,7 +146,7 @@ describe("WebAudioPlayer — construction", () => {
     const ctx = wap.audioContext;
     expect(ctx).toBeDefined();
     expect(ctx.sampleRate).toBe(44100);
-    expect(ctx.state).toBe("running");
+    expect(ctx.state).toBe("simulation");
     expect(typeof ctx.currentTime).toBe("number");
     expect(ctx.destination).toBeDefined();
     expect(ctx.destination.channelCount).toBe(2);
@@ -121,6 +157,19 @@ describe("WebAudioPlayer — construction", () => {
     const gain = wap.gainNode;
     expect(gain).toBeDefined();
     expect(gain.gain.value).toBe(1);
+  });
+
+  it("makes the default Node.js runtime explicitly non-output simulation", () => {
+    const wap = new WebAudioPlayer({ runtimeMode: "simulation" });
+    expect(wap.runtimeMode).toBe("simulation");
+    expect(wap.canOutputAudio).toBe(false);
+  });
+
+  it("uses an injected AudioContext as real Web Audio output mode", () => {
+    const wap = new WebAudioPlayer({ audioContext: makeAudioContext() });
+    expect(wap.runtimeMode).toBe("web-audio");
+    expect(wap.canOutputAudio).toBe(true);
+    expect(wap.audioContext.sampleRate).toBe(48000);
   });
 });
 
@@ -135,10 +184,56 @@ describe("WebAudioPlayer — state delegation", () => {
   });
 
   it("play() transitions to playing (requires loaded resource)", () => {
-    const wap = new WebAudioPlayer();
+    const wap = new WebAudioPlayer({ runtimeMode: "simulation" });
     wap.load(makeResource());
     wap.play();
     expect(wap.state).toBe("playing");
+  });
+
+  it("web-audio play starts an injected AudioBufferSourceNode for decoded resources", () => {
+    const sourceStart = vi.fn();
+    const sourceConnect = vi.fn();
+    const decodedBuffer: AudioBufferLike = { duration: 3 };
+    const wap = new WebAudioPlayer({
+      audioContext: makeAudioContext({ sourceStart, sourceConnect }),
+    });
+
+    wap.load(makeResource({
+      duration: decodedBuffer.duration,
+      decodedBuffer,
+      decodeStatus: "decoded",
+    }));
+    wap.play();
+
+    expect(wap.state).toBe("playing");
+    expect(sourceConnect).toHaveBeenCalledWith(wap.gainNode);
+    expect(sourceStart).toHaveBeenCalledOnce();
+  });
+
+  it("web-audio source end transitions state back to stopped", () => {
+    const createdSources: StubAudioBufferSourceNode[] = [];
+    const decodedBuffer: AudioBufferLike = { duration: 3 };
+    const wap = new WebAudioPlayer({
+      audioContext: makeAudioContext({ createdSources }),
+    });
+
+    wap.load(makeResource({
+      duration: decodedBuffer.duration,
+      decodedBuffer,
+      decodeStatus: "decoded",
+    }));
+    wap.play();
+    createdSources[0].onended?.();
+
+    expect(wap.state).toBe("stopped");
+  });
+
+  it("web-audio play refuses undecoded resources instead of pretending to output sound", () => {
+    const wap = new WebAudioPlayer({ audioContext: makeAudioContext() });
+    wap.load(makeResource({ decodeStatus: "decode-unavailable" }));
+
+    expect(() => wap.play()).toThrow("resource 'snd-001' is not decoded");
+    expect(wap.state).toBe("stopped");
   });
 
   it("pause() transitions to paused", () => {
@@ -211,6 +306,33 @@ describe("WebAudioPlayer — load", () => {
     manager.register(res);
     wap.loadFromManager(manager, "effect-1");
     expect(wap.resource).toBe(res);
+  });
+
+  it("loadFromManager() stops an active web-audio source before replacing the resource", () => {
+    const sourceStop = vi.fn();
+    const decodedBuffer: AudioBufferLike = { duration: 3 };
+    const wap = new WebAudioPlayer({
+      audioContext: makeAudioContext({ sourceStop }),
+    });
+    const manager = new SoundResourceManager();
+    const next = makeResource({
+      id: "effect-2",
+      duration: decodedBuffer.duration,
+      decodedBuffer,
+      decodeStatus: "decoded",
+    });
+    manager.register(next);
+
+    wap.load(makeResource({
+      duration: decodedBuffer.duration,
+      decodedBuffer,
+      decodeStatus: "decoded",
+    }));
+    wap.play();
+    wap.loadFromManager(manager, "effect-2");
+
+    expect(sourceStop).toHaveBeenCalledOnce();
+    expect(wap.resource).toBe(next);
   });
 
   it("loadFromManager() throws for unknown resource id", () => {

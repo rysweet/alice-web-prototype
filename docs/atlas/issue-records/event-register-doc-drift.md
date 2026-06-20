@@ -2,7 +2,6 @@
 
 **Layer**: api-contracts × docs
 **Severity**: Medium
-**Pass**: 1
 **Evidence**:
 - `docs/atlas/api-contracts/README.md:20` documents `/api/events/register` as `{ eventType, handlerName?, key?, target?, useCapture?, targetObjects?, threshold? }`.
 - `docs/api-reference.md:227-231` marks `handlerName` as required and omits `target`, `useCapture`, `targetObjects`, and `threshold` from the request table.

@@ -8,7 +8,7 @@ recent projects, and user-imported dynamic resources.
 
 | Gap | What changed | Issue |
 |---|---|---|
-| [Audio playback pipeline](#audio-playback-pipeline) | `WebAudioPlayer` wraps `AudioPlayer` with stub Web Audio API graph; `SayOutLoudAnimation` adds TTS via `SpeechSynthesis` stub | #76 |
+| [Audio playback pipeline](#audio-playback-pipeline) | `WebAudioPlayer` wraps `AudioPlayer` with stub Web Audio API graph; `SayOutLoudAnimation` adds TTS through a `SpeechSynthesis` adapter when available | #76 |
 | [Project lifecycle](#project-lifecycle) | `revertToLastSaved()`, `createBackup()`, `restoreFromBackup()` on `ProjectManager`; `DynamicResource` hierarchy; `RecentProjects` wiring | #77 |
 | [Tests](#testing) | Full test coverage for all new code | #76, #77 |
 
@@ -201,24 +201,30 @@ player.play();
 
 The `SayOutLoudAnimation` class (`src/entity-animation.ts`) provides
 text-to-speech playback parity with Java Alice's `SayOutLoud` procedure.
-It uses stub `SpeechSynthesis` interfaces for testability in Node.js.
+It submits utterances through a `SpeechSynthesisAdapter`. In browsers, the
+default adapter uses the real Web Speech `speechSynthesis` API. In Node.js or
+other runtimes without speech synthesis, the animation exposes an explicit
+`speechStatus` of `unavailable` instead of silently pretending to speak.
 
 #### Imports
 
 ```typescript
 import {
+  createBrowserSpeechSynthesisAdapter,
   SayOutLoudAnimation,
-  type SpeechUtteranceOptions,
-  type StubSpeechUtterance,
+  type SayOutLoudOptions,
+  type SpeechPlaybackState,
+  type SpeechSynthesisAdapter,
+  type SpeechUtterance,
 } from './entity-animation';
 ```
 
-#### StubSpeechUtterance
+#### SpeechUtterance
 
-A stub matching the browser's `SpeechSynthesisUtterance` interface shape:
+A minimal utterance shape shared by the runtime adapter and tests:
 
 ```typescript
-interface StubSpeechUtterance {
+interface SpeechUtterance {
   readonly text: string;
   rate: number;
   pitch: number;
@@ -226,25 +232,44 @@ interface StubSpeechUtterance {
 }
 ```
 
-#### SpeechUtteranceOptions
+#### SpeechSynthesisAdapter
 
 ```typescript
-interface SpeechUtteranceOptions {
+type SpeechPlaybackStatus = 'speaking' | 'unavailable' | 'skipped' | 'error';
+
+interface SpeechPlaybackState {
+  readonly status: SpeechPlaybackStatus;
+  readonly message: string;
+}
+
+interface SpeechSynthesisAdapter {
+  readonly available: boolean;
+  speak(utterance: SpeechUtterance): SpeechPlaybackState;
+  cancel?(): void;
+}
+```
+
+#### SayOutLoudOptions
+
+```typescript
+interface SayOutLoudOptions {
   text: string;
   rate?: number;    // Speech rate multiplier, default 1.0. Must be > 0.
   pitch?: number;   // Pitch multiplier, default 1.0. Must be > 0.
   volume?: number;  // Volume [0, 1], default 1.0.
+  speechAdapter?: SpeechSynthesisAdapter | null;
 }
 ```
 
 #### SayOutLoudAnimation Class
 
 Implements `AnimationClip` directly with its own elapsed-time accumulator.
-The constructor creates the `StubSpeechUtterance` immediately (matching
-the "apply on construct" pattern used by `SayAnimation`), but unlike
-`SayAnimation` (which delegates to `ImmediateAnimation` and completes on
-first `update()` regardless of `deltaMs`), `SayOutLoudAnimation` accumulates
-`deltaMs` across `update()` calls and reports `progress = elapsed / durationMs`.
+The constructor creates the `SpeechUtterance` and submits it to the configured
+adapter immediately (matching the "apply on construct" pattern used by
+`SayAnimation`). Unlike `SayAnimation` (which delegates to `ImmediateAnimation`
+and completes on first `update()` regardless of `deltaMs`),
+`SayOutLoudAnimation` accumulates `deltaMs` across `update()` calls and reports
+`progress = elapsed / durationMs`.
 
 The estimated duration is `(text.length / (rate * 5)) * 1000` milliseconds
 (approximately 5 characters per second at rate 1.0). This elapsed-time
@@ -254,13 +279,16 @@ animations rather than completing instantly.
 
 ```typescript
 class SayOutLoudAnimation implements AnimationClip {
-  constructor(options: SpeechUtteranceOptions);
+  constructor(options: SayOutLoudOptions);
 
-  /** The stub utterance created for this animation */
-  readonly utterance: StubSpeechUtterance;
+  /** The utterance submitted for this animation */
+  readonly utterance: SpeechUtterance;
 
   /** Estimated duration in milliseconds */
   readonly durationMs: number;
+
+  /** Whether real speech was submitted, skipped, unavailable, or errored */
+  readonly speechStatus: SpeechPlaybackState;
 
   get elapsedMs(): number;
   get progress(): number;
@@ -283,6 +311,7 @@ console.log(tts.durationMs);                // ~2600ms (13 chars / 5 * 1000)
 console.log(tts.utterance.text);            // 'Hello, world!'
 console.log(tts.utterance.rate);            // 1.0
 console.log(tts.utterance.volume);          // 1.0
+console.log(tts.speechStatus.status);       // 'speaking' in browsers, 'unavailable' in Node.js
 
 // Advance the animation
 const state = tts.update(1000);
@@ -301,6 +330,24 @@ const fast = new SayOutLoudAnimation({
 console.log(fast.durationMs);              // ~1400ms (14 chars / (2 * 5) * 1000)
 console.log(fast.utterance.rate);          // 2.0
 console.log(fast.utterance.pitch);         // 1.2
+```
+
+Tests can inject a deterministic fake adapter:
+
+```typescript
+const spoken: SpeechUtterance[] = [];
+const fakeSpeech: SpeechSynthesisAdapter = {
+  available: true,
+  speak(utterance) {
+    spoken.push(utterance);
+    return { status: 'speaking', message: 'fake speech submitted' };
+  },
+};
+
+const tts = new SayOutLoudAnimation({
+  text: 'Hello from tests',
+  speechAdapter: fakeSpeech,
+});
 ```
 
 #### Composing with Other Animations
@@ -326,7 +373,7 @@ const dialogue = doInOrder([
 
 | Parameter | Constraint | On violation |
 |---|---|---|
-| `text` | Must be a non-empty string | Throws `Error` |
+| `text` | Empty string is allowed | Completes immediately and sets `speechStatus.status` to `'skipped'` |
 | `rate` | Must be > 0 and finite | Throws `TypeError` |
 | `pitch` | Must be > 0 and finite | Throws `TypeError` |
 | `volume` | Clamped to [0, 1] | Silent clamp |
@@ -708,10 +755,13 @@ npx vitest run test/dynamic-resource.test.ts
 - Duration estimated as `text.length / (rate * 5) * 1000`
 - Default rate=1.0, pitch=1.0, volume=1.0
 - Custom rate/pitch/volume reflected on utterance
+- Injected speech adapter receives the utterance on construction
+- Missing/unavailable speech adapters produce explicit `unavailable` status
+- Adapter errors produce explicit `error` status
 - `update()` advances progress toward estimated duration
 - Animation completes when elapsed ≥ duration
-- `reset()` restarts animation
-- Empty text throws `Error`
+- `reset()` restarts animation and replays through the adapter
+- Empty text completes immediately and reports `skipped` speech status
 - Rate ≤ 0 throws `TypeError`
 - Pitch ≤ 0 throws `TypeError`
 - Volume clamped to [0, 1]
@@ -756,7 +806,7 @@ npx vitest run test/dynamic-resource.test.ts
 | File | Changes |
 |---|---|
 | `src/audio.ts` | Added `StubAudioContext`, `StubGainNode`, `StubAudioBufferSourceNode` interfaces; `WebAudioPlayer` class |
-| `src/entity-animation.ts` | Added `StubSpeechUtterance` interface, `SpeechUtteranceOptions` type, `SayOutLoudAnimation` class |
+| `src/entity-animation.ts` | Added `SpeechUtterance` interface, `SpeechSynthesisAdapter` type, browser speech adapter, `SayOutLoudAnimation` class |
 | `src/project-manager.ts` | Added `revertToLastSaved()`, `createBackup()`, `restoreFromBackup()` methods |
 | `src/resource-system.ts` | Exported `ResourceBase`; widened `ResourceKind` to include `'dynamic'`; added `DynamicResource` + 3 subtypes; widened `ProjectResource` union; added `registerDynamic()` to `ResourceManager` |
 
@@ -776,10 +826,11 @@ npx vitest run test/dynamic-resource.test.ts
    machine testable independently and avoids coupling Web Audio API concerns
    to the core playback logic.
 
-2. **Stub interfaces, not mocks.** The Web Audio API and SpeechSynthesis
-   interfaces are TypeScript `interface` declarations with minimal stub
-   implementations. No mock library is needed — the stubs are production code
-   that happens to be functional in Node.js.
+2. **Explicit adapters, not silent stubs.** The Web Audio API still uses
+   minimal TypeScript interfaces for testability. `SayOutLoudAnimation` uses a
+   `SpeechSynthesisAdapter` so browsers can call the real Web Speech API while
+   Node.js tests inject deterministic fakes. If no adapter/API exists, callers
+   see `speechStatus.status === 'unavailable'` rather than a fake success.
 
 3. **Duration-based TTS animation, not ImmediateAnimation.** Real
    `SpeechSynthesis` completion timing is unpredictable. The formula
@@ -788,8 +839,9 @@ npx vitest run test/dynamic-resource.test.ts
    with an elapsed-time accumulator — it must NOT delegate to
    `ImmediateAnimation` because that would complete on first `update()`
    regardless of `deltaMs`, breaking `doTogether`/`doInOrder` composition.
-   The utterance stub is created in the constructor (matching the "apply on
-   construct" pattern), but animation completion is driven by elapsed time.
+   The utterance is submitted to the speech adapter in the constructor
+   (matching the "apply on construct" pattern), but animation completion is
+   driven by elapsed time.
 
 4. **Defensive copy for DynamicResource data.** `ArrayBuffer` is mutable.
    The constructor calls `data.slice(0)` to prevent external code from
@@ -828,9 +880,11 @@ npx vitest run test/dynamic-resource.test.ts
 - **No real audio decoding.** `WebAudioPlayer` is a stub — it tracks state
   but does not decode or output audio. Real playback requires a browser
   `AudioContext`.
-- **No real TTS.** `SayOutLoudAnimation` does not speak — it estimates
-  duration and tracks animation state. Real TTS requires a browser
-  `SpeechSynthesis` API.
+- **TTS requires runtime support.** `SayOutLoudAnimation` speaks through the
+  browser `SpeechSynthesis` API when it is available or through an injected
+  adapter in tests. In runtimes without speech support, it reports
+  `speechStatus.status === 'unavailable'` and still tracks estimated animation
+  duration for composition.
 - **No streaming resources.** `DynamicResource` stores the entire asset in
   memory as an `ArrayBuffer`. There is no streaming or chunked-loading
   variant.

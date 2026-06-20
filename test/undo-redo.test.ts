@@ -78,6 +78,30 @@ describe("UndoRedoManager — core", () => {
     expect(() => manager.redo()).not.toThrow();
   });
 
+  it("skips non-undoable command undo even when direct undo would throw", () => {
+    let executed = false;
+    let undoCalled = false;
+    const cmd: Command = {
+      undoable: false,
+      description: "non-undoable direct-call guard",
+      execute() {
+        executed = true;
+      },
+      undo() {
+        undoCalled = true;
+        throw new Error("direct undo should not be called");
+      },
+    };
+
+    manager.execute(cmd);
+    manager.undo();
+
+    expect(executed).toBe(true);
+    expect(undoCalled).toBe(false);
+    expect(manager.canUndo).toBe(false);
+    expect(manager.canRedo).toBe(false);
+  });
+
   it("executing a new command clears the redo stack", () => {
     const scene = makeScene();
     manager.execute(new MoveEntityCommand(scene, "box", { x: 10, y: 0, z: 0 }));

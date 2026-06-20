@@ -2,7 +2,6 @@
 
 **Layer**: service-components × compile-deps
 **Severity**: Medium
-**Pass**: 1
 **Evidence**:
 - `docs/atlas/compile-deps/README.md:16-19` says `a3p-parser` is the most imported internal module and binds project/IDE, runtime, and entry-point clusters.
 - `docs/atlas/service-components/service-components-infrastructure.mmd:2-14` shows `A3P I/O` feeding only `Project system` and `REST server`.

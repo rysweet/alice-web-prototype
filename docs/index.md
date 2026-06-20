@@ -6,10 +6,8 @@ so the `eatme` test suite can drive real curriculum workflows.
 
 ## Current status
 
-- **336 files** of project code
-- **73K lines** of TypeScript and support code
-- **84.5% coverage**
-- Browser UI, REST API, and curriculum testing in one repository
+- Core TypeScript project code and support tooling live in this repository
+- Browser UI, REST API, and curriculum testing are maintained together
 
 ## Start here
 
@@ -37,6 +35,7 @@ so the `eatme` test suite can drive real curriculum workflows.
 ### Tutorials
 
 - [Getting started](./getting-started.md)
+- [Building your first Alice application](./tutorial-building-your-first-alice-app.md)
 - [Adding open-source 3D models](./tutorial-adding-3d-models.md)
 - [Creating, using, and testing 3D character assets](./creating-using-testing-3d-character-assets.md)
 - [Round-trip an `.a3p` project with Project IO](./tutorial-project-io-round-trip.md)
@@ -51,6 +50,10 @@ so the `eatme` test suite can drive real curriculum workflows.
 ### Reference
 
 - [API reference](./api-reference.md)
+- [Root TypeScript API barrel](./architecture.md#barrel-re-exports) -
+  `src/index.ts` is the public root export surface. It includes namespace
+  exports such as `StoryApi`, `TweedleParser`, `SceneRenderer`,
+  `PluginSystem`, `PrintSystem`, and `VersionManagement`.
 - [A3P statement round-trip coverage](./a3p-statement-round-trip.md)
 - [Animation system](./animation.md)
 - [Audio](./audio.md)

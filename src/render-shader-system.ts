@@ -225,19 +225,19 @@ export class UniformBuffer {
 const BUILTIN_SHADERS = {
   phong: {
     vertex: `in vec3 position; in vec3 normal; uniform mat4 modelMatrix; uniform mat4 viewProjection; void main() { gl_Position = viewProjection * modelMatrix * vec4(position, 1.0); }`,
-    fragment: `uniform vec3 diffuseColor; uniform vec3 lightDirection; void main() { }`,
+    fragment: `uniform vec3 diffuseColor; uniform vec3 lightDirection; out vec4 fragmentColor; void main() { float light = max(dot(normalize(lightDirection), vec3(0.0, 0.0, 1.0)), 0.0); fragmentColor = vec4(diffuseColor * light, 1.0); }`,
   },
   pbr: {
     vertex: `in vec3 position; in vec3 normal; in vec2 uv; uniform mat4 modelMatrix; uniform mat4 viewProjection; void main() { gl_Position = viewProjection * modelMatrix * vec4(position, 1.0); }`,
-    fragment: `uniform vec3 baseColor; uniform float roughness; uniform float metalness; void main() { }`,
+    fragment: `uniform vec3 baseColor; uniform float roughness; uniform float metalness; out vec4 fragmentColor; void main() { float surface = clamp(1.0 - roughness * 0.5 + metalness * 0.1, 0.0, 1.0); fragmentColor = vec4(baseColor * surface, 1.0); }`,
   },
   unlit: {
     vertex: `in vec3 position; uniform mat4 modelViewProjection; void main() { gl_Position = modelViewProjection * vec4(position, 1.0); }`,
-    fragment: `uniform vec4 tintColor; void main() { }`,
+    fragment: `uniform vec4 tintColor; out vec4 fragmentColor; void main() { fragmentColor = tintColor; }`,
   },
   wireframe: {
     vertex: `in vec3 position; uniform mat4 modelViewProjection; void main() { gl_Position = modelViewProjection * vec4(position, 1.0); }`,
-    fragment: `uniform vec4 lineColor; void main() { }`,
+    fragment: `uniform vec4 lineColor; out vec4 fragmentColor; void main() { fragmentColor = lineColor; }`,
   },
 } as const;
 

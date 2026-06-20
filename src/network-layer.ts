@@ -279,8 +279,8 @@ export class APIClient implements ExternalServiceAdapter {
 
   async request<T>(path: string, init: RequestInit = {}, options: RequestOptions = {}): Promise<T> {
     const runRequest = async (): Promise<T> => {
-      const url = this.resolveUrl(path);
       const method = init.method ?? "GET";
+      const url = this.resolveUrl(path, method);
       const timeout = createTimeout(options.timeoutMs ?? this.timeoutMs);
       let response: FetchResponseLike;
       try {
@@ -333,9 +333,22 @@ export class APIClient implements ExternalServiceAdapter {
     return this.retryPolicy.execute(() => runRequest());
   }
 
-  private resolveUrl(path: string): string {
-    if (/^https?:\/\//.test(path)) {
-      return path;
+  private resolveUrl(path: string, method: string): string {
+    const baseUrl = parseAbsoluteHttpUrl(this.baseUrl);
+    const absoluteUrl = parseAbsoluteHttpUrl(path, baseUrl);
+    if (absoluteUrl) {
+      if (baseUrl !== null && absoluteUrl.origin === baseUrl.origin) {
+        return absoluteUrl.href;
+      }
+      throw new ExternalServiceError(
+        `Absolute URL for ${this.serviceName} must match the configured base URL origin.`,
+        {
+          serviceName: this.serviceName,
+          method,
+          url: path,
+          retryable: false,
+        },
+      );
     }
     if (!this.baseUrl) {
       return path;
@@ -508,6 +521,30 @@ function normalizeHeaders(headers: HeadersInit | undefined): Record<string, stri
     return Object.fromEntries(headers.map(([key, value]) => [key, String(value)]));
   }
   return Object.fromEntries(Object.entries(headers).map(([key, value]) => [key, String(value)]));
+}
+
+function parseAbsoluteHttpUrl(value: string, baseUrl: URL | null = null): URL | null {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? url : null;
+  } catch {
+    if (!startsWithNetworkPath(value)) {
+      return null;
+    }
+    try {
+      const url = new URL(value, baseUrl ?? "https://invalid.local");
+      return url.protocol === "http:" || url.protocol === "https:" ? url : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function startsWithNetworkPath(value: string): boolean {
+  const normalizedValue = value
+    .replace(/[\u0009\u000A\u000D]/g, "")
+    .replace(/^[\u0000-\u0020]+/, "");
+  return /^[/\\]{2}/.test(normalizedValue);
 }
 
 function isRetryableExternalCall(error: unknown): boolean {

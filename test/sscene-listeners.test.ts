@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { SScene, SBox } from "../src/story-api/index.js";
+import { SScene, SBox, SCamera } from "../src/story-api/index.js";
+import type { SSceneListenerDispatch } from "../src/story-api/index.js";
 import type {
   MouseClickOnScreenEvent,
   MouseClickOnObjectEvent,
@@ -25,6 +26,202 @@ function makeBoxAt(name: string, x: number, y: number, z: number): SBox {
   return box;
 }
 
+const modifiers = Object.freeze({ alt: false, ctrl: false, meta: false, shift: false });
+
+type ListenerCallback = (event: any) => void;
+
+type SimpleListenerCase = {
+  readonly name: string;
+  readonly event: any;
+  readonly add: (scene: SScene, listener: ListenerCallback) => void;
+  readonly remove: (scene: SScene, listener: ListenerCallback) => void;
+  readonly dispatch: (event: any) => SSceneListenerDispatch;
+};
+
+type EntityListenerCase = {
+  readonly name: string;
+  readonly eventFor: (entity: SBox) => any;
+  readonly add: (scene: SScene, entity: SBox, listener: ListenerCallback) => void;
+  readonly remove: (scene: SScene, entity: SBox, listener: ListenerCallback) => void;
+  readonly dispatch: (entity: SBox, event: any) => SSceneListenerDispatch;
+};
+
+function expectSimpleListenerDelivery(testCase: SimpleListenerCase): void {
+  const scene = makeScene();
+  const received: unknown[] = [];
+  const listener = (event: unknown) => { received.push(event); };
+
+  testCase.add(scene, listener);
+  scene.dispatchListenerEvent(testCase.dispatch(testCase.event));
+  expect(received).toEqual([testCase.event]);
+
+  testCase.remove(scene, listener);
+  scene.dispatchListenerEvent(testCase.dispatch(testCase.event));
+  expect(received).toEqual([testCase.event]);
+}
+
+function expectEntityListenerDelivery(testCase: EntityListenerCase): void {
+  const scene = makeScene();
+  const entity = makeBoxAt("hero", 0, 0, 0);
+  const otherEntity = makeBoxAt("other", 2, 0, 0);
+  const event = testCase.eventFor(entity);
+  const received: unknown[] = [];
+  const listener = (deliveredEvent: unknown) => { received.push(deliveredEvent); };
+
+  testCase.add(scene, entity, listener);
+  scene.dispatchListenerEvent(testCase.dispatch(otherEntity, testCase.eventFor(otherEntity)));
+  expect(received).toEqual([]);
+
+  scene.dispatchListenerEvent(testCase.dispatch(entity, event));
+  expect(received).toEqual([event]);
+
+  testCase.remove(scene, entity, listener);
+  scene.dispatchListenerEvent(testCase.dispatch(entity, event));
+  expect(received).toEqual([event]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 0. DELIVERY — Callbacks fire before removal and stop after removal
+// ═══════════════════════════════════════════════════════════════════════
+
+describe("SScene listener event delivery", () => {
+  it.each([
+    {
+      name: "mouse click on screen",
+      event: { type: "click", screenX: 10, screenY: 20, point: { x: 1, y: 2, z: 3 } },
+      add: (scene, listener) => scene.addMouseClickOnScreenListener(listener),
+      remove: (scene, listener) => scene.removeMouseClickOnScreenListener(listener),
+      dispatch: (event) => ({ listener: "mouseClickOnScreen", event }),
+    } satisfies SimpleListenerCase,
+    {
+      name: "mouse click on object",
+      event: { type: "click", target: null, targetName: null, point: { x: 1, y: 2, z: 3 }, distance: 4 },
+      add: (scene, listener) => scene.addMouseClickOnObjectListener(listener),
+      remove: (scene, listener) => scene.removeMouseClickOnObjectListener(listener),
+      dispatch: (event) => ({ listener: "mouseClickOnObject", event }),
+    } satisfies SimpleListenerCase,
+    {
+      name: "key press",
+      event: { type: "key-press", key: "a", modifiers, shortcuts: ["a"], pressed: true },
+      add: (scene, listener) => scene.addKeyPressListener(listener),
+      remove: (scene, listener) => scene.removeKeyPressListener(listener),
+      dispatch: (event) => ({ listener: "keyPress", event }),
+    } satisfies SimpleListenerCase,
+    {
+      name: "arrow key press",
+      event: { type: "key-press", key: "ArrowUp", direction: "FORWARD", modifiers },
+      add: (scene, listener) => scene.addArrowKeyPressListener(listener),
+      remove: (scene, listener) => scene.removeArrowKeyPressListener(listener),
+      dispatch: (event) => ({ listener: "arrowKeyPress", event }),
+    } satisfies SimpleListenerCase,
+    {
+      name: "number key press",
+      event: { type: "key-press", key: "5", number: 5, modifiers },
+      add: (scene, listener) => scene.addNumberKeyPressListener(listener),
+      remove: (scene, listener) => scene.removeNumberKeyPressListener(listener),
+      dispatch: (event) => ({ listener: "numberKeyPress", event }),
+    } satisfies SimpleListenerCase,
+    {
+      name: "point of view change",
+      event: { type: "pov-change" } as PointOfViewChangeEvent,
+      add: (scene, listener) => scene.addPointOfViewChangeListener(listener),
+      remove: (scene, listener) => scene.removePointOfViewChangeListener(listener),
+      dispatch: (event) => ({ listener: "pointOfViewChange", event }),
+    } satisfies SimpleListenerCase,
+  ])("delivers $name callbacks until removal", (testCase) => {
+    expectSimpleListenerDelivery(testCase);
+  });
+
+  it.each([
+    {
+      name: "collision start",
+      eventFor: (entity) => ({ type: "collision-start", left: entity, right: makeBoxAt("wall", 1, 0, 0), pairKey: "hero::wall" }),
+      add: (scene, entity, listener) => scene.addCollisionStartListener(entity, listener),
+      remove: (scene, entity, listener) => scene.removeCollisionStartListener(entity, listener),
+      dispatch: (entity, event) => ({ listener: "collisionStart", entity, event }),
+    } satisfies EntityListenerCase,
+    {
+      name: "collision end",
+      eventFor: (entity) => ({ type: "collision-end", left: entity, right: makeBoxAt("wall", 1, 0, 0), pairKey: "hero::wall" }),
+      add: (scene, entity, listener) => scene.addCollisionEndListener(entity, listener),
+      remove: (scene, entity, listener) => scene.removeCollisionEndListener(entity, listener),
+      dispatch: (entity, event) => ({ listener: "collisionEnd", entity, event }),
+    } satisfies EntityListenerCase,
+    {
+      name: "occlusion start",
+      eventFor: (entity) => ({ type: "occlusion-start", camera: new SCamera(), target: entity, occluder: null }),
+      add: (scene, entity, listener) => scene.addOcclusionStartListener(entity, listener),
+      remove: (scene, entity, listener) => scene.removeOcclusionStartListener(entity, listener),
+      dispatch: (entity, event) => ({ listener: "occlusionStart", entity, event }),
+    } satisfies EntityListenerCase,
+    {
+      name: "occlusion end",
+      eventFor: (entity) => ({ type: "occlusion-end", camera: new SCamera(), target: entity, occluder: null }),
+      add: (scene, entity, listener) => scene.addOcclusionEndListener(entity, listener),
+      remove: (scene, entity, listener) => scene.removeOcclusionEndListener(entity, listener),
+      dispatch: (entity, event) => ({ listener: "occlusionEnd", entity, event }),
+    } satisfies EntityListenerCase,
+    {
+      name: "while in view",
+      eventFor: (entity) => ({ type: "while-in-view", camera: new SCamera(), target: entity }),
+      add: (scene, entity, listener) => scene.addWhileInViewListener(entity, listener),
+      remove: (scene, entity, listener) => scene.removeWhileInViewListener(entity, listener),
+      dispatch: (entity, event) => ({ listener: "whileInView", entity, event }),
+    } satisfies EntityListenerCase,
+    {
+      name: "while occlusion",
+      eventFor: (entity) => ({ type: "while-occlusion", camera: new SCamera(), target: entity, occluder: null }),
+      add: (scene, entity, listener) => scene.addWhileOcclusionListener(entity, listener),
+      remove: (scene, entity, listener) => scene.removeWhileOcclusionListener(entity, listener),
+      dispatch: (entity, event) => ({ listener: "whileOcclusion", entity, event }),
+    } satisfies EntityListenerCase,
+  ])("delivers $name callbacks for the registered entity until removal", (testCase) => {
+    expectEntityListenerDelivery(testCase);
+  });
+
+  it.each([
+    {
+      name: "proximity enter",
+      add: (scene: SScene, entity: SBox, listener: (event: ProximityTransitionEvent) => void) =>
+        scene.addProximityEnterListener(entity, 5, listener),
+      remove: (scene: SScene, entity: SBox, listener: (event: ProximityTransitionEvent) => void) =>
+        scene.removeProximityEnterListener(entity, listener),
+      dispatch: (entity: SBox, event: ProximityTransitionEvent): SSceneListenerDispatch =>
+        ({ listener: "proximityEnter", entity, event }),
+    },
+    {
+      name: "proximity exit",
+      add: (scene: SScene, entity: SBox, listener: (event: ProximityTransitionEvent) => void) =>
+        scene.addProximityExitListener(entity, 5, listener),
+      remove: (scene: SScene, entity: SBox, listener: (event: ProximityTransitionEvent) => void) =>
+        scene.removeProximityExitListener(entity, listener),
+      dispatch: (entity: SBox, event: ProximityTransitionEvent): SSceneListenerDispatch =>
+        ({ listener: "proximityExit", entity, event }),
+    },
+  ])("delivers $name callbacks until removal", (testCase) => {
+    const scene = makeScene();
+    const entity = makeBoxAt("target", 3, 0, 0);
+    const event: ProximityTransitionEvent = {
+      type: testCase.name === "proximity enter" ? "proximity-enter" : "proximity-exit",
+      source: entity,
+      target: makeBoxAt("observer", 0, 0, 0),
+      pairKey: "observer::target",
+      threshold: 5,
+      distance: 3,
+    };
+    const received: ProximityTransitionEvent[] = [];
+    const listener = (deliveredEvent: ProximityTransitionEvent) => { received.push(deliveredEvent); };
+
+    testCase.add(scene, entity, listener);
+    scene.dispatchListenerEvent(testCase.dispatch(entity, event));
+    expect(received).toEqual([event]);
+
+    testCase.remove(scene, entity, listener);
+    scene.dispatchListenerEvent(testCase.dispatch(entity, event));
+    expect(received).toEqual([event]);
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════════════
 // 1. SIMPLE LISTENERS — Scene-level, stored as Set<callback>
 // ═══════════════════════════════════════════════════════════════════════
@@ -32,7 +229,7 @@ function makeBoxAt(name: string, x: number, y: number, z: number): SBox {
 describe("SScene simple listener convenience methods", () => {
   // ── addMouseClickOnScreenListener / removeMouseClickOnScreenListener ──
   describe("addMouseClickOnScreenListener", () => {
-    it("registers a callback and receives MouseClickOnScreenEvent", () => {
+    it("registers a MouseClickOnScreenEvent callback without immediate delivery", () => {
       const scene = makeScene();
       const received: MouseClickOnScreenEvent[] = [];
       const listener = (event: MouseClickOnScreenEvent) => { received.push(event); };
@@ -41,13 +238,13 @@ describe("SScene simple listener convenience methods", () => {
       expect(received).toHaveLength(0);
     });
 
-    it("removeMouseClickOnScreenListener stops delivery", () => {
+    it("removeMouseClickOnScreenListener removes a registered callback without throwing", () => {
       const scene = makeScene();
       const received: MouseClickOnScreenEvent[] = [];
       const listener = (event: MouseClickOnScreenEvent) => { received.push(event); };
       scene.addMouseClickOnScreenListener(listener);
       scene.removeMouseClickOnScreenListener(listener);
-      // After remove, no further events expected
+      // Registration and removal are covered by the delivery tests above.
       expect(received).toHaveLength(0);
     });
 
@@ -70,7 +267,7 @@ describe("SScene simple listener convenience methods", () => {
 
   // ── addMouseClickOnObjectListener / removeMouseClickOnObjectListener ──
   describe("addMouseClickOnObjectListener", () => {
-    it("registers a callback and receives MouseClickOnObjectEvent", () => {
+    it("registers a MouseClickOnObjectEvent callback without immediate delivery", () => {
       const scene = makeScene();
       const received: MouseClickOnObjectEvent[] = [];
       const listener = (event: MouseClickOnObjectEvent) => { received.push(event); };
@@ -78,7 +275,7 @@ describe("SScene simple listener convenience methods", () => {
       expect(received).toHaveLength(0);
     });
 
-    it("removeMouseClickOnObjectListener stops delivery", () => {
+    it("removeMouseClickOnObjectListener removes a registered callback without throwing", () => {
       const scene = makeScene();
       const listener = vi.fn();
       scene.addMouseClickOnObjectListener(listener);
@@ -93,7 +290,7 @@ describe("SScene simple listener convenience methods", () => {
 
   // ── addKeyPressListener / removeKeyPressListener ──
   describe("addKeyPressListener", () => {
-    it("registers a callback and receives KeyListenerEvent", () => {
+    it("registers a KeyListenerEvent callback without immediate delivery", () => {
       const scene = makeScene();
       const received: KeyListenerEvent[] = [];
       const listener = (event: KeyListenerEvent) => { received.push(event); };
@@ -101,7 +298,7 @@ describe("SScene simple listener convenience methods", () => {
       expect(received).toHaveLength(0);
     });
 
-    it("removeKeyPressListener stops delivery", () => {
+    it("removeKeyPressListener removes a registered callback without throwing", () => {
       const scene = makeScene();
       const listener = vi.fn();
       scene.addKeyPressListener(listener);
@@ -116,7 +313,7 @@ describe("SScene simple listener convenience methods", () => {
 
   // ── addArrowKeyPressListener / removeArrowKeyPressListener ──
   describe("addArrowKeyPressListener", () => {
-    it("registers a callback and receives ArrowKeyEvent", () => {
+    it("registers an ArrowKeyEvent callback without immediate delivery", () => {
       const scene = makeScene();
       const received: ArrowKeyEvent[] = [];
       const listener = (event: ArrowKeyEvent) => { received.push(event); };
@@ -124,7 +321,7 @@ describe("SScene simple listener convenience methods", () => {
       expect(received).toHaveLength(0);
     });
 
-    it("removeArrowKeyPressListener stops delivery", () => {
+    it("removeArrowKeyPressListener removes a registered callback without throwing", () => {
       const scene = makeScene();
       const listener = vi.fn();
       scene.addArrowKeyPressListener(listener);
@@ -134,7 +331,7 @@ describe("SScene simple listener convenience methods", () => {
 
   // ── addNumberKeyPressListener / removeNumberKeyPressListener ──
   describe("addNumberKeyPressListener", () => {
-    it("registers a callback and receives NumberKeyEvent", () => {
+    it("registers a NumberKeyEvent callback without immediate delivery", () => {
       const scene = makeScene();
       const received: NumberKeyEvent[] = [];
       const listener = (event: NumberKeyEvent) => { received.push(event); };
@@ -142,7 +339,7 @@ describe("SScene simple listener convenience methods", () => {
       expect(received).toHaveLength(0);
     });
 
-    it("removeNumberKeyPressListener stops delivery", () => {
+    it("removeNumberKeyPressListener removes a registered callback without throwing", () => {
       const scene = makeScene();
       const listener = vi.fn();
       scene.addNumberKeyPressListener(listener);
@@ -152,7 +349,7 @@ describe("SScene simple listener convenience methods", () => {
 
   // ── addPointOfViewChangeListener / removePointOfViewChangeListener ──
   describe("addPointOfViewChangeListener", () => {
-    it("registers a callback and receives PointOfViewChangeEvent", () => {
+    it("registers a PointOfViewChangeEvent callback without immediate delivery", () => {
       const scene = makeScene();
       const received: PointOfViewChangeEvent[] = [];
       const listener = (event: PointOfViewChangeEvent) => { received.push(event); };
@@ -160,7 +357,7 @@ describe("SScene simple listener convenience methods", () => {
       expect(received).toHaveLength(0);
     });
 
-    it("removePointOfViewChangeListener stops delivery", () => {
+    it("removePointOfViewChangeListener removes a registered callback without throwing", () => {
       const scene = makeScene();
       const listener = vi.fn();
       scene.addPointOfViewChangeListener(listener);
@@ -185,7 +382,7 @@ describe("SScene entity-bound listener convenience methods", () => {
       expect(received).toHaveLength(0);
     });
 
-    it("removeCollisionStartListener stops delivery for that entity", () => {
+    it("removeCollisionStartListener removes a registered callback for that entity", () => {
       const scene = makeScene();
       const box = makeBoxAt("hero", 0, 0, 0);
       const listener = vi.fn();
@@ -333,7 +530,7 @@ describe("SScene proximity listener convenience methods", () => {
       // method exists and accepts (entity, distance, listener)
     });
 
-    it("removeProximityEnterListener stops delivery", () => {
+    it("removeProximityEnterListener removes a registered callback", () => {
       const scene = makeScene();
       const box = makeBoxAt("target", 3, 0, 0);
       const listener = vi.fn();
@@ -378,7 +575,7 @@ describe("SScene proximity listener convenience methods", () => {
       scene.addProximityExitListener(box, 5.0, listener);
     });
 
-    it("removeProximityExitListener stops delivery", () => {
+    it("removeProximityExitListener removes a registered callback", () => {
       const scene = makeScene();
       const box = makeBoxAt("target", 3, 0, 0);
       const listener = vi.fn();

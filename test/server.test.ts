@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { parseA3P } from "../src/a3p-parser";
 import { createServer } from "../src/server";
 import * as fs from "fs";
 import * as path from "path";
@@ -28,6 +29,36 @@ describe("server API", () => {
       expect(res.body.status).toBe("running");
       expect(res.body.runtime).toBe("typescript-web-prototype");
       expect(typeof res.body.pid).toBe("number");
+    });
+
+    it("sends browser defense-in-depth headers without exposing Express", async () => {
+      const res = await request(app).get("/api/health").expect(200);
+
+      expect(res.headers["x-powered-by"]).toBeUndefined();
+      expect(res.headers["content-security-policy"]).toBe(
+        [
+          "default-src 'self'",
+          "base-uri 'self'",
+          "object-src 'none'",
+          "frame-ancestors 'none'",
+          "form-action 'self'",
+          "img-src 'self' data: blob:",
+          "media-src 'self' data: blob:",
+          "font-src 'self' data:",
+          "script-src 'self' 'unsafe-inline'",
+          "style-src 'self' 'unsafe-inline'",
+          "connect-src 'self' ws: wss:",
+          "worker-src 'self' blob:",
+        ].join("; "),
+      );
+      expect(res.headers["cross-origin-opener-policy"]).toBe("same-origin");
+      expect(res.headers["cross-origin-resource-policy"]).toBe("same-origin");
+      expect(res.headers["permissions-policy"]).toBe(
+        "camera=(), geolocation=(), microphone=()",
+      );
+      expect(res.headers["referrer-policy"]).toBe("no-referrer");
+      expect(res.headers["x-content-type-options"]).toBe("nosniff");
+      expect(res.headers["x-frame-options"]).toBe("DENY");
     });
   });
 
@@ -104,7 +135,10 @@ describe("server API", () => {
       // Verify edited project was written
       const editedPath = path.join(TEST_EVIDENCE_DIR, "edited-project.a3p");
       expect(fs.existsSync(editedPath)).toBe(true);
-      expect(fs.statSync(editedPath).size).toBeGreaterThan(0);
+      const editedBytes = fs.readFileSync(editedPath);
+      expect(editedBytes.toString("utf-8")).not.toContain("alice-web-prototype-placeholder");
+      const editedProject = await parseA3P(editedBytes);
+      expect(editedProject.methods.map((method) => method.name)).toContain("myFirstMethod");
     });
   });
 
@@ -154,6 +188,29 @@ describe("server API", () => {
         evidenceDir: TEST_EVIDENCE_DIR,
       });
       await request(freshApp).post("/api/world/run").send({}).expect(400);
+    });
+
+    it("rejects run when the launched project cannot be parsed", async () => {
+      const corruptProjectPath = path.join(TEST_EVIDENCE_DIR, "corrupt.a3p");
+      fs.writeFileSync(corruptProjectPath, Buffer.from("not a zip"));
+      const freshApp = createServer({
+        port: 0,
+        evidenceDir: TEST_EVIDENCE_DIR,
+        allowedProjectDirs: [TEST_EVIDENCE_DIR],
+      });
+      await request(freshApp)
+        .post("/api/launch")
+        .send({ project: corruptProjectPath })
+        .expect(200);
+
+      const res = await request(freshApp)
+        .post("/api/world/run")
+        .send({})
+        .expect(400);
+
+      expect(res.body).toEqual({
+        error: "Failed to parse .a3p before running the world.",
+      });
     });
   });
 
@@ -214,6 +271,8 @@ describe("server API", () => {
       const res = await request(app).get("/api/screenshot").expect(200);
       expect(res.body.status).toBe("captured");
       expect(res.body.path).toContain("screenshot.png");
+      expect(res.body.rendered).toBe(true);
+      expect(res.body.placeholder).toBeUndefined();
 
       const screenshotPath = path.join(TEST_EVIDENCE_DIR, "screenshot.png");
       expect(fs.existsSync(screenshotPath)).toBe(true);

@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   SayOutLoudAnimation,
+  type SpeechPlaybackState,
+  type SpeechSynthesisAdapter,
   type SpeechUtterance,
 } from "../src/entity-animation.js";
 import type { AnimationClipState } from "../src/animation/core.js";
@@ -9,17 +11,45 @@ import type { AnimationClipState } from "../src/animation/core.js";
 // SayOutLoudAnimation — TDD tests (written before implementation)
 //
 // SayOutLoudAnimation implements AnimationClip for browser-TTS parity.
-// It stubs SpeechSynthesisUtterance via the SpeechUtterance interface.
+// It submits a SpeechUtterance through an injected SpeechSynthesisAdapter.
+// In runtimes without speech synthesis, it exposes an unavailable status.
 // Duration is estimated as (text.length / (rate * 5)) * 1000 ms.
 // The utterance is created immediately on construction ("apply on construct").
 // It does NOT delegate to ImmediateAnimation — it accumulates deltaMs itself.
 // ═══════════════════════════════════════════════════════════════════════════
 
+type FakeSpeechAdapter = SpeechSynthesisAdapter & {
+  readonly spoken: SpeechUtterance[];
+  readonly cancelCount: number;
+};
+
+function createFakeSpeechAdapter(available = true): FakeSpeechAdapter {
+  const spoken: SpeechUtterance[] = [];
+  let cancelCount = 0;
+
+  return {
+    available,
+    get spoken() {
+      return spoken;
+    },
+    get cancelCount() {
+      return cancelCount;
+    },
+    speak(utterance: SpeechUtterance): SpeechPlaybackState {
+      spoken.push({ ...utterance });
+      return { status: "speaking", message: "fake speech submitted" };
+    },
+    cancel(): void {
+      cancelCount += 1;
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
-// SpeechUtterance interface
+// Speech interfaces
 // ---------------------------------------------------------------------------
 
-describe("SpeechUtterance — stub interface", () => {
+describe("SpeechUtterance — adapter interfaces", () => {
   it("exports SpeechUtterance interface (compile-time check)", () => {
     const utterance: SpeechUtterance = {
       text: "Hello world",
@@ -31,6 +61,19 @@ describe("SpeechUtterance — stub interface", () => {
     expect(utterance.rate).toBe(1.0);
     expect(utterance.pitch).toBe(1.0);
     expect(utterance.volume).toBe(1.0);
+  });
+
+  it("exports SpeechSynthesisAdapter interface (compile-time check)", () => {
+    const adapter = createFakeSpeechAdapter();
+    const state = adapter.speak({
+      text: "Hello adapter",
+      rate: 1.0,
+      pitch: 1.0,
+      volume: 1.0,
+    });
+
+    expect(state.status).toBe("speaking");
+    expect(adapter.spoken).toHaveLength(1);
   });
 });
 
@@ -55,10 +98,42 @@ describe("SayOutLoudAnimation — construction", () => {
     expect(anim.utterance.text).toBe("Test utterance");
   });
 
-  it("utterance is created immediately on construction (not lazily on update)", () => {
-    const anim = new SayOutLoudAnimation({ text: "Immediate" });
-    // Before any update, utterance should already exist
+  it("submits utterance to injected speech adapter immediately on construction", () => {
+    const adapter = createFakeSpeechAdapter();
+    const anim = new SayOutLoudAnimation({ text: "Immediate", speechAdapter: adapter });
+
     expect(anim.utterance.text).toBe("Immediate");
+    expect(adapter.spoken).toEqual([anim.utterance]);
+    expect(anim.speechStatus.status).toBe("speaking");
+  });
+
+  it("makes unavailable runtime behavior explicit when no speech adapter exists", () => {
+    const anim = new SayOutLoudAnimation({ text: "Silent runtime", speechAdapter: null });
+
+    expect(anim.speechStatus.status).toBe("unavailable");
+    expect(anim.speechStatus.message).toContain("unavailable");
+  });
+
+  it("does not pretend to speak when configured adapter is unavailable", () => {
+    const adapter = createFakeSpeechAdapter(false);
+    const anim = new SayOutLoudAnimation({ text: "Adapter off", speechAdapter: adapter });
+
+    expect(adapter.spoken).toHaveLength(0);
+    expect(anim.speechStatus.status).toBe("unavailable");
+  });
+
+  it("captures speech adapter errors as explicit status", () => {
+    const adapter: SpeechSynthesisAdapter = {
+      available: true,
+      speak() {
+        throw new Error("boom");
+      },
+    };
+
+    const anim = new SayOutLoudAnimation({ text: "Error path", speechAdapter: adapter });
+
+    expect(anim.speechStatus.status).toBe("error");
+    expect(anim.speechStatus.message).toContain("boom");
   });
 });
 
@@ -89,6 +164,7 @@ describe("SayOutLoudAnimation — duration estimation", () => {
   it("empty text produces 0ms duration", () => {
     const anim = new SayOutLoudAnimation({ text: "" });
     expect(anim.durationMs).toBe(0);
+    expect(anim.speechStatus.status).toBe("skipped");
   });
 });
 
@@ -239,12 +315,15 @@ describe("SayOutLoudAnimation — reset", () => {
   });
 
   it("reset() allows replay", () => {
-    const anim = new SayOutLoudAnimation({ text: "Hello" });
+    const adapter = createFakeSpeechAdapter();
+    const anim = new SayOutLoudAnimation({ text: "Hello", speechAdapter: adapter });
     anim.update(1000);
     anim.reset();
     const state = anim.update(500);
     expect(state.elapsedMs).toBe(500);
     expect(state.complete).toBe(false);
+    expect(adapter.cancelCount).toBe(1);
+    expect(adapter.spoken).toHaveLength(2);
   });
 });
 

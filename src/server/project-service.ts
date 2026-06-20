@@ -27,6 +27,13 @@ export interface ProjectService {
   ): Promise<Record<string, unknown>>;
 }
 
+export class ProjectRunError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "ProjectRunError";
+  }
+}
+
 function isMissingProjectFileError(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
@@ -107,7 +114,23 @@ export const projectService: ProjectService = {
 
     const methodNames = Array.from(state.procedures.keys());
 
-    await evidenceService.writeEditedProjectArtifact(state.projectPath, evidenceDir);
+    let sourceProjectPath = state.projectPath;
+    if (sourceProjectPath) {
+      try {
+        await fs.promises.access(sourceProjectPath, fs.constants.R_OK);
+      } catch (error) {
+        if (!isMissingProjectFileError(error)) throw error;
+        sourceProjectPath = null;
+      }
+    }
+    const currentProjectBytes = sourceProjectPath
+      ? null
+      : await writeA3P(buildCurrentProject(state));
+    await evidenceService.writeEditedProjectArtifact(
+      sourceProjectPath,
+      evidenceDir,
+      currentProjectBytes,
+    );
 
     const proofPath = evidenceService.recordEditProcedureProof(evidenceDir, {
       procedureSelector,
@@ -180,7 +203,9 @@ export const projectService: ProjectService = {
         const data = await fs.promises.readFile(state.projectPath);
         state.parsedProject = await parseA3P(data);
       } catch (err) {
-        console.error("Failed to parse .a3p on run:", err);
+        throw new ProjectRunError("Failed to parse .a3p before running the world.", {
+          cause: err instanceof Error ? err : undefined,
+        });
       }
     }
 

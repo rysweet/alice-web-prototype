@@ -12,8 +12,12 @@ This layer maps the Express REST surface in `src/server.ts` and the adjacent par
 | --- | --- | --- | --- | --- | --- |
 | GET | `/api/health` | none | `{ status, launched, pid, uptime, runtime }` | none | in-memory `ServerState` |
 | POST | `/api/launch` | `{ project?: string }` | `{ status: "launched", project, projectName, sceneObjectCount }` | `400 { error }` when `project` is present but does not end with `.a3p` | `fs`, `parseA3P`, seeded scene objects |
+| GET | `/api/project/templates` | none | `{ templates: TemplateDescriptor[] }` | none | `TemplateLibrary.listTemplates()` |
+| POST | `/api/project/new` | `{ templateId?: string, projectName?: string }` | `{ schema_version, status: "created", templateId, projectName, projectPath, sceneObjectCount, a3pSizeBytes }` | `400 { error, availableTemplates }` when `templateId` is unknown | `TemplateLibrary`, `writeA3P()`, evidence dir, `ServerState` reset |
 | POST | `/api/scene/add-object` | `{ className: string, name?: string }` | `{ status: "added", objectName, className, sceneFieldCountAfter, evidenceArtifact }` | `400 { error: "className is required" }` | `ServerState.sceneObjects`, `writeSceneObjectAdded()` |
 | POST | `/api/code/edit-procedure` | `{ procedureSelector?: string, editSpec?: string }` | `{ schema_version, status: "proved", procedure_selector, edited_project_artifact, action_proof, doesNotClaim, evidenceArtifact }` | no explicit validation beyond defaults | `ServerState.procedures`, `writeEditProcedureProof()` |
+| POST | `/api/code/create-procedure` | `{ name: string, parameters?: MethodParam[] }` | `{ status: "created", name, kind: "procedure", parameters, totalProcedures }` | `400 { error }` when `name` is missing, duplicate, or parameters are invalid | `parseMethodParams()`, `registerMethod()`, `ServerState.procedures` |
+| POST | `/api/code/create-function` | `{ name: string, returnType: string, parameters?: MethodParam[] }` | `{ status: "created", name, kind: "function", returnType, parameters, totalProcedures }` | `400 { error }` when `name` or `returnType` is missing, method is duplicate, or parameters are invalid | `parseMethodParams()`, `registerMethod()`, `ServerState.procedures` |
 | POST | `/api/project/save` | `{ saveSelector?: string, targetPath?: string }` | `{ schema_version, status: "saved", save_selector, saved_project_artifact, save_artifact, evidenceArtifact }` | none | evidence dir, placeholder/copy `.a3p`, `writeSaveProof()` |
 | POST | `/api/world/run` | `{}` | `{ schema_version, status: "completed", project_name, scene_object_count, procedure_count, statements_executed, execution_log, run_duration_ms, errors, doesNotClaim, evidenceArtifact }` | `400 { error: "Not launched. Call POST /api/launch first." }` | cached `AliceProject`, `executeProject()`, run evidence file |
 | GET | `/api/screenshot` | none | success: `{ status: "captured", path, objectCount, sceneDescription, rendered: true }`; fallback: `{ status: "captured", path, placeholder: true, error }` | renderer exceptions fall back to placeholder PNG | `renderSceneToPng()` |
@@ -26,6 +30,8 @@ This layer maps the Express REST surface in `src/server.ts` and the adjacent par
 - **Global middleware:** `express.json({ limit: "1mb" })`.
 - **Route-local guards:**
   - `/api/launch` rejects non-`.a3p` paths.
+  - `/api/project/new` rejects unknown template IDs and returns the available template IDs.
+  - `/api/code/create-procedure` and `/api/code/create-function` reject missing names, duplicate methods, and invalid parameter payloads; `/api/code/create-function` also requires `returnType`.
   - `/api/world/run` and `/api/events/*` require `state.launched === true`.
   - `/api/events/register` and `/api/events/fire` rely on `EventSystem` for payload validation and normalize `keyPress` to the internal `keyPressed` event family.
   - `/api/screenshot` falls back to a placeholder PNG instead of surfacing renderer exceptions.

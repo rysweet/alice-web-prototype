@@ -1,0 +1,51 @@
+name: Code CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.*'
+      - 'vitest.config.*'
+      - '.github/workflows/**'
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - 'vite.config.*'
+      - 'vitest.config.*'
+      - '.github/workflows/**'
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm run build:server
+      - name: Prepare real A3P test fixture
+        run: |
+          sudo mkdir -p /home/azureuser/src/eatme/crates/eatme-alice/tests/fixtures/real
+          sudo chown -R "$USER":"$USER" /home/azureuser
+          curl --fail --location --output /home/azureuser/src/eatme/crates/eatme-alice/tests/fixtures/real/amazonMinimum.a3p https://raw.githubusercontent.com/rysweet/eatme/8593e76d62802c4d01ccc30b8a6ae334f81ad7b6/crates/eatme-alice/tests/fixtures/real/amazonMinimum.a3p
+      - name: Install Gadugi test runner
+        run: npm install --no-save github:rysweet/gadugi-agentic-test
+      - run: npm test

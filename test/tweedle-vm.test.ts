@@ -12,6 +12,11 @@ import {
   type ExecutionResult,
   type LogEntry,
 } from "../src/tweedle-vm";
+import {
+  REPOSITORY_A3P_FIXTURE,
+  optionalExternalA3PFixtureExists,
+  readRequiredA3PFixture,
+} from "./fixtures/a3p-fixtures";
 
 // Polyfill DOMParser for Node.js (vitest runs in Node)
 beforeAll(async () => {
@@ -1084,11 +1089,30 @@ describe("tweedle-vm", () => {
   // ── Integration with real .a3p ─────────────────────────────────────
 
   describe("integration with real .a3p", { timeout: 30_000 }, () => {
+    it("parses and executes the sanitized repository fixture via executeProject", async () => {
+      expect(fs.existsSync(REPOSITORY_A3P_FIXTURE)).toBe(true);
+      const { parseA3P } = await import("../src/a3p-parser");
+      const parsed = await parseA3P(readRequiredA3PFixture());
+
+      const result = executeProject(parsed);
+
+      expect(result.execution_log.length).toBeGreaterThan(0);
+      expect(result.execution_log.map((entry) => entry.kind)).toEqual(
+        expect.arrayContaining(["MethodCall", "CountLoop"]),
+      );
+      expect(result.returnValues).toBeInstanceOf(Map);
+      for (const entry of result.execution_log) {
+        expect(typeof entry.step).toBe("number");
+        expect(typeof entry.kind).toBe("string");
+        expect(typeof entry.detail).toBe("string");
+      }
+    });
+
     const AMAZON_MIN_A3P = path.resolve(
       __dirname,
       "../../alice/core/resources/target/distribution/application/starter-projects/amazonMinimum.a3p",
     );
-    const fileExists = fs.existsSync(AMAZON_MIN_A3P);
+    const fileExists = optionalExternalA3PFixtureExists(AMAZON_MIN_A3P);
 
     it.skipIf(!fileExists)("parses and executes amazonMinimum.a3p via executeProject", async () => {
       const { parseA3P } = await import("../src/a3p-parser");
@@ -1111,7 +1135,7 @@ describe("tweedle-vm", () => {
       __dirname,
       "../../alice/core/resources/target/distribution/application/starter-projects/amazonFull.a3p",
     );
-    const fullExists = fs.existsSync(AMAZON_FULL_A3P);
+    const fullExists = optionalExternalA3PFixtureExists(AMAZON_FULL_A3P);
 
     it.skipIf(!fullExists)("handles amazonFull.a3p without exceeding safety limits", async () => {
       const { parseA3P } = await import("../src/a3p-parser");

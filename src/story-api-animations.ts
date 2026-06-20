@@ -124,8 +124,8 @@ export abstract class DurationAnimation {
     return this.snapshot();
   }
 
-  protected finish(): void {
-  }
+  // Extension hook: animations with cleanup can override this; most have none.
+  protected finish(): void {}
 
   protected snapshot(): AnimationFrame {
     const progress = this.progress;
@@ -187,9 +187,8 @@ export class CompoundAnimation extends DurationAnimation {
     return this.snapshot();
   }
 
-  // No-op: CompoundAnimation delegates to child animations
-  protected apply(): void {
-  }
+  // Required DurationAnimation hook; child animations receive all updates.
+  protected apply(): void {}
 
   private advanceTogether(previousElapsed: number, nextElapsed: number): void {
     for (const animation of this.animations) {
@@ -217,9 +216,8 @@ export class CompoundAnimation extends DurationAnimation {
 }
 
 export class DelayAnimation extends DurationAnimation {
-  // No-op: DelayAnimation only tracks elapsed time
-  protected apply(): void {
-  }
+  // Required DurationAnimation hook; delay only tracks elapsed time.
+  protected apply(): void {}
 }
 
 abstract class BubbleAnimationBase extends DurationAnimation {

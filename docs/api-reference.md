@@ -401,7 +401,7 @@ Request body:
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | `eventType` | `string` | yes | Event name — one of: `sceneActivated`, `keyPress`, `keyPressed`, `keyReleased`, `keyTyped`, `collision`, `collisionStart`, `collisionEnd`, `mouseClicked`, `mousePressed`, `mouseReleased`, `mouseEntered`, `mouseExited`, `mouseMoved`, `mouseDragged`, `mouseWheel`, `proximity`, `proximityEnter`, `proximityExit`, `occlusion`, `viewEnter`, `viewExit`, `transformChanged` |
-| `handlerName` | `string` | yes | Handler label stored in the registration |
+| `handlerName` | `string` | no | Handler label stored in the registration; defaults to `"handler"` when omitted |
 | `key` | `string` | conditional | Required for keyboard events: `keyPress`, `keyPressed`, `keyReleased`, and `keyTyped` |
 | `target` | `string` | no | Optional target object name for target-scoped listeners; if provided it must name a known object |
 | `useCapture` | `boolean` | no | Optional capture-phase flag; only valid for bubbling keyboard and mouse events |
