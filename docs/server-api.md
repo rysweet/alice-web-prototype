@@ -210,7 +210,7 @@ Validation rejects:
 
 `POST /api/launch` applies the same validation to `body.project` and to the configured `projectPath` fallback. A rejected launch does not mark the server as launched.
 
-A successful launch stores the resolved absolute project path in server state and returns that path in the `project` response field. The path must be a safe `.a3p` path inside an allowed directory, but the file does not have to exist at launch time. If the file exists, the server parses it and uses its project name when available; if it is absent, launch still succeeds with the default in-memory scene state.
+A successful launch stores the resolved absolute project path in server state and returns that path in the `project` response field. The path must be a safe, readable `.a3p` file inside an allowed directory. Missing, unreadable, corrupt, or symlink-escaped requested project files return `400 { error }` and do not mark the server as launched. Omitting `project` uses the configured `projectPath` when present; otherwise it launches the default in-memory scene state.
 
 ## Screenshot behavior
 

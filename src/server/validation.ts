@@ -121,6 +121,10 @@ function isWithinDirectory(candidatePath: string, allowedDir: string): boolean {
   );
 }
 
+async function resolveExistingAllowedDirs(allowedProjectDirs: readonly string[]): Promise<string[]> {
+  return Promise.all(allowedProjectDirs.map((dir) => fs.promises.realpath(dir)));
+}
+
 /**
  * Validate that a project path is safe to open.
  *
@@ -165,6 +169,38 @@ export function validateProjectPath(
       valid: false,
       error: "project path is outside allowed directories",
     };
+  }
+
+  return { valid: true, resolvedPath: realProjectPath };
+}
+
+export async function validateExistingProjectRealPath(
+  projectPath: string,
+  allowedProjectDirs: readonly string[],
+): Promise<{ valid: true; resolvedPath: string } | { valid: false; error: string }> {
+  let realProjectPath: string;
+  try {
+    realProjectPath = await fs.promises.realpath(projectPath);
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return { valid: false, error: `project file not found: ${projectPath}` };
+    }
+    return { valid: false, error: `project file could not be read: ${projectPath}` };
+  }
+
+  if (!realProjectPath.endsWith(".a3p")) {
+    return { valid: false, error: "project path must be an .a3p file" };
+  }
+
+  let realAllowedDirs: string[];
+  try {
+    realAllowedDirs = await resolveExistingAllowedDirs(allowedProjectDirs);
+  } catch {
+    return { valid: false, error: "allowed project directory could not be resolved" };
+  }
+
+  if (!realAllowedDirs.some((allowedDir) => isWithinDirectory(realProjectPath, allowedDir))) {
+    return { valid: false, error: "project path is outside allowed directories" };
   }
 
   return { valid: true, resolvedPath: realProjectPath };

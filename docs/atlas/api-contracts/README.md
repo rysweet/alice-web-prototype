@@ -11,7 +11,7 @@ This layer maps the Express REST surface in `src/server.ts` and the adjacent par
 | Method | Path | Request shape | Success response shape | Guards / errors | Key collaborators |
 | --- | --- | --- | --- | --- | --- |
 | GET | `/api/health` | none | `{ status, launched, pid, uptime, runtime }` | none | in-memory `ServerState` |
-| POST | `/api/launch` | `{ project?: string }` | `{ status: "launched", project, projectName, sceneObjectCount }` | `400 { error }` when `project` is present but does not end with `.a3p` | `fs`, `parseA3P`, seeded scene objects |
+| POST | `/api/launch` | `{ project?: string }` | `{ status: "launched", project, projectName, sceneObjectCount }` | `400 { error }` when requested project path is invalid, outside allowed dirs, missing, unreadable, or corrupt | `fs`, `parseA3P`, seeded scene objects |
 | GET | `/api/project/templates` | none | `{ templates: TemplateDescriptor[] }` | none | `TemplateLibrary.listTemplates()` |
 | POST | `/api/project/new` | `{ templateId?: string, projectName?: string }` | `{ schema_version, status: "created", templateId, projectName, projectPath, sceneObjectCount, a3pSizeBytes }` | `400 { error, availableTemplates }` when `templateId` is unknown | `TemplateLibrary`, `writeA3P()`, evidence dir, `ServerState` reset |
 | POST | `/api/scene/add-object` | `{ className: string, name?: string }` | `{ status: "added", objectName, className, sceneFieldCountAfter, evidenceArtifact }` | `400 { error: "className is required" }` | `ServerState.sceneObjects`, `writeSceneObjectAdded()` |
@@ -29,7 +29,7 @@ This layer maps the Express REST surface in `src/server.ts` and the adjacent par
 - **Auth:** none.
 - **Global middleware:** `express.json({ limit: "1mb" })`.
 - **Route-local guards:**
-  - `/api/launch` rejects non-`.a3p` paths.
+  - `/api/launch` rejects invalid, out-of-allowlist, missing, unreadable, or corrupt requested project paths.
   - `/api/project/new` rejects unknown template IDs and returns the available template IDs.
   - `/api/code/create-procedure` and `/api/code/create-function` reject missing names, duplicate methods, and invalid parameter payloads; `/api/code/create-function` also requires `returnType`.
   - `/api/world/run` and `/api/events/*` require `state.launched === true`.

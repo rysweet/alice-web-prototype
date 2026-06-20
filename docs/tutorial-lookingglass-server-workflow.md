@@ -96,4 +96,3 @@ evidence/
 ```
 
 Use [LookingGlass identity](./lookingglass-identity.md) for the complete product, CLI, runtime, storage-key, env-var, and metadata contract.
-

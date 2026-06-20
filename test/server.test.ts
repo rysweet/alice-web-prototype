@@ -325,7 +325,7 @@ describe("server API", () => {
       await request(app).post("/api/world/run").send({}).expect(400);
     });
 
-    it("rejects run when the launched project cannot be parsed", async () => {
+    it("rejects corrupt requested projects before world run", async () => {
       const corruptProjectPath = path.join(evidenceDir, "corrupt.a3p");
       fs.writeFileSync(corruptProjectPath, Buffer.from("not a zip"));
       const freshApp = createServer({
@@ -336,7 +336,7 @@ describe("server API", () => {
       await request(freshApp)
         .post("/api/launch")
         .send({ project: corruptProjectPath })
-        .expect(200);
+        .expect(400);
 
       const res = await request(freshApp)
         .post("/api/world/run")
@@ -344,7 +344,7 @@ describe("server API", () => {
         .expect(400);
 
       expect(res.body).toEqual({
-        error: "Failed to parse .a3p before running the world.",
+        error: "Not launched. Call POST /api/launch first.",
       });
     });
   });
