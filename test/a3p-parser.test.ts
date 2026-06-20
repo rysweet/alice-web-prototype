@@ -4,6 +4,11 @@ import * as path from "path";
 import JSZip from "jszip";
 import { parseA3P, type AliceProject, type AliceObject } from "../src/a3p-parser";
 import type { JointNode, BoundingBox, Vec3 } from "../src/story-api";
+import {
+  REPOSITORY_A3P_FIXTURE,
+  optionalExternalA3PFixtureExists,
+  readRequiredA3PFixture,
+} from "./fixtures/a3p-fixtures";
 
 // Polyfill DOMParser for Node.js (vitest runs in Node)
 beforeAll(async () => {
@@ -141,10 +146,51 @@ describe("a3p-parser", () => {
     });
   });
 
-  // Real file tests – skipped if files don't exist
-  describe("real amazonFull.a3p", () => {
+  describe("repository .a3p fixture", () => {
     let project: AliceProject;
-    const fileExists = fs.existsSync(AMAZON_A3P);
+
+    beforeAll(async () => {
+      project = await parseA3P(readRequiredA3PFixture());
+    });
+
+    it("requires the sanitized repository fixture", () => {
+      expect(fs.existsSync(REPOSITORY_A3P_FIXTURE)).toBe(true);
+    });
+
+    it("parses version and project identity", () => {
+      expect(project.version).toBe("3.10.0.0");
+      expect(project.projectName).toBe("Program");
+    });
+
+    it("finds the scene objects and sanitized resource type", () => {
+      expect(project.sceneObjects.map((o) => o.name)).toEqual(["ground", "camera", "bunny"]);
+      const bunny = project.sceneObjects.find((o) => o.name === "bunny");
+      expect(bunny?.typeName).toBe("org.lgna.story.SBiped");
+      expect(bunny?.resourceType).toBe("org.lgna.story.resources.biped.BunnyResource");
+    });
+
+    it("extracts scene methods with executable statements", () => {
+      expect(project.methods.map((method) => method.name)).toEqual(
+        expect.arrayContaining(["performCustomSetup", "performGeneratedSetUp"]),
+      );
+      const statements = project.methods.flatMap((method) => method.statements);
+      expect(statements.map((statement) => statement.kind)).toEqual(
+        expect.arrayContaining(["Comment", "MethodCall", "CountLoop"]),
+      );
+    });
+
+    it("keeps custom types in the repository fixture", () => {
+      const sanitizedBunny = project.types?.find((type) => type.name === "SanitizedBunny");
+      expect(sanitizedBunny?.superTypeName).toBe("org.lgna.story.SBiped");
+      expect((sanitizedBunny?.fields ?? []).map((field) => field.name)).toContain("nickname");
+      expect((sanitizedBunny?.methods ?? []).map((method) => method.name)).toContain("hop");
+    });
+  });
+
+  // Optional external file tests – skipped unless explicitly enabled and files exist.
+  describe("optional external amazonFull.a3p", () => {
+    let project: AliceProject;
+    const fileExists = optionalExternalA3PFixtureExists(AMAZON_A3P);
 
     beforeAll(async () => {
       if (!fileExists) return;
@@ -172,9 +218,9 @@ describe("a3p-parser", () => {
     });
   });
 
-  describe("real smoke .a3p (UTF-16BE)", () => {
+  describe("optional external smoke .a3p (UTF-16BE)", () => {
     let project: AliceProject;
-    const fileExists = fs.existsSync(SMOKE_A3P);
+    const fileExists = optionalExternalA3PFixtureExists(SMOKE_A3P);
 
     beforeAll(async () => {
       if (!fileExists) return;
@@ -197,7 +243,7 @@ describe("a3p-parser", () => {
       "../../alice/core/resources/target/distribution/application/starter-projects/amazonMinimum.a3p",
     );
     let project: AliceProject;
-    const fileExists = fs.existsSync(BUILT_A3P);
+    const fileExists = optionalExternalA3PFixtureExists(BUILT_A3P);
 
     beforeAll(async () => {
       if (!fileExists) return;

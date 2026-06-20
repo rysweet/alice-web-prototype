@@ -12,14 +12,15 @@ threshold.
 ## Quick Start
 
 ```bash
-# Generate all 145 models, export as .glb, score quality, iterate up to 3×
-npx tsx scripts/run-quality-pipeline.ts
+# Run the full test suite
+npm test
 
-# Run only the Playwright visual quality tests (after generation)
-npx playwright test test/quality-pipeline.playwright.ts
+# Run only the quality pipeline tests
+npm test -- test/quality-scoring.test.ts test/quality-pipeline.test.ts
 
-# View the quality report
-cat assets/generated/quality-report.json | jq '.aggregate'
+# Check browser and server builds
+npm run build
+npm run build:server
 ```
 
 ### Programmatic Usage
@@ -317,118 +318,48 @@ await writeModelGlb({
 });
 ```
 
-## Playwright Visual Quality Tests
+## Current Validation Commands
 
-### Module: `test/quality-pipeline.playwright.ts`
-
-A Playwright test suite that validates each generated `.glb` file by loading it
-in a headless browser with Three.js and taking a screenshot.
-
-```bash
-# Run all quality tests
-npx playwright test test/quality-pipeline.playwright.ts
-
-# Run for a specific model
-npx playwright test test/quality-pipeline.playwright.ts -g "ALIEN"
-```
-
-### Test Structure
-
-```typescript
-// One test per model — provides individual pass/fail reporting
-test.describe("Quality Pipeline Visual Tests", () => {
-  for (const model of allModelEntries) {
-    test(`model ${model.id} meets quality threshold`, async ({ page }) => {
-      // 1. Load minimal HTML harness with Three.js + GLTFLoader
-      await page.goto(harness.url);
-
-      // 2. Load the .glb file into the Three.js scene
-      await page.evaluate((path) => window.loadGlb(path), model.glbPath);
-
-      // 3. Take a screenshot
-      const screenshot = await page.screenshot();
-
-      // 4. Assert model rendered (non-empty pixel coverage)
-      const pixelCoverage = await page.evaluate(() => window.getPixelCoverage());
-      expect(pixelCoverage).toBeGreaterThan(0.01);
-
-      // 5. Verify quality score from the report
-      expect(model.finalScore).toBeGreaterThanOrEqual(50);
-    });
-  }
-});
-```
-
-### HTML Test Harness
-
-The test uses a minimal HTML page that:
-
-1. Creates a Three.js WebGLRenderer (800×600)
-2. Adds a perspective camera positioned to frame the model
-3. Adds ambient + directional lighting
-4. Exposes `window.loadGlb(path)` to load a `.glb` file via Three.js
-   `GLTFLoader`
-5. Exposes `window.getPixelCoverage()` to measure non-background pixel ratio
-
-## CLI Script
-
-### `scripts/run-quality-pipeline.ts`
-
-Node.js entry point for running the pipeline from the command line:
+The repository currently ships Vitest tests and TypeScript build checks for the
+quality pipeline. It does not ship a standalone quality-pipeline CLI runner or
+browser visual test suite, so this document only lists commands available in
+`package.json`.
 
 ```bash
-# Default: generate all, export to assets/generated/, max 3 iterations
-npx tsx scripts/run-quality-pipeline.ts
+# Run every Vitest test
+npm test
 
-# Custom output directory
-npx tsx scripts/run-quality-pipeline.ts --output ./my-assets
+# Run only quality scoring and pipeline tests
+npm test -- test/quality-scoring.test.ts test/quality-pipeline.test.ts
 
-# Only generate specific models
-npx tsx scripts/run-quality-pipeline.ts --filter ALIEN,BUNNY,BEAR
+# Compile the browser application and Vite bundle
+npm run build
 
-# Set custom passing score
-npx tsx scripts/run-quality-pipeline.ts --passing-score 60
+# Compile the Node.js server and CLI TypeScript project
+npm run build:server
 ```
 
-### CLI Arguments
+### Focused Vitest Filters
 
-| Flag | Default | Description |
-|---|---|---|
-| `--output <dir>` | `assets/generated` | Output directory for .glb files and report |
-| `--max-iterations <n>` | `3` | Maximum iteration rounds |
-| `--passing-score <n>` | `50` | Minimum passing score |
-| `--filter <ids>` | *(all 145)* | Comma-separated resource IDs to process |
-| `--verbose` | `false` | Print per-model progress |
+Vitest accepts test file paths after `--`. Use this to run one quality test file:
 
-### Output
-
+```bash
+npm test -- test/quality-pipeline.test.ts
 ```
-Quality Pipeline — Starting
-  Models: 145
-  Output: assets/generated/
-  Max iterations: 3
-  Passing score: 50
 
-Iteration 1/3:
-  Generated: 145/145
-  Exported: 145/145
-  Passed: 138/145 (avg: 68.4)
-  Below threshold: 7 models
+Use Vitest's `-t` filter to run tests matching a name:
 
-Iteration 2/3:
-  Regenerated: 7 models
-  Passed: 143/145 (avg: 71.2)
-  Below threshold: 2 models
-
-Iteration 3/3:
-  Regenerated: 2 models
-  Passed: 144/145 (avg: 72.1)
-  Below threshold: 1 model
-
-Quality Pipeline — Complete
-  Total: 145 | Passed: 144 | Failed: 1
-  Report: assets/generated/quality-report.json
+```bash
+npm test -- test/quality-pipeline.test.ts -t "report has aggregate statistics"
 ```
+
+### Removed Automation References
+
+Earlier drafts of this document described automation that is not part of the
+current repository. Those command examples were removed instead of adding new
+development dependencies. If a standalone runner or browser visual suite is
+added later, document the package scripts and checked-in test files at the same
+time.
 
 ## API Reference
 
@@ -470,7 +401,8 @@ Writes a model to disk as a `.glb` file.
 | Package | Type | Purpose |
 |---|---|---|
 | `@gltf-transform/core` | runtime | GLB binary construction and buffer packing |
-| `@playwright/test` | dev | Headless browser for visual quality tests |
+| `typescript` | dev | Type-checks browser and server projects |
+| `vitest` | dev | Runs quality scoring and pipeline tests |
 
 ## Related Documentation
 

@@ -377,7 +377,7 @@ export class VehicleAnimation implements AnimationClip {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SayOutLoudAnimation — browser TTS parity via stub SpeechUtterance
+// SayOutLoudAnimation — browser TTS via explicit adapter/status
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface SpeechUtterance {
@@ -387,17 +387,77 @@ export interface SpeechUtterance {
   volume: number;
 }
 
+export type SpeechPlaybackStatus = "speaking" | "unavailable" | "skipped" | "error";
+
+export interface SpeechPlaybackState {
+  readonly status: SpeechPlaybackStatus;
+  readonly message: string;
+}
+
+export interface SpeechSynthesisAdapter {
+  readonly available: boolean;
+  speak(utterance: SpeechUtterance): SpeechPlaybackState;
+  cancel?(): void;
+}
+
 export interface SayOutLoudOptions {
   text: string;
   rate?: number;
   pitch?: number;
   volume?: number;
+  speechAdapter?: SpeechSynthesisAdapter | null;
+}
+
+interface SpeechSynthesisRuntime {
+  readonly speechSynthesis?: SpeechSynthesis;
+  readonly SpeechSynthesisUtterance?: typeof SpeechSynthesisUtterance;
+}
+
+function unavailableSpeech(message: string): SpeechPlaybackState {
+  return { status: "unavailable", message };
+}
+
+function skippedSpeech(message: string): SpeechPlaybackState {
+  return { status: "skipped", message };
+}
+
+function errorSpeech(error: unknown): SpeechPlaybackState {
+  const detail = error instanceof Error ? error.message : String(error);
+  return { status: "error", message: `Speech synthesis failed: ${detail}` };
+}
+
+export function createBrowserSpeechSynthesisAdapter(
+  runtime: SpeechSynthesisRuntime = globalThis,
+): SpeechSynthesisAdapter | null {
+  const speechSynthesis = runtime.speechSynthesis;
+  const Utterance = runtime.SpeechSynthesisUtterance;
+
+  if (!speechSynthesis || !Utterance) {
+    return null;
+  }
+
+  return {
+    available: true,
+    speak(utterance: SpeechUtterance): SpeechPlaybackState {
+      const nativeUtterance = new Utterance(utterance.text);
+      nativeUtterance.rate = utterance.rate;
+      nativeUtterance.pitch = utterance.pitch;
+      nativeUtterance.volume = utterance.volume;
+      speechSynthesis.speak(nativeUtterance);
+      return { status: "speaking", message: "Speech synthesis utterance submitted" };
+    },
+    cancel(): void {
+      speechSynthesis.cancel();
+    },
+  };
 }
 
 export class SayOutLoudAnimation implements AnimationClip {
   readonly text: string;
   readonly durationMs: number;
   readonly utterance: SpeechUtterance;
+  readonly #speechAdapter: SpeechSynthesisAdapter | null;
+  #speechStatus: SpeechPlaybackState;
   private _elapsedMs = 0;
   private _complete: boolean;
 
@@ -421,7 +481,12 @@ export class SayOutLoudAnimation implements AnimationClip {
       pitch,
       volume: clamp01(Number.isFinite(volume) ? volume : 1),
     };
+    this.#speechAdapter = options.speechAdapter === undefined
+      ? createBrowserSpeechSynthesisAdapter()
+      : options.speechAdapter;
+    this.#speechStatus = skippedSpeech("Speech has not started");
     this._complete = this.durationMs === 0;
+    this.#speak();
   }
 
   get elapsedMs(): number {
@@ -441,6 +506,33 @@ export class SayOutLoudAnimation implements AnimationClip {
     return this._complete;
   }
 
+  get speechStatus(): SpeechPlaybackState {
+    return this.#speechStatus;
+  }
+
+  #speak(): void {
+    if (this.text.length === 0) {
+      this.#speechStatus = skippedSpeech("No speech submitted for empty text");
+      return;
+    }
+
+    if (!this.#speechAdapter) {
+      this.#speechStatus = unavailableSpeech("SpeechSynthesis API is unavailable in this runtime");
+      return;
+    }
+
+    if (!this.#speechAdapter.available) {
+      this.#speechStatus = unavailableSpeech("Configured speech adapter is unavailable");
+      return;
+    }
+
+    try {
+      this.#speechStatus = this.#speechAdapter.speak(this.utterance);
+    } catch (error) {
+      this.#speechStatus = errorSpeech(error);
+    }
+  }
+
   update(deltaMs: number): AnimationClipState {
     if (!this._complete && deltaMs > 0) {
       this._elapsedMs = Math.min(this._elapsedMs + deltaMs, this.durationMs);
@@ -457,7 +549,9 @@ export class SayOutLoudAnimation implements AnimationClip {
   }
 
   reset(): void {
+    this.#speechAdapter?.cancel?.();
     this._elapsedMs = 0;
     this._complete = this.durationMs === 0;
+    this.#speak();
   }
 }

@@ -1,7 +1,7 @@
 import { typeRefsAssignable as canonicalTypeRefsAssignable } from "./type-system.js";
-import { ClassDeclaration, NamedUserType } from "./ast-nodes-declarations-types.js";
-import { Expression } from "./ast-nodes-expressions-union.js";
-import { Statement } from "./ast-nodes-statements-union.js";
+import type { ClassDeclaration, NamedUserType } from "./ast-nodes-declarations-types.js";
+import type { Expression } from "./ast-nodes-expressions-union.js";
+import type { Statement } from "./ast-nodes-statements-union.js";
 
 let nextAstNodeId = 0;
 

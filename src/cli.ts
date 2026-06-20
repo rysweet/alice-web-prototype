@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import { realpathSync } from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 import { createServer } from "./server.js";
 
 export interface CliConfig {
@@ -53,6 +55,9 @@ export function parseArgs(argv: string[]): CliConfig {
 }
 
 function normalizeCommand(value: string): CliConfig["command"] {
+  if (value === "--help" || value === "-h") {
+    return "help";
+  }
   if (value === "serve" || value === "print-config" || value === "help") {
     return value;
   }
@@ -153,7 +158,22 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error(err instanceof Error ? err.message : String(err));
-  process.exit(1);
-});
+function isDirectExecution(): boolean {
+  const entryPoint = process.argv[1];
+  if (!entryPoint) {
+    return false;
+  }
+
+  try {
+    return realpathSync(entryPoint) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return path.resolve(entryPoint) === fileURLToPath(import.meta.url);
+  }
+}
+
+if (isDirectExecution()) {
+  main().catch((err) => {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  });
+}

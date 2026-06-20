@@ -1,3 +1,4 @@
+import * as fs from "fs";
 import * as path from "path";
 
 /** Strip path separators and traversal sequences from a user-supplied name. */
@@ -8,15 +9,45 @@ export function sanitizeFilename(name: string): string {
 /** Matches percent-encoded dot (%2e), forward-slash (%2f), or backslash (%5c). */
 const ENCODED_TRAVERSAL_RE = /%(2e|2f|5c)/i;
 
-const resolvedDirCache = new WeakMap<readonly string[], string[]>();
+function isMissingPathError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return code === "ENOENT" || code === "ENOTDIR";
+}
 
-function getResolvedDirs(allowedProjectDirs: readonly string[]): string[] {
-  let resolved = resolvedDirCache.get(allowedProjectDirs);
-  if (!resolved) {
-    resolved = allowedProjectDirs.map((dir) => path.resolve(dir));
-    resolvedDirCache.set(allowedProjectDirs, resolved);
+function realpathNearestExisting(resolvedPath: string): string | null {
+  let current = resolvedPath;
+  const missingSegments: string[] = [];
+
+  while (true) {
+    try {
+      const realExistingPath = fs.realpathSync.native(current);
+      return missingSegments.length === 0
+        ? realExistingPath
+        : path.join(realExistingPath, ...missingSegments.reverse());
+    } catch (error) {
+      if (!isMissingPathError(error)) {
+        return null;
+      }
+
+      const parent = path.dirname(current);
+      if (parent === current) {
+        return null;
+      }
+
+      missingSegments.push(path.basename(current));
+      current = parent;
+    }
   }
-  return resolved;
+}
+
+function isWithinDirectory(candidatePath: string, allowedDir: string): boolean {
+  const relativePath = path.relative(allowedDir, candidatePath);
+  return (
+    relativePath === "" ||
+    (relativePath !== ".." &&
+      !relativePath.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relativePath))
+  );
 }
 
 /**
@@ -46,11 +77,16 @@ export function validateProjectPath(
     return { valid: false, error: "project path must be an .a3p file" };
   }
 
-  const resolvedAllowedDirs = getResolvedDirs(allowedProjectDirs);
-  const isWithinAllowedDir = resolvedAllowedDirs.some(
-    (allowedDir) =>
-      resolvedPath === allowedDir ||
-      resolvedPath.startsWith(`${allowedDir}${path.sep}`),
+  const realProjectPath = realpathNearestExisting(resolvedPath);
+  if (!realProjectPath || !realProjectPath.endsWith(".a3p")) {
+    return { valid: false, error: "project path must be an .a3p file" };
+  }
+
+  const realAllowedDirs = allowedProjectDirs
+    .map((dir) => realpathNearestExisting(path.resolve(dir)))
+    .filter((dir): dir is string => dir !== null);
+  const isWithinAllowedDir = realAllowedDirs.some((allowedDir) =>
+    isWithinDirectory(realProjectPath, allowedDir),
   );
 
   if (!isWithinAllowedDir) {
@@ -60,5 +96,5 @@ export function validateProjectPath(
     };
   }
 
-  return { valid: true, resolvedPath };
+  return { valid: true, resolvedPath: realProjectPath };
 }

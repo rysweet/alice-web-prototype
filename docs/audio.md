@@ -1,336 +1,116 @@
 # Audio Playback API
 
-The audio module (`src/audio.ts`) provides DOM-free audio resource loading from
-Alice `.a3p` project files and a state-machine-based `AudioPlayer` with event
-callbacks. It is fully testable in Node.js without Web Audio API dependencies.
+The audio module (`src/audio.ts`) provides:
 
-## Overview
+- a DOM-free `AudioPlayer` state machine for play/pause/stop events,
+- `.a3p` ZIP audio extraction via `loadAudioFromA3P`, and
+- `WebAudioPlayer`, which uses a real browser `AudioContext` when available and
+  falls back to an explicit non-output simulation mode in Node.js tests.
+
+Simulation mode is intentional: it validates state transitions but does **not**
+produce sound. Code that needs audible output must use `WebAudioPlayer` in
+`web-audio` mode with decoded audio.
+
+## Exports
 
 | Export | Kind | Purpose |
 |---|---|---|
-| `AudioResource` | interface | Loaded audio data: id, name, buffer, duration, format |
-| `AudioPlayer` | class | State machine for play/pause/stop with volume control |
-| `AudioPlayerState` | type | `'stopped' \| 'playing' \| 'paused'` |
-| `AudioPlayerEvent` | type | Union of event names: `'play' \| 'pause' \| 'stop' \| 'end' \| 'error'` |
-| `loadAudioFromA3P` | function | Extract audio resources from a parsed `.a3p` ZIP |
+| `AudioResource` | interface | Raw audio bytes plus decode metadata |
+| `AudioDecodeStatus` | type | `'decoded' \| 'decode-unavailable' \| 'decode-failed'` |
+| `AudioRuntimeMode` | type | `'web-audio' \| 'simulation'` |
+| `AudioPlayer` | class | DOM-free state machine for play/pause/stop |
+| `WebAudioPlayer` | class | Browser-backed Web Audio output or explicit simulation |
+| `loadAudioFromA3P` | function | Extract one audio resource from an `.a3p` ZIP path |
 
-## Quick Start
-
-### Loading Audio from an `.a3p` File
-
-```typescript
-import { parseA3P } from './a3p-parser';
-import { loadAudioFromA3P, AudioPlayer } from './audio';
-
-const project = await parseA3P(buffer);
-
-// Extract all audio resources from the project ZIP
-const resources = await loadAudioFromA3P(buffer);
-console.log(resources.length);      // e.g. 2
-console.log(resources[0].name);     // e.g. "backgroundMusic"
-console.log(resources[0].format);   // e.g. "mp3"
-console.log(resources[0].duration); // e.g. 0 (stub — no real decoding)
-```
-
-### Playing Audio
+## Loading audio from an `.a3p`
 
 ```typescript
-const player = new AudioPlayer();
+import { loadAudioFromA3P } from './audio';
 
-// Load a resource
-player.load(resources[0]);
+const resource = await loadAudioFromA3P(projectBytes, 'resources/audio/theme.mp3', {
+  audioContext,
+});
 
-// Control playback
-player.play();
-console.log(player.state); // "playing"
-
-player.pause();
-console.log(player.state); // "paused"
-
-player.play();  // resume from paused
-player.stop();
-console.log(player.state); // "stopped"
-
-// Volume control (0.0 – 1.0)
-player.volume = 0.75;
-console.log(player.volume); // 0.75
+console.log(resource.duration);     // decoded duration when decoding succeeds
+console.log(resource.decodeStatus); // "decoded", "decode-unavailable", or "decode-failed"
 ```
 
-### Event Callbacks
+`loadAudioFromA3P(data, resourcePath, options?)` extracts exactly one ZIP entry.
+It does not scan the archive.
 
-```typescript
-const player = new AudioPlayer();
-player.load(resources[0]);
+Decode behavior:
 
-player.on('play', () => console.log('Playback started'));
-player.on('pause', () => console.log('Playback paused'));
-player.on('stop', () => console.log('Playback stopped'));
-player.on('end', () => console.log('Playback finished'));
-player.on('error', (err) => console.log('Error:', err.message));
+- If `options.decodeAudioData` is supplied, that decoder is used.
+- Else if `options.audioContext.decodeAudioData` is supplied, that context is
+  used.
+- If no decoder/context is supplied, the resource is returned with `duration: 0`,
+  `decodeStatus: "decode-unavailable"`, and no `decodedBuffer`.
+- If decoding fails, the resource is returned with `duration: 0`,
+  `decodeStatus: "decode-failed"`, and `decodeError`, unless
+  `requireDecode: true` is set.
 
-player.play();
-// logs: Playback started
-```
-
-## API Reference
-
-### `AudioResource`
+## `AudioResource`
 
 ```typescript
 interface AudioResource {
-  /** Unique identifier within the project */
   id: string;
-  /** Human-readable name (derived from ZIP entry path) */
   name: string;
-  /** Raw audio data */
   buffer: ArrayBuffer;
-  /** Duration in seconds (0 when codec decoding is not available) */
   duration: number;
-  /** Audio format: "mp3", "wav", "ogg", or "unknown" */
   format: string;
+  decodedBuffer?: AudioBufferLike;
+  decodeStatus?: 'decoded' | 'decode-unavailable' | 'decode-failed';
+  decodeError?: string;
 }
 ```
 
-`AudioResource` is a plain data type — no methods, no DOM dependencies.
-Duration is reported as `0` in the stub implementation since real codec
-decoding requires Web Audio API or native bindings. The buffer contains the raw
-file bytes for downstream consumers that can decode them.
+`duration` is only an output-ready duration when `decodeStatus === "decoded"`.
+A zero duration with `decode-unavailable` means the module has raw bytes but did
+not decode the codec.
 
-### `loadAudioFromA3P(data: ArrayBuffer | Uint8Array): Promise<AudioResource[]>`
-
-Extract audio resources from an Alice `.a3p` ZIP archive.
-
-**Parameters:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `data` | `ArrayBuffer \| Uint8Array` | Raw `.a3p` file contents |
-
-**Returns:** Array of `AudioResource` objects, one per audio file found in the ZIP.
-
-**Behavior:**
-
-- Scans all ZIP entries for files matching audio extensions (`.mp3`, `.wav`, `.ogg`).
-- Validates that the resource path resolves to an existing ZIP entry.
-- Derives `name` from the file path (filename without extension).
-- Derives `format` from the file extension.
-- Sets `duration` to `0` (stub — no real codec decoding).
-
-**Throws:**
-
-| Error | Condition |
-|-------|-----------|
-| `Error` | Invalid or corrupt ZIP data |
-
-### `new AudioPlayer()`
-
-Creates an audio player in the `stopped` state with volume `1.0` and no loaded
-resource.
-
-### `player.load(resource: AudioResource): void`
-
-Load an audio resource for playback. Stops any current playback and resets
-state to `stopped`.
-
-**Throws:**
-
-| Error | Condition |
-|-------|-----------|
-| `Error` | `resource` is null or undefined |
-
-### `player.play(): void`
-
-Start or resume playback.
-
-**State transitions:**
-
-| Current State | Action |
-|---|---|
-| `stopped` | Starts playback from beginning → `playing` |
-| `paused` | Resumes from pause point → `playing` |
-| `playing` | No-op (already playing) |
-
-**Throws:**
-
-| Error | Condition |
-|-------|-----------|
-| `Error` | No resource loaded (call `load()` first) |
-
-**Events:** Emits `'play'` on state change.
-
-### `player.pause(): void`
-
-Pause playback.
-
-**State transitions:**
-
-| Current State | Action |
-|---|---|
-| `playing` | Pauses playback → `paused` |
-| `paused` | No-op (already paused) |
-| `stopped` | No-op (nothing to pause) |
-
-**Events:** Emits `'pause'` on state change.
-
-### `player.stop(): void`
-
-Stop playback and reset position.
-
-**State transitions:**
-
-| Current State | Action |
-|---|---|
-| `playing` | Stops playback, resets position → `stopped` |
-| `paused` | Resets position → `stopped` |
-| `stopped` | No-op (already stopped) |
-
-**Events:** Emits `'stop'` on state change.
-
-### `player.state: AudioPlayerState`
-
-Read-only property returning the current playback state.
+## DOM-free state machine
 
 ```typescript
-type AudioPlayerState = 'stopped' | 'playing' | 'paused';
-```
-
-### `player.volume: number`
-
-Get or set the playback volume. Clamped to `[0.0, 1.0]`.
-
-```typescript
-player.volume = 1.5;    // clamped to 1.0
-player.volume = -0.5;   // clamped to 0.0
-console.log(player.volume); // 0.0
-```
-
-### `player.resource: AudioResource | null`
-
-Read-only property returning the currently loaded resource, or `null` if none.
-
-### `player.on(event: AudioPlayerEvent, callback: Function): () => void`
-
-Register an event listener. Returns an unsubscribe function.
-
-**Events:**
-
-| Event | Callback Signature | When |
-|---|---|---|
-| `'play'` | `() => void` | Playback starts or resumes |
-| `'pause'` | `() => void` | Playback paused |
-| `'stop'` | `() => void` | Playback stopped |
-| `'end'` | `() => void` | Playback reached end of resource |
-| `'error'` | `(error: Error) => void` | An error occurred |
-
-```typescript
-const unsub = player.on('play', () => { /* ... */ });
-// later:
-unsub(); // removes the listener
-```
-
-### `player.off(event: AudioPlayerEvent, callback: Function): void`
-
-Remove a specific event listener.
-
-### `player.removeAllListeners(): void`
-
-Remove all event listeners from all events.
-
-## State Machine
-
-```
-                 load()
-    ┌──────────────────────────────────┐
-    │                                  ▼
-    │    ┌─────────┐   play()    ┌─────────┐
-    │    │ stopped │────────────▶│ playing │◀──┐
-    │    └─────────┘             └─────────┘   │
-    │         ▲                    │     │      │
-    │         │ stop()      pause()│     │stop()│ play()
-    │         │                    ▼     │      │
-    │         │              ┌─────────┐ │     │
-    │         └──────────────│ paused  │◀┘─────┘
-    │                        └─────────┘
-    └────────────────────────────┘
-```
-
-- `load()` always transitions to `stopped` regardless of current state.
-- `play()` on `stopped` starts from the beginning.
-- `play()` on `paused` resumes from where it was paused.
-- `play()` on `playing` is a no-op (no event emitted).
-- `pause()` on `stopped` is a no-op.
-- `stop()` on `stopped` is a no-op.
-
-## Integration with Scene Manager
-
-```typescript
-import { SceneManager } from './scene-manager';
-import { AudioPlayer, loadAudioFromA3P } from './audio';
-
-const manager = new SceneManager();
 const player = new AudioPlayer();
-
-// Load audio from the project
-const resources = await loadAudioFromA3P(projectBuffer);
-const bgMusic = resources.find(r => r.name === 'backgroundMusic');
-
-if (bgMusic) {
-  player.load(bgMusic);
-}
-
-// Stop audio on scene transitions
-manager.onTransition((from, to) => {
-  player.stop();
-  // Optionally load scene-specific audio here
-});
-
-manager.addScene('intro', project);
+player.load(resource);
 player.play();
+player.pause();
+player.play();
+player.stop();
 ```
 
-## Error Handling
+`AudioPlayer` tracks state and emits `load`, `play`, `pause`, and `stop`
+callbacks. It does not claim to produce audible output.
 
-All errors are standard `Error` instances:
+## Web Audio output vs simulation
 
-- `"No resource loaded"` — `play()` called without `load()`.
-- `"Resource is required"` — `load(null)` or `load(undefined)`.
-- `"Invalid or corrupt ZIP data"` — `loadAudioFromA3P()` with bad input.
+```typescript
+const output = new WebAudioPlayer({ audioContext });
+console.log(output.runtimeMode);   // "web-audio"
+console.log(output.canOutputAudio); // true
 
-Volume values are silently clamped rather than throwing.
+output.load(resource); // resource must contain decodedBuffer for real output
+output.play();
+```
 
-## Testing
+In `web-audio` mode, `play()` creates an `AudioBufferSourceNode`, connects it to
+the gain node, and calls `start()`. If the resource has no `decodedBuffer`,
+`play()` throws instead of pretending that sound was produced.
+
+```typescript
+const simulated = new WebAudioPlayer({ runtimeMode: 'simulation' });
+console.log(simulated.runtimeMode);   // "simulation"
+console.log(simulated.canOutputAudio); // false
+```
+
+Simulation mode is used when no browser `AudioContext` is available. It supports
+the same state-machine methods for tests and server-side logic, but its graph is
+non-output by design.
+
+## Validation
+
+The directly related tests are:
 
 ```bash
-npx vitest run test/audio.test.ts
+npm test -- test/audio.test.ts test/web-audio-player.test.ts
 ```
-
-Tests are fully DOM-free and cover:
-
-- Initial state is `stopped`, volume is `1.0`, resource is `null`
-- `load()` sets resource and resets state
-- `play()` transitions stopped → playing
-- `play()` transitions paused → playing (resume)
-- `play()` on playing is no-op
-- `pause()` transitions playing → paused
-- `pause()` on stopped is no-op
-- `stop()` transitions playing → stopped
-- `stop()` transitions paused → stopped
-- `stop()` on stopped is no-op
-- `play()` without load throws
-- Volume clamping at 0 and 1
-- Event callbacks fire on state transitions
-- Unsubscribe function works
-- `removeAllListeners()` clears all callbacks
-- `load()` stops current playback
-- `loadAudioFromA3P()` extracts resources from ZIP
-- `loadAudioFromA3P()` returns empty array for projects with no audio
-
-## Web Audio API Layer
-
-For Web Audio API parity (stub `AudioContext`, `GainNode`,
-`AudioBufferSourceNode`), see the `WebAudioPlayer` class documented in
-[Parity gaps #76–#77](./parity-gaps-76-77.md#audio-playback-pipeline).
-
-`WebAudioPlayer` wraps `AudioPlayer` with composition and delegates all state
-transitions to the inner player. It adds stub Web Audio graph interfaces for
-browser-like API surface without requiring a real browser environment.

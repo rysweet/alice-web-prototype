@@ -53,9 +53,41 @@ describe("program-execution", () => {
 
   it("evaluates watch expressions in the current scope", () => {
     const context = new ExecutionContext();
-    context.pushFrame("main", { count: 3, offset: 4 });
+    context.pushFrame("main", { count: 3, offset: 4, label: "ready" });
 
     expect(new WatchExpression().evaluate("count + offset", context)).toBe(7);
+    expect(new WatchExpression().evaluate("(count + offset) * 2 >= 14", context)).toBe(true);
+    expect(new WatchExpression().evaluate("label === \"ready\"", context)).toBe(true);
+    expect(new WatchExpression().evaluate("count === 3 || missing === 1", context)).toBe(true);
+    expect(new WatchExpression().evaluate("count === 4 && missing === 1", context)).toBe(false);
+  });
+
+  it("rejects unsupported watch expressions without executing them", () => {
+    const context = new ExecutionContext();
+    const sentinel = "__aliceDebuggerExpressionPwned";
+    const globals = globalThis as Record<string, unknown>;
+    delete globals[sentinel];
+    context.pushFrame("main", { count: 3 });
+
+    expect(() => new WatchExpression().evaluate(`globalThis.${sentinel} = true`, context))
+      .toThrow(/Unsupported debugger expression/);
+    expect(globals[sentinel]).toBeUndefined();
+  });
+
+  it("rejects non-primitive watch bindings before coercion can execute code", () => {
+    const context = new ExecutionContext();
+    let coerced = false;
+    const maliciousValue = {
+      valueOf() {
+        coerced = true;
+        return 3;
+      },
+    };
+    context.pushFrame("main", { count: maliciousValue as unknown as number });
+
+    expect(() => new WatchExpression().evaluate("count + 1", context))
+      .toThrow(/binding 'count' has unsupported value type 'object'/);
+    expect(coerced).toBe(false);
   });
 
   it("supports plain and conditional breakpoints", () => {
@@ -130,5 +162,16 @@ describe("program-execution", () => {
 
     const afterBreak = runner.stepOver();
     expect(afterBreak.statement?.id).toBe("main-3");
+  });
+
+  it("rejects malicious breakpoint conditions without executing them", () => {
+    const sentinel = "__aliceBreakpointConditionPwned";
+    const globals = globalThis as Record<string, unknown>;
+    delete globals[sentinel];
+    const runner = new ProgramRunner(sampleProgram, () => 1);
+    runner.breakpoints.set("helper-2", `globalThis.${sentinel} = true`);
+
+    expect(() => runner.continue()).toThrow(/Unsupported debugger expression/);
+    expect(globals[sentinel]).toBeUndefined();
   });
 });

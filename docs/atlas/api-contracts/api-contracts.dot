@@ -14,8 +14,12 @@ digraph api_contracts {
         color="#CBD5E1";
         health [label="GET /api/health\nreq: none\nres: running, launched, pid, uptime, runtime"];
         launch [label="POST /api/launch\nreq: project?\nres: launched, project, projectName, sceneObjectCount"];
+        template_list [label="GET /api/project/templates\nreq: none\nres: templates[]"];
+        project_new [label="POST /api/project/new\nreq: templateId?, projectName?\nres: created, projectPath, sceneObjectCount, a3pSizeBytes"];
         add_object [label="POST /api/scene/add-object\nreq: className, name?\nres: added, objectName, className, count, evidenceArtifact"];
         edit_proc [label="POST /api/code/edit-procedure\nreq: procedureSelector?, editSpec?\nres: proved, edited_project_artifact, action_proof, evidenceArtifact"];
+        create_proc [label="POST /api/code/create-procedure\nreq: name, parameters?\nres: created procedure, parameters, totalProcedures"];
+        create_func [label="POST /api/code/create-function\nreq: name, returnType, parameters?\nres: created function, returnType, parameters, totalProcedures"];
         save_route [label="POST /api/project/save\nreq: saveSelector?, targetPath?\nres: saved, saved_project_artifact, save_artifact, evidenceArtifact"];
         run_world [label="POST /api/world/run\nreq: {}\nres: completed, execution_log, run_duration_ms, evidenceArtifact"];
         screenshot [label="GET /api/screenshot\nreq: none\nres: captured path/objectCount or placeholder+error"];
@@ -25,8 +29,12 @@ digraph api_contracts {
 
     auth -> health;
     auth -> launch;
+    auth -> template_list;
+    auth -> project_new;
     auth -> add_object;
     auth -> edit_proc;
+    auth -> create_proc;
+    auth -> create_func;
     auth -> save_route;
     auth -> run_world;
     auth -> screenshot;
@@ -38,13 +46,19 @@ digraph api_contracts {
         color="#FCD34D";
         state [label="ServerState\nlaunched | projectPath | projectName\nsceneObjects | procedures | parsedProject | eventSystem", fillcolor="#FEF3C7"];
         launch_guard [label="launch path suffix check\n400 if not .a3p", fillcolor="#FEF3C7"];
+        template_guard [label="template lookup\n400 with availableTemplates when unknown", fillcolor="#FEF3C7"];
+        method_validation [label="method validation\nname | returnType | duplicate | parameters", fillcolor="#FEF3C7"];
         run_guard [label="launch required for /world/run and /events/*", fillcolor="#FEF3C7"];
         event_validation [label="EventSystem validation\nunknown eventType / missing key / bad proximity", fillcolor="#FEF3C7"];
     }
 
     launch -> launch_guard -> state;
+    template_list -> state;
+    project_new -> template_guard -> state;
     add_object -> state;
     edit_proc -> state;
+    create_proc -> method_validation -> state;
+    create_func -> method_validation;
     save_route -> state;
     run_world -> run_guard -> state;
     screenshot -> state;
@@ -63,6 +77,8 @@ digraph api_contracts {
         renderer [label="scene-renderer\nrenderSceneToPng(project) -> RenderResult", fillcolor="#ECFDF5"];
         events [label="events\nEventSystem.register/fire", fillcolor="#ECFDF5"];
         evidence [label="evidence-writer\nproof JSON files", fillcolor="#ECFDF5"];
+        templates [label="project-templates\nTemplateLibrary list/create", fillcolor="#ECFDF5"];
+        method_registry [label="server state\nparseMethodParams / registerMethod", fillcolor="#ECFDF5"];
         project_io [label="project-io / project-system\nreadProject / writeProject", fillcolor="#ECFDF5"];
         fs [label="filesystem\n.a3p / json / png", shape=cylinder, fillcolor="#FDE68A"];
     }
@@ -70,11 +86,16 @@ digraph api_contracts {
     launch -> fs [label="read .a3p"];
     fs -> parser;
     parser -> state;
+    template_list -> templates;
+    project_new -> templates;
+    templates -> writer;
+    writer -> fs;
     edit_proc -> evidence;
     edit_proc -> tweedle_parser [style=dashed, label="adjacent IDE path"];
+    create_proc -> method_registry;
+    create_func -> method_registry;
     save_route -> project_io [style=dashed, label="full archive path"];
     project_io -> writer;
-    writer -> fs;
     save_route -> evidence;
     run_world -> tweedle_vm;
     tweedle_vm -> evidence;

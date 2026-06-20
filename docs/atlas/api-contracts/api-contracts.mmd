@@ -5,8 +5,12 @@ flowchart TD
     subgraph Routes["REST surface from src/server.ts"]
         Health["GET /api/health\nreq: none\n200: runtime status"]
         Launch["POST /api/launch\nreq: { project? }\n200: launched + projectName + sceneObjectCount"]
+        TemplateList["GET /api/project/templates\nreq: none\n200: templates[]"]
+        ProjectNew["POST /api/project/new\nreq: { templateId?, projectName? }\n200: created + projectPath + a3pSizeBytes"]
         AddObject["POST /api/scene/add-object\nreq: { className, name? }\n200: added + evidenceArtifact"]
         EditProcedure["POST /api/code/edit-procedure\nreq: { procedureSelector?, editSpec? }\n200: proof result + artifact names"]
+        CreateProcedure["POST /api/code/create-procedure\nreq: { name, parameters? }\n200: created procedure + totalProcedures"]
+        CreateFunction["POST /api/code/create-function\nreq: { name, returnType, parameters? }\n200: created function + totalProcedures"]
         SaveRoute["POST /api/project/save\nreq: { saveSelector?, targetPath? }\n200: saved + artifact names"]
         RunWorld["POST /api/world/run\nreq: {}\n200: completed + execution_log + evidence"]
         Screenshot["GET /api/screenshot\nreq: none\n200: captured + path/objectCount\nfallback: placeholder + error"]
@@ -16,8 +20,12 @@ flowchart TD
 
     Auth --> Health
     Auth --> Launch
+    Auth --> TemplateList
+    Auth --> ProjectNew
     Auth --> AddObject
     Auth --> EditProcedure
+    Auth --> CreateProcedure
+    Auth --> CreateFunction
     Auth --> SaveRoute
     Auth --> RunWorld
     Auth --> Screenshot
@@ -27,13 +35,19 @@ flowchart TD
     subgraph Guards["Route-local guards and state"]
         State["ServerState\nlaunched / projectPath / projectName\nsceneObjects / procedures / parsedProject / eventSystem"]
         LaunchGuard["Launch guard\nproject path must end with .a3p"]
+        TemplateGuard["Template guard\nunknown templateId returns 400 + availableTemplates"]
+        MethodValidation["Method validation\nname / returnType / duplicate / parameters"]
         RunGuard["Run/events guard\nrequires launched == true"]
         EventValidation["EventSystem validation\neventType / key / targetObjects / threshold"]
     end
 
     Launch --> LaunchGuard --> State
+    TemplateList --> State
+    ProjectNew --> TemplateGuard --> State
     AddObject --> State
     EditProcedure --> State
+    CreateProcedure --> MethodValidation --> State
+    CreateFunction --> MethodValidation
     SaveRoute --> State
     RunWorld --> RunGuard --> State
     Screenshot --> State
@@ -50,14 +64,20 @@ flowchart TD
         Renderer["scene-renderer\nrenderSceneToPng(project) → RenderResult"]
         Events["events\nEventSystem.register/fire"]
         Evidence["evidence-writer\nJSON proof artifacts"]
+        Templates["project-templates\nTemplateLibrary list/create"]
+        MethodRegistry["server state\nparseMethodParams / registerMethod"]
         ProjectIO["project-io / project-system\nreadProject / writeProject"]
         FS["filesystem\n.a3p / json / png"]
     end
 
     Launch --> FS --> Parser
     Parser --> State
+    TemplateList --> Templates
+    ProjectNew --> Templates --> Writer --> FS
     EditProcedure --> Evidence
     EditProcedure -. richer IDE authoring .-> TweedleParser
+    CreateProcedure --> MethodRegistry
+    CreateFunction --> MethodRegistry
     SaveRoute -. full archive path .-> ProjectIO --> Writer --> FS
     SaveRoute --> Evidence
     RunWorld --> VM --> Evidence

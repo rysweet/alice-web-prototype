@@ -19,3 +19,12 @@ Architecture atlas for the Alice web prototype.
 ## Existing atlas notes
 
 - [Subsystem map](subsystem-map.md)
+
+## Atlas issue records
+
+- [A3P parser hub under-modeled](issue-records/a3p-parser-hub-under-modeled.md)
+- [Collaboration journey unwired](issue-records/collaboration-journey-unwired.md)
+- [Event registration docs drift](issue-records/event-register-doc-drift.md)
+- [Save route bypasses writer](issue-records/save-route-bypasses-writer.md)
+- [Cross-layer issue records](issue-records/cross-layer-issue-records.md)
+- [Journey architecture notes](issue-records/journey-architecture-notes.md)

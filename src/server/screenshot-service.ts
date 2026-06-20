@@ -9,8 +9,27 @@ const PLACEHOLDER_PNG = Buffer.from(
   "base64",
 );
 
+export type ScreenshotCaptureResult =
+  | {
+      status: "captured";
+      path: string;
+      objectCount: number;
+      sceneDescription: string;
+      rendered: true;
+    }
+  | {
+      status: "failed";
+      path: string;
+      placeholder: true;
+      rendered: false;
+      error: string;
+    };
+
 export interface ScreenshotService {
-  captureScreenshot(evidenceDir: string, state: ServerState): Promise<Record<string, unknown>>;
+  captureScreenshot(
+    evidenceDir: string,
+    state: ServerState,
+  ): Promise<ScreenshotCaptureResult>;
 }
 
 export const screenshotService: ScreenshotService = {
@@ -32,9 +51,10 @@ export const screenshotService: ScreenshotService = {
     } catch {
       await fs.promises.writeFile(screenshotPath, PLACEHOLDER_PNG);
       return {
-        status: "captured",
+        status: "failed",
         path: screenshotPath,
         placeholder: true,
+        rendered: false,
         error: "Screenshot rendering failed",
       };
     }

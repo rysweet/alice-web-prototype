@@ -85,6 +85,368 @@ function evaluateNumeric(left: ProgramValue, right: ProgramValue, operator: (a: 
   return operator(Number(left ?? 0), Number(right ?? 0));
 }
 
+type WatchTokenType = "identifier" | "number" | "string" | "operator" | "leftParen" | "rightParen" | "end";
+
+interface WatchToken {
+  readonly type: WatchTokenType;
+  readonly value: string;
+  readonly position: number;
+}
+
+type WatchUnaryOperator = "!" | "+" | "-";
+type WatchBinaryOperator = "||" | "&&" | "==" | "!=" | "===" | "!==" | "<" | "<=" | ">" | ">=" | "+" | "-" | "*" | "/";
+
+type WatchExpressionNode =
+  | { readonly type: "literal"; readonly value: ProgramValue }
+  | { readonly type: "identifier"; readonly name: string; readonly position: number }
+  | { readonly type: "unary"; readonly operator: WatchUnaryOperator; readonly expression: WatchExpressionNode }
+  | { readonly type: "binary"; readonly operator: WatchBinaryOperator; readonly left: WatchExpressionNode; readonly right: WatchExpressionNode };
+
+class WatchExpressionSyntaxError extends Error {
+  constructor(message: string) {
+    super(`Unsupported debugger expression: ${message}`);
+  }
+}
+
+function assertWatchBinding(name: string, value: unknown): ProgramValue {
+  if (
+    value === null
+    || value === undefined
+    || typeof value === "number"
+    || typeof value === "string"
+    || typeof value === "boolean"
+  ) {
+    return value;
+  }
+  throw new WatchExpressionSyntaxError(`binding '${name}' has unsupported value type '${typeof value}'`);
+}
+
+function tokenizeWatchExpression(expression: string): WatchToken[] {
+  const tokens: WatchToken[] = [];
+  let index = 0;
+
+  while (index < expression.length) {
+    const char = expression[index]!;
+    if (/\s/.test(char)) {
+      index += 1;
+      continue;
+    }
+
+    if (/[A-Za-z_$]/.test(char)) {
+      const start = index;
+      index += 1;
+      while (index < expression.length && /[A-Za-z0-9_$]/.test(expression[index]!)) {
+        index += 1;
+      }
+      tokens.push({ type: "identifier", value: expression.slice(start, index), position: start });
+      continue;
+    }
+
+    if (/[0-9]/.test(char) || (char === "." && /[0-9]/.test(expression[index + 1] ?? ""))) {
+      const start = index;
+      if (char === ".") {
+        index += 1;
+      }
+      while (index < expression.length && /[0-9]/.test(expression[index]!)) {
+        index += 1;
+      }
+      if (expression[index] === ".") {
+        index += 1;
+        while (index < expression.length && /[0-9]/.test(expression[index]!)) {
+          index += 1;
+        }
+      }
+      tokens.push({ type: "number", value: expression.slice(start, index), position: start });
+      continue;
+    }
+
+    if (char === "'" || char === "\"") {
+      const quote = char;
+      const start = index;
+      let value = "";
+      index += 1;
+      while (index < expression.length) {
+        const current = expression[index]!;
+        if (current === quote) {
+          index += 1;
+          tokens.push({ type: "string", value, position: start });
+          break;
+        }
+        if (current === "\\") {
+          const escaped = expression[index + 1];
+          if (escaped === undefined) {
+            throw new WatchExpressionSyntaxError(`unterminated escape sequence at position ${index}`);
+          }
+          const escapes: Record<string, string> = {
+            "\\": "\\",
+            "'": "'",
+            "\"": "\"",
+            n: "\n",
+            r: "\r",
+            t: "\t",
+          };
+          value += escapes[escaped] ?? escaped;
+          index += 2;
+          continue;
+        }
+        value += current;
+        index += 1;
+      }
+      if (tokens[tokens.length - 1]?.position !== start) {
+        throw new WatchExpressionSyntaxError(`unterminated string literal at position ${start}`);
+      }
+      continue;
+    }
+
+    const threeChar = expression.slice(index, index + 3);
+    if (threeChar === "===" || threeChar === "!==") {
+      tokens.push({ type: "operator", value: threeChar, position: index });
+      index += 3;
+      continue;
+    }
+
+    const twoChar = expression.slice(index, index + 2);
+    if (["==", "!=", "<=", ">=", "&&", "||"].includes(twoChar)) {
+      tokens.push({ type: "operator", value: twoChar, position: index });
+      index += 2;
+      continue;
+    }
+
+    if (["+", "-", "*", "/", "<", ">", "!"].includes(char)) {
+      tokens.push({ type: "operator", value: char, position: index });
+      index += 1;
+      continue;
+    }
+
+    if (char === "(") {
+      tokens.push({ type: "leftParen", value: char, position: index });
+      index += 1;
+      continue;
+    }
+
+    if (char === ")") {
+      tokens.push({ type: "rightParen", value: char, position: index });
+      index += 1;
+      continue;
+    }
+
+    throw new WatchExpressionSyntaxError(`token '${char}' at position ${index} is not allowed`);
+  }
+
+  tokens.push({ type: "end", value: "", position: expression.length });
+  return tokens;
+}
+
+class WatchExpressionParser {
+  private cursor = 0;
+
+  constructor(private readonly tokens: readonly WatchToken[]) {}
+
+  parse(): WatchExpressionNode {
+    const node = this.parseLogicalOr();
+    const token = this.current();
+    if (token.type !== "end") {
+      throw new WatchExpressionSyntaxError(`unexpected token '${token.value}' at position ${token.position}`);
+    }
+    return node;
+  }
+
+  private parseLogicalOr(): WatchExpressionNode {
+    let node = this.parseLogicalAnd();
+    while (this.matchOperator("||")) {
+      node = { type: "binary", operator: "||", left: node, right: this.parseLogicalAnd() };
+    }
+    return node;
+  }
+
+  private parseLogicalAnd(): WatchExpressionNode {
+    let node = this.parseEquality();
+    while (this.matchOperator("&&")) {
+      node = { type: "binary", operator: "&&", left: node, right: this.parseEquality() };
+    }
+    return node;
+  }
+
+  private parseEquality(): WatchExpressionNode {
+    let node = this.parseComparison();
+    while (this.current().type === "operator" && ["==", "!=", "===", "!=="].includes(this.current().value)) {
+      const operator = this.advance().value as WatchBinaryOperator;
+      node = { type: "binary", operator, left: node, right: this.parseComparison() };
+    }
+    return node;
+  }
+
+  private parseComparison(): WatchExpressionNode {
+    let node = this.parseAdditive();
+    while (this.current().type === "operator" && ["<", "<=", ">", ">="].includes(this.current().value)) {
+      const operator = this.advance().value as WatchBinaryOperator;
+      node = { type: "binary", operator, left: node, right: this.parseAdditive() };
+    }
+    return node;
+  }
+
+  private parseAdditive(): WatchExpressionNode {
+    let node = this.parseMultiplicative();
+    while (this.current().type === "operator" && ["+", "-"].includes(this.current().value)) {
+      const operator = this.advance().value as WatchBinaryOperator;
+      node = { type: "binary", operator, left: node, right: this.parseMultiplicative() };
+    }
+    return node;
+  }
+
+  private parseMultiplicative(): WatchExpressionNode {
+    let node = this.parseUnary();
+    while (this.current().type === "operator" && ["*", "/"].includes(this.current().value)) {
+      const operator = this.advance().value as WatchBinaryOperator;
+      node = { type: "binary", operator, left: node, right: this.parseUnary() };
+    }
+    return node;
+  }
+
+  private parseUnary(): WatchExpressionNode {
+    if (this.matchOperator("!")) {
+      return { type: "unary", operator: "!", expression: this.parseUnary() };
+    }
+    if (this.matchOperator("-")) {
+      return { type: "unary", operator: "-", expression: this.parseUnary() };
+    }
+    if (this.matchOperator("+")) {
+      return { type: "unary", operator: "+", expression: this.parseUnary() };
+    }
+    return this.parsePrimary();
+  }
+
+  private parsePrimary(): WatchExpressionNode {
+    const token = this.current();
+    if (token.type === "number") {
+      this.advance();
+      return { type: "literal", value: Number(token.value) };
+    }
+    if (token.type === "string") {
+      this.advance();
+      return { type: "literal", value: token.value };
+    }
+    if (token.type === "identifier") {
+      this.advance();
+      switch (token.value) {
+      case "true":
+        return { type: "literal", value: true };
+      case "false":
+        return { type: "literal", value: false };
+      case "null":
+        return { type: "literal", value: null };
+      case "undefined":
+        return { type: "literal", value: undefined };
+      default:
+        return { type: "identifier", name: token.value, position: token.position };
+      }
+    }
+    if (token.type === "leftParen") {
+      this.advance();
+      const node = this.parseLogicalOr();
+      if (this.current().type !== "rightParen") {
+        throw new WatchExpressionSyntaxError(`expected ')' at position ${this.current().position}`);
+      }
+      this.advance();
+      return node;
+    }
+    throw new WatchExpressionSyntaxError(`expected a value at position ${token.position}`);
+  }
+
+  private matchOperator(operator: string): boolean {
+    if (this.current().type === "operator" && this.current().value === operator) {
+      this.advance();
+      return true;
+    }
+    return false;
+  }
+
+  private current(): WatchToken {
+    return this.tokens[this.cursor]!;
+  }
+
+  private advance(): WatchToken {
+    const token = this.current();
+    this.cursor += 1;
+    return token;
+  }
+}
+
+function evaluateWatchExpressionNode(
+  node: WatchExpressionNode,
+  bindings: Readonly<Record<string, unknown>>,
+): ProgramValue {
+  switch (node.type) {
+  case "literal":
+    return node.value;
+  case "identifier":
+    if (Object.prototype.hasOwnProperty.call(bindings, node.name)) {
+      return assertWatchBinding(node.name, bindings[node.name]);
+    }
+    throw new WatchExpressionSyntaxError(`unknown identifier '${node.name}' at position ${node.position}`);
+  case "unary": {
+    const value = evaluateWatchExpressionNode(node.expression, bindings);
+    switch (node.operator) {
+    case "!":
+      return !value;
+    case "-":
+      return -Number(value);
+    case "+":
+      return Number(value);
+    }
+  }
+  case "binary":
+    return evaluateWatchBinaryExpression(node, bindings);
+  default:
+    node satisfies never;
+  }
+}
+
+function evaluateWatchBinaryExpression(
+  node: Extract<WatchExpressionNode, { readonly type: "binary" }>,
+  bindings: Readonly<Record<string, unknown>>,
+): ProgramValue {
+  const left = evaluateWatchExpressionNode(node.left, bindings);
+
+  if (node.operator === "||") {
+    return left || evaluateWatchExpressionNode(node.right, bindings);
+  }
+  if (node.operator === "&&") {
+    return left && evaluateWatchExpressionNode(node.right, bindings);
+  }
+
+  const right = evaluateWatchExpressionNode(node.right, bindings);
+  switch (node.operator) {
+  case "==":
+    return left == right;
+  case "!=":
+    return left != right;
+  case "===":
+    return left === right;
+  case "!==":
+    return left !== right;
+  case "<":
+    return Number(left) < Number(right);
+  case "<=":
+    return Number(left) <= Number(right);
+  case ">":
+    return Number(left) > Number(right);
+  case ">=":
+    return Number(left) >= Number(right);
+  case "+":
+    return typeof left === "string" || typeof right === "string"
+      ? `${left ?? ""}${right ?? ""}`
+      : Number(left) + Number(right);
+  case "-":
+    return Number(left) - Number(right);
+  case "*":
+    return Number(left) * Number(right);
+  case "/":
+    return Number(left) / Number(right);
+  }
+  throw new WatchExpressionSyntaxError(`internal parser error for operator '${node.operator}'`);
+}
+
 export class ExecutionContext {
   private readonly frames: MutableFrame[] = [];
 
@@ -147,9 +509,8 @@ export class ConsoleOutput {
 export class WatchExpression {
   evaluate(expression: string, context: ExecutionContext): unknown {
     const bindings = context.visibleBindings();
-    const keys = Object.keys(bindings);
-    const values = keys.map((key) => bindings[key]);
-    return new Function(...keys, `return (${expression});`)(...values);
+    const parsed = new WatchExpressionParser(tokenizeWatchExpression(expression)).parse();
+    return evaluateWatchExpressionNode(parsed, bindings);
   }
 }
 

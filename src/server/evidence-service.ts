@@ -8,10 +8,12 @@ import {
   writeEventFire,
 } from "../evidence-writer.js";
 
-const MINIMAL_A3P_BUFFER = Buffer.from("PK\x03\x04" + "alice-web-prototype-placeholder", "binary");
-
 export interface EvidenceService {
-  writeEditedProjectArtifact(sourceProjectPath: string | null, evidenceDir: string): Promise<string>;
+  writeEditedProjectArtifact(
+    sourceProjectPath: string | null,
+    evidenceDir: string,
+    currentProjectBytes: Uint8Array | null,
+  ): Promise<string>;
   recordSceneObjectAdded(evidenceDir: string, objectClassName: string, sceneFieldCountAfter: number): string;
   recordEditProcedureProof(
     evidenceDir: string,
@@ -49,18 +51,23 @@ export interface EvidenceService {
 }
 
 export const evidenceService: EvidenceService = {
-  async writeEditedProjectArtifact(sourceProjectPath, evidenceDir) {
+  async writeEditedProjectArtifact(sourceProjectPath, evidenceDir, currentProjectBytes) {
     const editedProjectPath = path.join(evidenceDir, "edited-project.a3p");
-    if (!sourceProjectPath) {
-      await fs.promises.writeFile(editedProjectPath, MINIMAL_A3P_BUFFER);
+    if (sourceProjectPath) {
+      try {
+        await fs.promises.copyFile(sourceProjectPath, editedProjectPath);
+      } catch (error) {
+        throw new Error(`Failed to copy edited project artifact from ${sourceProjectPath}`, {
+          cause: error instanceof Error ? error : undefined,
+        });
+      }
       return editedProjectPath;
     }
 
-    try {
-      await fs.promises.copyFile(sourceProjectPath, editedProjectPath);
-    } catch {
-      await fs.promises.writeFile(editedProjectPath, MINIMAL_A3P_BUFFER);
+    if (!currentProjectBytes || currentProjectBytes.byteLength === 0) {
+      throw new Error("Cannot write edited project artifact without source or generated project bytes");
     }
+    await fs.promises.writeFile(editedProjectPath, currentProjectBytes);
     return editedProjectPath;
   },
 

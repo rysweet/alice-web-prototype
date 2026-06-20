@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import JSZip from "jszip";
@@ -69,7 +69,7 @@ function runHook(hookName: string, extraArgs: string[] = []): string {
     "--json",
     ...extraArgs,
   ];
-  return execSync(`node ${hookPath} ${args.join(" ")}`, {
+  return execFileSync("node", [hookPath, ...args], {
     encoding: "utf-8",
     timeout: 10000,
   }).trim();

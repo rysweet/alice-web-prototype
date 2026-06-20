@@ -17,19 +17,19 @@ The core scene/entity model has three runtime layers:
 | Scene container | `scene.ts` | `Scene` class with CRUD operations and `Scene.fromProject()` bridge |
 
 The broader Story API topology includes helper and export modules beside those
-runtime layers. `implementation.ts` exists now; `world.ts` is the planned helper
-owner introduced by the public barrel refactor:
+runtime layers. `implementation.ts`, `world.ts`, and the public barrel in
+`index.ts` are implemented now:
 
 | Layer | File | Purpose |
 |---|---|---|
 | Implementation summaries | `implementation.ts` | Runtime implementation summaries and lifecycle helpers |
-| World helpers | `world.ts` | Planned home for story-world aggregation, diagnostics, comparison, and compatibility helpers |
-| Public barrel | `index.ts` | Planned export-only barrel for all public Story API names |
+| World helpers | `world.ts` | Story-world aggregation, diagnostics, comparison, and compatibility helpers |
+| Public barrel | [`index.ts`](../src/story-api/index.ts) | Export-only barrel for all public Story API names |
 
 All public types, classes, and helper functions are exposed through
-`src/story-api/index.ts`. The planned refactor makes that public barrel
-export-only; see [Story API public barrel topology](./story-api-public-barrels.md)
-for the import contract and module ownership rules.
+[`src/story-api/index.ts`](../src/story-api/index.ts). See
+[Story API public barrel topology](./story-api-public-barrels.md) for the import
+contract and module ownership rules.
 
 ## Quick Start
 

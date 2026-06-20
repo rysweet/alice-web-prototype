@@ -10,6 +10,12 @@ import {
   type AliceStatement,
 } from "../src/a3p-parser";
 import { LOWERED_A3P_STATEMENT_KINDS, SUPPORTED_A3P_STATEMENT_KINDS, writeA3P } from "../src/a3p-writer";
+import {
+  OPTIONAL_EXTERNAL_A3P_FIXTURES,
+  REPOSITORY_A3P_FIXTURE,
+  optionalExternalA3PFixtureExists,
+  readRequiredA3PFixture,
+} from "./fixtures/a3p-fixtures";
 
 beforeAll(async () => {
   if (typeof globalThis.DOMParser === "undefined" || typeof globalThis.XMLSerializer === "undefined") {
@@ -20,19 +26,9 @@ beforeAll(async () => {
   }
 });
 
-const REAL_A3P_CANDIDATES = [
-  "/home/azureuser/src/alice/core/resources/src/application/resources/starter-projects/amazonMinimum.a3p",
-  "/home/azureuser/src/alice/core/resources/src/application/resources/starter-projects/amazonFull.a3p",
-  "/home/azureuser/src/alice/core/resources/src/application/resources/starter-projects/chinaFull.a3p",
-  "/home/azureuser/src/eatme/crates/eatme-alice/tests/fixtures/real/amazonMinimum.a3p",
-  "/home/azureuser/src/eatme/crates/eatme-alice/tests/fixtures/real/iceFull.a3p",
-  "/home/azureuser/src/eatme/crates/eatme-alice/tests/fixtures/real/magicMinimum.a3p",
-  "/home/azureuser/src/eatme/crates/eatme-alice/tests/fixtures/real/indiaMinimum.a3p",
-];
-
-const REAL_A3P_FILES = REAL_A3P_CANDIDATES.filter((file) => fs.existsSync(file));
-const AMAZON_MINIMUM_A3P = REAL_A3P_FILES.find((file) => path.basename(file) === "amazonMinimum.a3p") ?? null;
-const ICE_FULL_A3P = REAL_A3P_FILES.find((file) => path.basename(file) === "iceFull.a3p") ?? null;
+const OPTIONAL_EXTERNAL_A3P_FILES = OPTIONAL_EXTERNAL_A3P_FIXTURES.filter(optionalExternalA3PFixtureExists);
+const AMAZON_MINIMUM_A3P = OPTIONAL_EXTERNAL_A3P_FILES.find((file) => path.basename(file) === "amazonMinimum.a3p") ?? null;
+const ICE_FULL_A3P = OPTIONAL_EXTERNAL_A3P_FILES.find((file) => path.basename(file) === "iceFull.a3p") ?? null;
 
 function summarizeProject(project: AliceProject) {
   return {
@@ -260,13 +256,25 @@ async function writeProgramXmlForStatement(statement: AliceStatement): Promise<s
 }
 
 describe("a3p faithful round-trip", { timeout: 60_000 }, () => {
-  it("discovers real Alice project fixtures", () => {
-    expect(REAL_A3P_FILES.length).toBeGreaterThan(0);
+  it("requires the sanitized repository Alice project fixture", () => {
+    expect(fs.existsSync(REPOSITORY_A3P_FIXTURE)).toBe(true);
   });
 
-  for (const realFile of REAL_A3P_FILES) {
+  it(`round-trips ${path.basename(REPOSITORY_A3P_FIXTURE)} through parseA3P/writeA3P`, async () => {
+    const original = await parseA3P(readRequiredA3PFixture());
+    const written = await writeA3P(original);
+    const reparsed = await parseA3P(written);
+
+    expect(original.projectName).toBeTruthy();
+    expect(Array.isArray(original.sceneObjects)).toBe(true);
+    expect(Array.isArray(original.methods)).toBe(true);
+    expect(Array.isArray(original.types)).toBe(true);
+    expect(summarizeProject(reparsed)).toEqual(summarizeProject(original));
+  });
+
+  for (const realFile of OPTIONAL_EXTERNAL_A3P_FILES) {
     const name = path.basename(realFile);
-    it(`round-trips ${name} through parseA3P/writeA3P`, async () => {
+    it(`optionally round-trips external ${name} through parseA3P/writeA3P`, async () => {
       const originalBytes = fs.readFileSync(realFile);
       const original = await parseA3P(originalBytes);
       const written = await writeA3P(original);
@@ -280,25 +288,25 @@ describe("a3p faithful round-trip", { timeout: 60_000 }, () => {
     }, 60_000);
   }
 
-  it.skipIf(!AMAZON_MINIMUM_A3P)("parses real content from amazonMinimum.a3p", async () => {
-    const project = await parseA3P(fs.readFileSync(AMAZON_MINIMUM_A3P!));
+  it("parses real content from the repository fixture", async () => {
+    const project = await parseA3P(readRequiredA3PFixture());
     const sceneType = findSceneType(project);
 
     expect(sceneType?.name).toBe("Scene");
     expect(project.sceneObjects.map((object) => object.name)).toEqual(
-      expect.arrayContaining(["ground", "camera", "riverPiece"]),
+      expect.arrayContaining(["ground", "camera", "bunny"]),
     );
     expect(project.methods.map((method) => method.name)).toEqual(
       expect.arrayContaining(["performCustomSetup", "performGeneratedSetUp"]),
     );
     expect((sceneType?.fields ?? []).map((field) => field.name)).toEqual(
-      expect.arrayContaining(["ground", "camera", "riverPiece"]),
+      expect.arrayContaining(["ground", "camera", "bunny"]),
     );
-    expect((project.types ?? []).map((type) => type.name)).toContain("Prop");
+    expect((project.types ?? []).map((type) => type.name)).toContain("SanitizedBunny");
   });
 
-  it.skipIf(!AMAZON_MINIMUM_A3P)("persists field renames and added methods through round-trip", async () => {
-    const project = await parseA3P(fs.readFileSync(AMAZON_MINIMUM_A3P!));
+  it("persists field renames and added methods through repository fixture round-trip", async () => {
+    const project = await parseA3P(readRequiredA3PFixture());
     const renameFrom = project.sceneObjects.find((object) => object.name === "ground")?.name
       ?? project.sceneObjects[0]?.name;
     expect(renameFrom).toBeTruthy();
@@ -321,6 +329,23 @@ describe("a3p faithful round-trip", { timeout: 60_000 }, () => {
     expect((reparsedSceneType?.fields ?? []).map((field) => field.name)).toContain(renamedField);
     expect(reparsed.methods.map((method) => method.name)).toContain("roundTripAddedMethod");
     expect((reparsedSceneType?.methods ?? []).map((method) => method.name)).toContain("roundTripAddedMethod");
+  });
+
+  it.skipIf(!AMAZON_MINIMUM_A3P)("parses optional external amazonMinimum.a3p content", async () => {
+    const project = await parseA3P(fs.readFileSync(AMAZON_MINIMUM_A3P!));
+    const sceneType = findSceneType(project);
+
+    expect(sceneType?.name).toBe("Scene");
+    expect(project.sceneObjects.map((object) => object.name)).toEqual(
+      expect.arrayContaining(["ground", "camera", "riverPiece"]),
+    );
+    expect(project.methods.map((method) => method.name)).toEqual(
+      expect.arrayContaining(["performCustomSetup", "performGeneratedSetUp"]),
+    );
+    expect((sceneType?.fields ?? []).map((field) => field.name)).toEqual(
+      expect.arrayContaining(["ground", "camera", "riverPiece"]),
+    );
+    expect((project.types ?? []).map((type) => type.name)).toContain("Prop");
   });
 
   it.skipIf(!ICE_FULL_A3P)("preserves resource-bearing projects", async () => {
@@ -431,8 +456,8 @@ describe("a3p faithful round-trip", { timeout: 60_000 }, () => {
     expect(tutorialBunny?.constructors?.[0]?.parameters).toEqual([{ name: "times", type: "java.lang.Integer" }]);
   });
 
-  it.skipIf(!AMAZON_MINIMUM_A3P)("keeps custom types intact through round-trip", async () => {
-    const original = await parseA3P(fs.readFileSync(AMAZON_MINIMUM_A3P!));
+  it("keeps repository fixture custom types intact through round-trip", async () => {
+    const original = await parseA3P(readRequiredA3PFixture());
     const written = await writeA3P(original);
     const reparsed = await parseA3P(written);
 

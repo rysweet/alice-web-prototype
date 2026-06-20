@@ -18,6 +18,14 @@ class RecordingAnimation extends DurationAnimation {
   }
 }
 
+class FinishingAnimation extends RecordingAnimation {
+  finishCount = 0;
+
+  protected override finish(): void {
+    this.finishCount += 1;
+  }
+}
+
 describe("story-api-animations", () => {
   it("applies configured animation styles", () => {
     const abrupt = new RecordingAnimation(1000, AnimationStyle.NONE);
@@ -35,6 +43,15 @@ describe("story-api-animations", () => {
 
     expect(animation.update(250)).toEqual({ elapsedMs: 250, durationMs: 500, progress: 0.5, complete: false });
     expect(animation.update(250)).toEqual({ elapsedMs: 500, durationMs: 500, progress: 1, complete: true });
+  });
+
+  it("calls the optional finish hook when a duration animation completes", () => {
+    const animation = new FinishingAnimation(100, AnimationStyle.NONE);
+
+    animation.update(100);
+    animation.update(100);
+
+    expect(animation.finishCount).toBe(1);
   });
 
   it("runs compound animations in order and together", () => {

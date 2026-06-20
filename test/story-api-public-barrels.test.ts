@@ -119,6 +119,7 @@ const PUBLIC_STORY_API_EXPORTS = [
   "SProp",
   "SQuadruped",
   "SScene",
+  "SSceneListenerDispatch",
   "SShape",
   "SSlitherer",
   "SSphere",
