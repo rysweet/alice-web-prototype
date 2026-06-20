@@ -65,6 +65,55 @@ describe("validateProjectPath", () => {
     expect(result.valid).toBe(false);
   });
 
+  it("rejects symlink escapes from an allowed dir", () => {
+    const root = fs.mkdtempSync(
+      path.resolve(__dirname, "../.test-path-traversal-symlink-"),
+    );
+    try {
+      const allowedDir = path.join(root, "allowed");
+      const outsideDir = path.join(root, "outside");
+      fs.mkdirSync(allowedDir);
+      fs.mkdirSync(outsideDir);
+      fs.writeFileSync(path.join(outsideDir, "escape.a3p"), "");
+      fs.symlinkSync(outsideDir, path.join(allowedDir, "link"), "dir");
+
+      const result = validateProjectPath(
+        path.join(allowedDir, "link", "escape.a3p"),
+        [allowedDir],
+      );
+
+      expect(result.valid).toBe(false);
+      if (!result.valid) expect(result.error).toContain("outside allowed");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts valid paths after resolving real allowed dirs", () => {
+    const root = fs.mkdtempSync(
+      path.resolve(__dirname, "../.test-path-traversal-realpath-"),
+    );
+    try {
+      const realAllowedDir = path.join(root, "real-allowed");
+      const allowedLink = path.join(root, "allowed-link");
+      const projectPath = path.join(allowedLink, "valid.a3p");
+      fs.mkdirSync(realAllowedDir);
+      fs.writeFileSync(path.join(realAllowedDir, "valid.a3p"), "");
+      fs.symlinkSync(realAllowedDir, allowedLink, "dir");
+
+      const result = validateProjectPath(projectPath, [allowedLink]);
+
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.resolvedPath).toBe(
+          fs.realpathSync.native(path.join(realAllowedDir, "valid.a3p")),
+        );
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("rejects encoded forward slash %2f", () => {
     const result = validateProjectPath("/home/user/projects/%2f..%2f..%2fetc%2fpasswd.a3p", allowedDirs);
     expect(result.valid).toBe(false);
