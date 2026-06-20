@@ -51,6 +51,94 @@ class MemoryIndexedDbStore implements AsyncStateStorageLike {
 }
 
 describe("state-synchronization", () => {
+  it.each([
+    ["__proto__", (pollutionKey: string) => `$.__proto__.${pollutionKey}`],
+    ["constructor", (pollutionKey: string) => `$.constructor.prototype.${pollutionKey}`],
+    ["prototype", (pollutionKey: string) => `$.prototype.${pollutionKey}`],
+  ])("rejects %s in state patch paths without polluting prototypes", (segment, makePath) => {
+    const pollutionKey = "aliceStatePatchPolluted";
+    const readPollutedValue = (): unknown => ({} as Record<string, unknown>)[pollutionKey];
+    delete (Object.prototype as Record<string, unknown>)[pollutionKey];
+
+    try {
+      expect(readPollutedValue()).toBeUndefined();
+      expect(() => StatePatch.apply({ safe: true }, [
+        { op: "set", path: makePath(pollutionKey), value: true },
+      ])).toThrow(`Unsafe state patch path segment: ${segment}`);
+      expect(readPollutedValue()).toBeUndefined();
+    } finally {
+      delete (Object.prototype as Record<string, unknown>)[pollutionKey];
+    }
+  });
+
+  it.each(["__proto__", "constructor", "prototype"])("rejects %s in final, nested, array, bracket, and remove paths", (segment) => {
+    const unsafePaths = [
+      `$.${segment}`,
+      `$.safe.${segment}`,
+      `$.items[0].${segment}`,
+      `$[${segment}]`,
+    ];
+
+    for (const path of unsafePaths) {
+      expect(() => StatePatch.apply({ safe: {}, items: [{}] }, [
+        { op: "set", path, value: true },
+      ])).toThrow(`Unsafe state patch path segment: ${segment}`);
+    }
+    expect(() => StatePatch.apply({ safe: true }, [
+      { op: "remove", path: `$.${segment}` },
+    ])).toThrow(`Unsafe state patch path segment: ${segment}`);
+  });
+
+  it("keeps root replacement __proto__ values as own data properties", () => {
+    const pollutionKey = "aliceRootReplacementPolluted";
+    const readPollutedValue = (): unknown => ({} as Record<string, unknown>)[pollutionKey];
+    const nextValue = JSON.parse(
+      '{"safe":false,"__proto__":{"aliceRootReplacementPolluted":true}}',
+    ) as StateObject;
+    delete (Object.prototype as Record<string, unknown>)[pollutionKey];
+
+    try {
+      const replaced = StatePatch.apply({ safe: true } as StateObject, [
+        { op: "set", path: "$", value: nextValue },
+      ]) as Record<string, unknown>;
+      const protoDescriptor = Object.getOwnPropertyDescriptor(replaced, "__proto__");
+
+      expect(readPollutedValue()).toBeUndefined();
+      expect(Object.getPrototypeOf(replaced)).toBe(Object.prototype);
+      expect(protoDescriptor).toMatchObject({
+        value: { aliceRootReplacementPolluted: true },
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+      expect(replaced).toEqual({
+        safe: false,
+        ["__proto__"]: { aliceRootReplacementPolluted: true },
+      });
+    } finally {
+      delete (Object.prototype as Record<string, unknown>)[pollutionKey];
+    }
+  });
+
+  it("keeps diff and apply round trips working for dangerous own keys", () => {
+    const previousState = {
+      safe: JSON.parse('{"__proto__":{"polluted":false},"label":"old"}') as StateObject,
+    };
+    const nextState = {
+      safe: JSON.parse('{"__proto__":{"polluted":true},"label":"new"}') as StateObject,
+    };
+
+    const patch = StatePatch.diff(previousState, nextState);
+    const reapplied = StatePatch.apply(previousState, patch) as StateObject;
+    const safeObject = reapplied.safe as Record<string, unknown>;
+    const protoDescriptor = Object.getOwnPropertyDescriptor(safeObject, "__proto__");
+
+    expect(patch.map((operation) => operation.path)).toEqual(["$.safe"]);
+    expect(reapplied).toEqual(nextState);
+    expect(Object.getPrototypeOf(safeObject)).toBe(Object.prototype);
+    expect(protoDescriptor?.value).toEqual({ polluted: true });
+  });
+
   it("computes minimal state patches and reapplies them", () => {
     const previousState: DemoState = {
       counter: 1,
