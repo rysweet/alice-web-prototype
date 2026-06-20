@@ -480,7 +480,11 @@ export class ExecutionContext {
   }
 
   visibleBindings(): Record<string, ProgramValue> {
-    return this.frames.reduce<Record<string, ProgramValue>>((bindings, frame) => ({ ...bindings, ...frame.locals }), {});
+    const bindings: Record<string, ProgramValue> = {};
+    for (const frame of this.frames) {
+      Object.assign(bindings, frame.locals);
+    }
+    return bindings;
   }
 
   snapshot(): ExecutionFrameSnapshot[] {
@@ -507,12 +511,31 @@ export class ConsoleOutput {
 }
 
 export class WatchExpression {
+  private readonly parsedExpressions = new Map<string, WatchExpressionNode>();
+
   evaluate(expression: string, context: ExecutionContext): unknown {
     const bindings = context.visibleBindings();
+    return evaluateWatchExpressionNode(this.parse(expression), bindings);
+  }
+
+  private parse(expression: string): WatchExpressionNode {
+    const cached = this.parsedExpressions.get(expression);
+    if (cached) {
+      return cached;
+    }
     const parsed = new WatchExpressionParser(tokenizeWatchExpression(expression)).parse();
-    return evaluateWatchExpressionNode(parsed, bindings);
+    if (this.parsedExpressions.size >= WATCH_EXPRESSION_CACHE_LIMIT) {
+      const oldestExpression = this.parsedExpressions.keys().next().value;
+      if (oldestExpression !== undefined) {
+        this.parsedExpressions.delete(oldestExpression);
+      }
+    }
+    this.parsedExpressions.set(expression, parsed);
+    return parsed;
   }
 }
+
+const WATCH_EXPRESSION_CACHE_LIMIT = 128;
 
 export class BreakpointManager {
   private readonly breakpoints = new Map<string, string | undefined>();
@@ -635,8 +658,11 @@ export class ProgramRunner {
     if (!method) {
       throw new Error(`unknown method: ${methodName}`);
     }
-    const parameterNames = [...(method.parameters ?? [])];
-    const locals = Object.fromEntries(parameterNames.map((name, index) => [name, args[index]])) as Record<string, ProgramValue>;
+    const parameterNames = method.parameters ?? [];
+    const locals: Record<string, ProgramValue> = {};
+    for (let index = 0; index < parameterNames.length; index += 1) {
+      locals[parameterNames[index]!] = args[index];
+    }
     context.pushFrame(method.name, locals);
     for (const statement of method.body) {
       this.events.push({
@@ -656,7 +682,11 @@ export class ProgramRunner {
         this.console.print(this.evaluateExpression(statement.expression, context));
         break;
       case "call": {
-        const evaluatedArgs = [...(statement.args ?? [])].map((expression) => this.evaluateExpression(expression, context));
+        const callArgs = statement.args ?? [];
+        const evaluatedArgs: ProgramValue[] = [];
+        for (const expression of callArgs) {
+          evaluatedArgs.push(this.evaluateExpression(expression, context));
+        }
         const callResult = this.executeMethod(statement.method, evaluatedArgs, context);
         if (statement.assignTo) {
           context.setVariable(statement.assignTo, callResult);

@@ -34,12 +34,12 @@ const sampleProgram: AliceProgramDefinition = {
 describe("program-execution", () => {
   it("maintains variable bindings and call stacks in execution contexts", () => {
     const context = new ExecutionContext();
-    context.pushFrame("main", { count: 1 });
-    context.pushFrame("helper", { input: 2 });
+    context.pushFrame("main", { count: 1, label: "outer" });
+    context.pushFrame("helper", { input: 2, label: "inner" });
 
     expect(context.getVariable("count")).toBe(1);
     expect(context.getVariable("input")).toBe(2);
-    expect(context.visibleBindings()).toEqual({ count: 1, input: 2 });
+    expect(context.visibleBindings()).toEqual({ count: 1, label: "inner", input: 2 });
     expect(context.snapshot().map((frame) => frame.methodName)).toEqual(["main", "helper"]);
   });
 
@@ -60,6 +60,17 @@ describe("program-execution", () => {
     expect(new WatchExpression().evaluate("label === \"ready\"", context)).toBe(true);
     expect(new WatchExpression().evaluate("count === 3 || missing === 1", context)).toBe(true);
     expect(new WatchExpression().evaluate("count === 4 && missing === 1", context)).toBe(false);
+  });
+
+  it("evaluates repeated watch expressions against the latest bindings", () => {
+    const watches = new WatchExpression();
+    const first = new ExecutionContext();
+    first.pushFrame("main", { count: 3 });
+    const second = new ExecutionContext();
+    second.pushFrame("main", { count: 8 });
+
+    expect(watches.evaluate("count + 1", first)).toBe(4);
+    expect(watches.evaluate("count + 1", second)).toBe(9);
   });
 
   it("rejects unsupported watch expressions without executing them", () => {

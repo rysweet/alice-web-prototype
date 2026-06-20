@@ -348,7 +348,8 @@ export class ProjectAutoSaver<T extends JsonValue = JsonValue> {
   }
 
   async flush(): Promise<ProjectSaveResult<T>> {
-    const snapshot = cloneJson(this.options.capture());
+    const snapshot = this.options.capture();
+    const serialized = JSON.stringify(snapshot);
     const result = await this.persistence.saveProject(
       this.options.projectId,
       this.options.name,
@@ -358,12 +359,12 @@ export class ProjectAutoSaver<T extends JsonValue = JsonValue> {
         forceVersion: this.options.forceVersion,
       },
     );
-    this.lastSerializedSnapshot = JSON.stringify(snapshot);
+    this.lastSerializedSnapshot = serialized;
     return result;
   }
 
   async flushIfChanged(): Promise<ProjectSaveResult<T> | null> {
-    const snapshot = cloneJson(this.options.capture());
+    const snapshot = this.options.capture();
     const serialized = JSON.stringify(snapshot);
     if (serialized === this.lastSerializedSnapshot) {
       return null;
@@ -530,23 +531,28 @@ function pruneStateToQuota<T extends JsonValue>(
   const removable = [...state.versions]
     .filter((version) => !latestVersionIds.has(version.versionId))
     .sort((left, right) => left.savedAt - right.savedAt || left.sequence - right.sequence);
+  let removableIndex = 0;
 
-  while (estimateStateSize(state) > maxBytes && removable.length > 0) {
-    const version = removable.shift();
+  while (estimateStateSize(state) > maxBytes && removableIndex < removable.length) {
+    const version = removable[removableIndex];
+    removableIndex += 1;
     if (!version) {
       break;
     }
-    state.versions = state.versions.filter(
-      (candidate) => candidate.versionId !== version.versionId,
-    );
+    const versionIndex = state.versions.indexOf(version);
+    if (versionIndex !== -1) {
+      state.versions.splice(versionIndex, 1);
+    }
     prunedVersions += 1;
   }
 
+  const versionCounts = new Map<string, number>();
+  for (const version of state.versions) {
+    versionCounts.set(version.projectId, (versionCounts.get(version.projectId) ?? 0) + 1);
+  }
   state.projects = state.projects.map((project) => ({
     ...project,
-    versionCount: state.versions.filter(
-      (version) => version.projectId === project.projectId,
-    ).length,
+    versionCount: versionCounts.get(project.projectId) ?? 0,
   }));
 
   return { state, prunedVersions };

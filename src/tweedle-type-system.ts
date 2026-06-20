@@ -578,13 +578,21 @@ function scoreOmittedArguments(method: MethodDecl, providedCount: number, state:
 }
 
 function chooseBestMethod(candidates: ResolvedMethod[]): ResolvedMethod | null {
-  if (candidates.length === 0) {
-    return null;
+  let best: ResolvedMethod | null = null;
+  let ambiguous = false;
+
+  for (const candidate of candidates) {
+    if (best == null || candidate.score < best.score) {
+      best = candidate;
+      ambiguous = false;
+      continue;
+    }
+    if (candidate.score === best.score) {
+      ambiguous = true;
+    }
   }
 
-  candidates.sort((left, right) => left.score - right.score);
-  const [best, second] = candidates;
-  if (second && second.score === best.score) {
+  if (best == null || ambiguous) {
     return null;
   }
   return best;
