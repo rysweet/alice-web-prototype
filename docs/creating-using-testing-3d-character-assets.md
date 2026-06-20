@@ -9,19 +9,10 @@ gallery browser for selecting models.
 Use this guide when adding a new character, improving an existing procedural
 model, or validating imported open-source assets.
 
-## Background and related work
+## Related documentation
 
-The current pipeline was built across these pull requests:
-
-| PR | What it added |
-| --- | --- |
-| [#90](https://github.com/rysweet/alice-web-prototype/pull/90) | Initial open-asset pipeline: procedural generators, glTF conversion, Blender export support, model-provider API, and OSS source research. |
-| [#91](https://github.com/rysweet/alice-web-prototype/pull/91) | Research docs, pipeline docs, tutorial updates, and sample glTF placeholder assets. |
-| [#92](https://github.com/rysweet/alice-web-prototype/pull/92) | Quality scoring, glTF export support, and the scene graph abstraction layer. |
-| [#93](https://github.com/rysweet/alice-web-prototype/pull/93) | Profile-driven procedural models for all 144 Alice resources. |
-| [#102](https://github.com/rysweet/alice-web-prototype/pull/102) | Gallery browser data, visual preview, and add-to-scene integration. |
-
-Related docs:
+Use these stable guides for deeper detail on the asset pipeline, model sources,
+quality checks, and scene graph integration:
 
 - [Open-source 3D alternatives](./open-source-3d-alternatives.md)
 - [Open-asset pipeline](./open-asset-pipeline.md)

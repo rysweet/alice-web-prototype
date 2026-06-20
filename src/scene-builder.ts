@@ -8,6 +8,7 @@ import {
   Transformable,
   createModel,
 } from "./scenegraph";
+import { markSceneOwnedGeometry, markSceneOwnedMaterials } from "./scene-disposal";
 
 // ── Exported interfaces ───────────────────────────────────────────────
 
@@ -193,6 +194,8 @@ export function buildScene(project: AliceProject, opts?: SceneBuildOptions): Sce
       const boxHelper = new THREE.BoxHelper(mesh, 0x00ff00);
       boxHelper.userData.debugType = "bbox";
       boxHelper.name = `${obj.name}_bbox`;
+      markSceneOwnedGeometry(boxHelper.geometry);
+      markSceneOwnedMaterials(boxHelper.material);
       scene.add(boxHelper);
     }
 
@@ -212,6 +215,8 @@ export function buildScene(project: AliceProject, opts?: SceneBuildOptions): Sce
     const grid = new THREE.GridHelper(200, 40, 0x888888, 0x444444);
     grid.position.y = 0.01;
     grid.userData.debugType = "grid";
+    markSceneOwnedGeometry(grid.geometry);
+    markSceneOwnedMaterials(grid.material);
     scene.add(grid);
   }
 
@@ -325,6 +330,7 @@ function createSkeletonVis(obj: AliceObject, template: number[][]): THREE.LineSe
   }
 
   const geometry = new THREE.BufferGeometry();
+  markSceneOwnedGeometry(geometry);
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   return new THREE.LineSegments(geometry, skeletonMat());
 }
@@ -426,7 +432,7 @@ function createPropPlaceholder(obj: AliceObject): THREE.Mesh {
   const d = obj.size?.depth ?? 1;
 
   // BoxGeometry varies per object — cannot cache
-  const geo = new THREE.BoxGeometry(w, h, d);
+  const geo = markSceneOwnedGeometry(new THREE.BoxGeometry(w, h, d));
   const mat = obj.typeName.includes("SProp") ? propMat() : modelMat();
   const mesh = new THREE.Mesh(geo, mat);
   mesh.castShadow = true;

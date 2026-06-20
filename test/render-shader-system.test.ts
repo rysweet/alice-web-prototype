@@ -65,4 +65,18 @@ describe("render-shader-system", () => {
     expect(variant.key()).toBe("pbr:USE_SKINNING=1");
     expect(() => program.setUniform("missingUniform", 1)).toThrow(/Unknown uniform/);
   });
+
+  it("ships built-in fragment shaders that write fragment output", () => {
+    const library = new ShaderLibrary();
+
+    library.list().forEach((name) => {
+      const { fragment } = library.getSource(name);
+      const program = library.createProgram(name);
+
+      expect(fragment).not.toMatch(/void\s+main\s*\(\s*\)\s*\{\s*\}/);
+      expect(fragment).toMatch(/out\s+vec4\s+fragmentColor\s*;/);
+      expect(fragment).toMatch(/fragmentColor\s*=/);
+      expect(program.fragmentShader.transformedSource).toContain("fragmentColor");
+    });
+  });
 });

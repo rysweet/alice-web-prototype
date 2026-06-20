@@ -3,12 +3,19 @@ import {
   AdapterFactory, BoxAdapter, SphereAdapter, CylinderAdapter,
   DiscAdapter, TorusAdapter, VisualAdapter, AmbientLightAdapter,
   DirectionalLightAdapter, SpotLightAdapter, CameraAdapter,
-  SceneAdapter, DEFAULT_APPEARANCE,
+  SceneAdapter, DEFAULT_APPEARANCE, RenderAdapter,
 } from '../src/renderer-adapters';
 import type { SceneGraphNode } from '../src/renderer-adapters';
 
 function node(id: string, type: string): SceneGraphNode {
   return { id, type };
+}
+
+class TrackingAdapter extends RenderAdapter {
+  disposeCalls = 0;
+
+  update() { this.markClean(); }
+  dispose() { this.disposeCalls += 1; }
 }
 
 describe('AdapterFactory', () => {
@@ -39,12 +46,50 @@ describe('AdapterFactory', () => {
     expect(AdapterFactory.instanceCount).toBe(0);
   });
 
+  it('calls adapter dispose before deleting the instance', () => {
+    AdapterFactory.register('tracking-dispose', TrackingAdapter);
+    const adapter = AdapterFactory.create(node('tracked', 'tracking-dispose')) as TrackingAdapter;
+    AdapterFactory.dispose('tracked');
+    expect(adapter.disposeCalls).toBe(1);
+    expect(AdapterFactory.get('tracked')).toBeNull();
+  });
+
   it('forgetAll clears everything', () => {
     AdapterFactory.register('box', BoxAdapter);
     AdapterFactory.create(node('a', 'box'));
     AdapterFactory.create(node('b', 'box'));
     AdapterFactory.forgetAll();
     expect(AdapterFactory.instanceCount).toBe(0);
+  });
+
+  it('forgetAll disposes each tracked adapter', () => {
+    AdapterFactory.register('tracking-forget-all', TrackingAdapter);
+    const first = AdapterFactory.create(node('first', 'tracking-forget-all')) as TrackingAdapter;
+    const second = AdapterFactory.create(node('second', 'tracking-forget-all')) as TrackingAdapter;
+    AdapterFactory.forgetAll();
+    expect(first.disposeCalls).toBe(1);
+    expect(second.disposeCalls).toBe(1);
+    expect(AdapterFactory.instanceCount).toBe(0);
+  });
+});
+
+describe('resource-free adapter disposal', () => {
+  const adapters = [
+    ['BoxAdapter', BoxAdapter, 'box'],
+    ['SphereAdapter', SphereAdapter, 'sphere'],
+    ['CylinderAdapter', CylinderAdapter, 'cylinder'],
+    ['DiscAdapter', DiscAdapter, 'disc'],
+    ['TorusAdapter', TorusAdapter, 'torus'],
+    ['AmbientLightAdapter', AmbientLightAdapter, 'ambient'],
+    ['DirectionalLightAdapter', DirectionalLightAdapter, 'directional'],
+    ['SpotLightAdapter', SpotLightAdapter, 'spot'],
+    ['CameraAdapter', CameraAdapter, 'camera'],
+  ] as const;
+
+  it.each(adapters)('%s declares that dispose has no render resources to release', (_name, Adapter, type) => {
+    const adapter = new Adapter(node(`resource-free-${type}`, type));
+    expect(adapter.ownsDisposableResources).toBe(false);
+    expect(() => adapter.dispose()).not.toThrow();
   });
 });
 
@@ -151,6 +196,14 @@ describe('VisualAdapter', () => {
     vis.update();
     expect(geo.isDirty).toBe(false);
   });
+  it('disposes and releases geometry adapter', () => {
+    const vis = new VisualAdapter(node('v', 'visual'));
+    const geo = new TrackingAdapter(node('b', 'tracking'));
+    vis.geometryAdapter = geo;
+    vis.dispose();
+    expect(geo.disposeCalls).toBe(1);
+    expect(vis.geometryAdapter).toBeNull();
+  });
 });
 
 describe('Light adapters', () => {
@@ -208,9 +261,13 @@ describe('SceneAdapter', () => {
   });
   it('dispose clears children', () => {
     const scene = new SceneAdapter(node('s', 'scene'));
-    scene.addChild(new BoxAdapter(node('a', 'box')));
-    scene.addChild(new SphereAdapter(node('b', 'sphere')));
+    const first = new TrackingAdapter(node('a', 'tracking'));
+    const second = new TrackingAdapter(node('b', 'tracking'));
+    scene.addChild(first);
+    scene.addChild(second);
     scene.dispose();
+    expect(first.disposeCalls).toBe(1);
+    expect(second.disposeCalls).toBe(1);
     expect(scene.childCount).toBe(0);
   });
 });

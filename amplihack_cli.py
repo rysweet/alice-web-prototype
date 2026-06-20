@@ -14,6 +14,8 @@ from pathlib import Path
 DIST_NAME = "alice-web-prototype-amplihack"
 DEFAULT_REPO_URL = "https://github.com/rysweet/alice-web-prototype.git"
 NODE_HEAP_OPTION = "--max-old-space-size=32768"
+UNSAFE_MUTABLE_CHECKOUT_ENV = "ALICE_WEB_ALLOW_MUTABLE_CHECKOUT"
+COMMIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 
 SCENARIOS = {
     "a3p-statement-simple": {
@@ -47,10 +49,18 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Skip npm ci when node_modules already exists in the cached checkout.",
     )
+    parser.add_argument(
+        "--allow-mutable-checkout",
+        action="store_true",
+        help=(
+            "Unsafe: allow fallback to a requested branch/tag when the installation metadata "
+            f"does not include an immutable commit SHA. {UNSAFE_MUTABLE_CHECKOUT_ENV}=1 also enables this."
+        ),
+    )
     args = parser.parse_args(argv)
 
     scenario = SCENARIOS[args.command]
-    repo = ensure_checkout()
+    repo = ensure_checkout(allow_mutable_checkout=args.allow_mutable_checkout)
     ensure_tool("npm")
     ensure_tool("npx")
 
@@ -77,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def ensure_checkout() -> Path:
+def ensure_checkout(allow_mutable_checkout: bool = False) -> Path:
     source_override = os.environ.get("ALICE_WEB_SOURCE")
     if source_override:
         repo = Path(source_override).expanduser().resolve()
@@ -91,8 +101,7 @@ def ensure_checkout() -> Path:
     direct_url = read_direct_url()
     repo_url = direct_url.get("url") or DEFAULT_REPO_URL
     vcs_info = direct_url.get("vcs_info") or {}
-    commit = vcs_info.get("commit_id")
-    revision = commit or vcs_info.get("requested_revision") or "unknown"
+    revision, commit = resolve_checkout_revision(repo_url, vcs_info, allow_mutable_checkout)
 
     cache_dir = cache_root() / safe_cache_name(repo_url, revision)
     if not (cache_dir / "package.json").exists():
@@ -110,6 +119,57 @@ def read_direct_url() -> dict[str, object]:
     if not text:
         return {"url": DEFAULT_REPO_URL, "vcs_info": {"requested_revision": "main"}}
     return json.loads(text)
+
+
+def resolve_checkout_revision(
+    repo_url: object,
+    vcs_info: object,
+    allow_mutable_checkout: bool = False,
+) -> tuple[str, str | None]:
+    if not isinstance(vcs_info, dict):
+        vcs_info = {}
+
+    commit = string_value(vcs_info.get("commit_id"))
+    if commit:
+        if not COMMIT_SHA_RE.fullmatch(commit):
+            raise SystemExit(
+                "Refusing to checkout alice-web-prototype because direct_url.json commit_id "
+                "is not a full immutable commit SHA."
+            )
+        return commit, commit
+
+    requested_revision = string_value(vcs_info.get("requested_revision")) or "unknown"
+    if mutable_checkout_allowed(allow_mutable_checkout):
+        warn_mutable_checkout(repo_url, requested_revision)
+        return requested_revision, None
+
+    raise SystemExit(
+        "Refusing to checkout alice-web-prototype without an immutable commit_id in direct_url.json. "
+        "Mutable branch/tag checkout can execute changed upstream code. Reinstall from a commit SHA, "
+        f"or explicitly accept the risk with --allow-mutable-checkout or {UNSAFE_MUTABLE_CHECKOUT_ENV}=1."
+    )
+
+
+def string_value(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def mutable_checkout_allowed(allow_mutable_checkout: bool) -> bool:
+    return allow_mutable_checkout or os.environ.get(UNSAFE_MUTABLE_CHECKOUT_ENV, "").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def warn_mutable_checkout(repo_url: object, revision: str) -> None:
+    print(
+        "WARNING: unsafe mutable checkout enabled; cloning requested revision "
+        f"{revision!r} from {repo_url!r}. This can execute changed upstream code.",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def clone_checkout(repo_url: str, revision: str, commit: str | None, target: Path) -> None:

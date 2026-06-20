@@ -303,6 +303,15 @@ function diffValues(previousValue: StateValue, nextValue: StateValue, path: stri
   }
 
   if (isRecord(previousValue) && isRecord(nextValue)) {
+    if (hasUnsafePathSegmentKey(previousValue) || hasUnsafePathSegmentKey(nextValue)) {
+      return [{
+        op: "set",
+        path,
+        value: cloneState(nextValue),
+        previousValue: cloneState(previousValue),
+      }];
+    }
+
     const operations: StatePatchOperation[] = [];
     const previousKeys = Object.keys(previousValue);
     const nextKeys = Object.keys(nextValue);
@@ -345,6 +354,7 @@ function diffValues(previousValue: StateValue, nextValue: StateValue, path: stri
 
 function applyOperation(target: StateValue, operation: StatePatchOperation): void {
   const tokens = parsePath(operation.path);
+  assertSafePathSegments(tokens);
   if (tokens.length === 0) {
     if (operation.op !== "set") {
       throw new Error("Cannot remove the root state.");
@@ -390,12 +400,21 @@ function replaceRoot(target: StateValue, nextValue: StateValue): void {
       delete target[key];
     }
     for (const [key, value] of Object.entries(nextValue)) {
-      target[key] = cloneState(value);
+      defineStateDataProperty(target, key, cloneState(value));
     }
     return;
   }
 
   throw new Error("Root replacement requires matching container types.");
+}
+
+function defineStateDataProperty(target: { [key: string]: StateValue }, key: string, value: StateValue): void {
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
 }
 
 function navigate(target: StateValue, tokens: Array<string | number>, createMissing: boolean): StateValue | null {
@@ -452,13 +471,34 @@ function parsePath(path: string): Array<string | number> {
     }
     if (currentCharacter === "[") {
       const closingBracket = path.indexOf("]", cursor);
-      tokens.push(Number(path.slice(cursor + 1, closingBracket)));
+      const rawIndex = path.slice(cursor + 1, closingBracket);
+      assertSafePathSegment(rawIndex);
+      tokens.push(Number(rawIndex));
       cursor = closingBracket + 1;
       continue;
     }
     cursor += 1;
   }
   return tokens;
+}
+
+function assertSafePathSegments(tokens: Array<string | number>): void {
+  for (const token of tokens) {
+    if (typeof token !== "string") {
+      continue;
+    }
+    assertSafePathSegment(token);
+  }
+}
+
+function assertSafePathSegment(segment: string): void {
+  if (segment === "__proto__" || segment === "constructor" || segment === "prototype") {
+    throw new Error(`Unsafe state patch path segment: ${segment}`);
+  }
+}
+
+function hasUnsafePathSegmentKey(value: { [key: string]: StateValue }): boolean {
+  return Object.keys(value).some((key) => key === "__proto__" || key === "constructor" || key === "prototype");
 }
 
 function cloneState<T extends StateValue>(value: T): T {

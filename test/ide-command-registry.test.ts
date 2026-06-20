@@ -254,6 +254,12 @@ describe("SwitchPerspectiveCommand", () => {
     expect(cmd.undoable).toBe(false);
   });
 
+  it("throws a clear error if undo is called directly", () => {
+    const receiver = createFakePerspective();
+    const cmd = new SwitchPerspectiveCommand(receiver, "scene");
+    expect(() => cmd.undo()).toThrow("non-undoable; UndoRedoManager skips it");
+  });
+
   it("throws for unknown perspective", () => {
     const receiver = createFakePerspective();
     const cmd = new SwitchPerspectiveCommand(receiver, "nonexistent");
@@ -290,6 +296,12 @@ describe("TogglePanelCommand", () => {
     const cmd = new TogglePanelCommand(receiver, "sidebar");
     expect(cmd.undoable).toBe(false);
   });
+
+  it("throws a clear error if undo is called directly", () => {
+    const receiver = createFakePanel();
+    const cmd = new TogglePanelCommand(receiver, "sidebar");
+    expect(() => cmd.undo()).toThrow("non-undoable; UndoRedoManager skips it");
+  });
 });
 
 describe("GoToLineCommand", () => {
@@ -312,6 +324,11 @@ describe("GoToLineCommand", () => {
     const cmd = new GoToLineCommand(createFakeEditor("a"), 1);
     expect(cmd.undoable).toBe(false);
   });
+
+  it("throws a clear error if undo is called directly", () => {
+    const cmd = new GoToLineCommand(createFakeEditor("a"), 1);
+    expect(() => cmd.undo()).toThrow("non-undoable; UndoRedoManager skips it");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -332,6 +349,13 @@ describe("FindInCodeCommand", () => {
     const search = createFakeSearch(editor);
     const cmd = new FindInCodeCommand(search, "a");
     expect(cmd.undoable).toBe(false);
+  });
+
+  it("throws a clear error if undo is called directly", () => {
+    const editor = createFakeEditor("a");
+    const search = createFakeSearch(editor);
+    const cmd = new FindInCodeCommand(search, "a");
+    expect(() => cmd.undo()).toThrow("non-undoable; UndoRedoManager skips it");
   });
 });
 

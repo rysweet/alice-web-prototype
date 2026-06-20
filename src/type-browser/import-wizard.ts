@@ -1,5 +1,4 @@
 import { ClassDeclaration, ConstructorDeclaration, FieldDeclaration, MethodDeclaration } from "../ast-nodes.js";
-import { TypeBrowser } from "./browser.js";
 import {
   attachToOwner,
   cloneClassDeclaration,
@@ -13,12 +12,13 @@ import {
   type TypeImportMemberPlan,
   type TypeImportPlan,
   type TypeImportStrategy,
+  type TypeBrowserLike,
   TypeBrowserError,
 } from "./shared.js";
 
 export class ImportTypeWizard {
   constructor(
-    private readonly browser: TypeBrowser,
+    private readonly browser: TypeBrowserLike,
     private readonly importedType: ClassDeclaration,
   ) {}
 

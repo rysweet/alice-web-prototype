@@ -25,6 +25,14 @@ export abstract class RenderAdapter<T extends SceneGraphNode = SceneGraphNode> {
   abstract dispose(): void;
 }
 
+export abstract class ResourceFreeRenderAdapter<T extends SceneGraphNode = SceneGraphNode> extends RenderAdapter<T> {
+  readonly ownsDisposableResources = false;
+
+  dispose(): void {
+    // Resource-free adapters only cache scalar scene parameters.
+  }
+}
+
 // ── Adapter Factory ────────────────────────────────────────────────
 
 type AdapterConstructor = new (node: SceneGraphNode) => RenderAdapter;
@@ -74,14 +82,13 @@ export interface CylinderParams { radiusTop: number; radiusBottom: number; heigh
 export interface DiscParams { innerRadius: number; outerRadius: number; segments: number; }
 export interface TorusParams { radius: number; tube: number; radialSegments: number; tubularSegments: number; }
 
-export class BoxAdapter extends RenderAdapter {
+export class BoxAdapter extends ResourceFreeRenderAdapter {
   params: BoxParams;
   constructor(node: SceneGraphNode) {
     super(node);
     this.params = { width: 1, height: 1, depth: 1 };
   }
   update() { this.markClean(); }
-  dispose() {}
 
   get volume() { return this.params.width * this.params.height * this.params.depth; }
   get surfaceArea() {
@@ -90,28 +97,26 @@ export class BoxAdapter extends RenderAdapter {
   }
 }
 
-export class SphereAdapter extends RenderAdapter {
+export class SphereAdapter extends ResourceFreeRenderAdapter {
   params: SphereParams;
   constructor(node: SceneGraphNode) {
     super(node);
     this.params = { radius: 0.5, widthSegments: 32, heightSegments: 16 };
   }
   update() { this.markClean(); }
-  dispose() {}
 
   get volume() { return (4 / 3) * Math.PI * this.params.radius ** 3; }
   get surfaceArea() { return 4 * Math.PI * this.params.radius ** 2; }
   get vertexCount() { return (this.params.widthSegments + 1) * (this.params.heightSegments + 1); }
 }
 
-export class CylinderAdapter extends RenderAdapter {
+export class CylinderAdapter extends ResourceFreeRenderAdapter {
   params: CylinderParams;
   constructor(node: SceneGraphNode) {
     super(node);
     this.params = { radiusTop: 0.5, radiusBottom: 0.5, height: 1, segments: 32 };
   }
   update() { this.markClean(); }
-  dispose() {}
 
   get volume() {
     const { radiusTop: rt, radiusBottom: rb, height: h } = this.params;
@@ -119,28 +124,26 @@ export class CylinderAdapter extends RenderAdapter {
   }
 }
 
-export class DiscAdapter extends RenderAdapter {
+export class DiscAdapter extends ResourceFreeRenderAdapter {
   params: DiscParams;
   constructor(node: SceneGraphNode) {
     super(node);
     this.params = { innerRadius: 0, outerRadius: 0.5, segments: 32 };
   }
   update() { this.markClean(); }
-  dispose() {}
 
   get area() {
     return Math.PI * (this.params.outerRadius ** 2 - this.params.innerRadius ** 2);
   }
 }
 
-export class TorusAdapter extends RenderAdapter {
+export class TorusAdapter extends ResourceFreeRenderAdapter {
   params: TorusParams;
   constructor(node: SceneGraphNode) {
     super(node);
     this.params = { radius: 1, tube: 0.4, radialSegments: 16, tubularSegments: 48 };
   }
   update() { this.markClean(); }
-  dispose() {}
 
   get volume() {
     return 2 * Math.PI * Math.PI * this.params.radius * this.params.tube ** 2;
@@ -172,6 +175,7 @@ export const DEFAULT_APPEARANCE: AppearanceParams = {
 export class VisualAdapter extends RenderAdapter {
   appearance: AppearanceParams;
   geometryAdapter: RenderAdapter | null = null;
+  readonly ownsDisposableResources = true;
   visible = true;
 
   constructor(node: SceneGraphNode) {
@@ -186,6 +190,7 @@ export class VisualAdapter extends RenderAdapter {
 
   dispose() {
     this.geometryAdapter?.dispose();
+    this.geometryAdapter = null;
   }
 
   get isTransparent() { return this.appearance.opacity < 1; }
@@ -202,49 +207,44 @@ export interface LightParams {
   intensity: number;
 }
 
-export class AmbientLightAdapter extends RenderAdapter {
+export class AmbientLightAdapter extends ResourceFreeRenderAdapter {
   params: LightParams;
   constructor(node: SceneGraphNode) {
     super(node);
     this.params = { color: { r: 1, g: 1, b: 1 }, intensity: 0.5 };
   }
   update() { this.markClean(); }
-  dispose() {}
 }
 
-export class DirectionalLightAdapter extends RenderAdapter {
+export class DirectionalLightAdapter extends ResourceFreeRenderAdapter {
   params: LightParams & { direction: { x: number; y: number; z: number } };
   constructor(node: SceneGraphNode) {
     super(node);
     this.params = { color: { r: 1, g: 1, b: 1 }, intensity: 1, direction: { x: 0, y: -1, z: 0 } };
   }
   update() { this.markClean(); }
-  dispose() {}
 }
 
-export class SpotLightAdapter extends RenderAdapter {
+export class SpotLightAdapter extends ResourceFreeRenderAdapter {
   params: LightParams & { angle: number; penumbra: number; distance: number };
   constructor(node: SceneGraphNode) {
     super(node);
     this.params = { color: { r: 1, g: 1, b: 1 }, intensity: 1, angle: Math.PI / 4, penumbra: 0.1, distance: 100 };
   }
   update() { this.markClean(); }
-  dispose() {}
 
   get coneRadius() { return Math.tan(this.params.angle) * this.params.distance; }
 }
 
 // ── Camera Adapter ─────────────────────────────────────────────────
 
-export class CameraAdapter extends RenderAdapter {
+export class CameraAdapter extends ResourceFreeRenderAdapter {
   fov = 50;
   near = 0.1;
   far = 1000;
   aspect = 16 / 9;
-
   constructor(node: SceneGraphNode) { super(node); }
   update() { this.markClean(); }
-  dispose() {}
 
   get projectionMatrix(): number[] {
     const f = 1 / Math.tan((this.fov * Math.PI / 180) / 2);
@@ -274,6 +274,7 @@ export class CameraAdapter extends RenderAdapter {
 export class SceneAdapter extends RenderAdapter {
   backgroundColor = { r: 0.8, g: 0.9, b: 1.0 };
   ambientLightIntensity = 0.3;
+  readonly ownsDisposableResources = true;
   private childAdapters: RenderAdapter[] = [];
 
   constructor(node: SceneGraphNode) { super(node); }

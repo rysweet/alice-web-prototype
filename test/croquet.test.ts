@@ -425,6 +425,18 @@ describe("croquet state framework", () => {
 
     class TokenView extends ViewController<string> {}
 
+    class AttachmentView extends ViewController<string> {
+      readonly events: string[] = [];
+
+      protected override handleAddedTo(): void {
+        this.events.push("added");
+      }
+
+      protected override handleRemovedFrom(): void {
+        this.events.push("removed");
+      }
+    }
+
     class LoggingCompositeView extends CompositeView<Composite<LoggingCompositeView>> {
       override handleCompositePreActivation(): void {
         lifecycle.push("view:pre");
@@ -467,6 +479,12 @@ describe("croquet state framework", () => {
     expect(page.childViews).toEqual([second]);
     expect(line.childViews).toEqual([first]);
     expect(first.parentView).toBe(line);
+
+    const attachmentView = new AttachmentView("attachment");
+    const attachmentHost = new PageAxisPanel();
+    attachmentHost.appendChild(attachmentView);
+    attachmentHost.removeChild(attachmentView);
+    expect(attachmentView.events).toEqual(["added", "removed"]);
 
     const border = new BorderPanel();
     border.setRegion("center", second);

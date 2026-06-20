@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import JSZip from "jszip";
 import {
   AudioPlayer,
   type AudioResource,
+  type AudioBufferLike,
   type AudioPlayerState,
   type AudioEventCallback,
   loadAudioFromA3P,
@@ -42,6 +44,17 @@ describe("AudioResource – structure", () => {
     expect(res.buffer).toBeInstanceOf(ArrayBuffer);
     expect(res.duration).toBe(5.0);
     expect(res.format).toBe("wav");
+  });
+
+  it("can report explicit decode status for truthful runtime behavior", () => {
+    const decodedBuffer: AudioBufferLike = { duration: 2.25 };
+    const res = makeResource({
+      duration: decodedBuffer.duration,
+      decodedBuffer,
+      decodeStatus: "decoded",
+    });
+    expect(res.decodeStatus).toBe("decoded");
+    expect(res.decodedBuffer).toBe(decodedBuffer);
   });
 });
 
@@ -295,5 +308,34 @@ describe("loadAudioFromA3P", () => {
     await expect(
       loadAudioFromA3P(emptyBuffer, "nonexistent/audio.wav"),
     ).rejects.toThrow();
+  });
+
+  it("uses an injected decoder to populate duration and decodedBuffer", async () => {
+    const zip = new JSZip();
+    zip.file("resources/audio/tone.wav", new Uint8Array([1, 2, 3, 4]));
+    const archive = await zip.generateAsync({ type: "arraybuffer" });
+    const decodedBuffer: AudioBufferLike = { duration: 1.75 };
+
+    const resource = await loadAudioFromA3P(archive, "resources/audio/tone.wav", {
+      decodeAudioData: vi.fn(async () => decodedBuffer),
+    });
+
+    expect(resource.duration).toBe(1.75);
+    expect(resource.decodedBuffer).toBe(decodedBuffer);
+    expect(resource.decodeStatus).toBe("decoded");
+  });
+
+  it("marks extracted resources metadata-only when decoding is unavailable", async () => {
+    const zip = new JSZip();
+    zip.file("resources/audio/tone.wav", new Uint8Array([1, 2, 3, 4]));
+    const archive = await zip.generateAsync({ type: "arraybuffer" });
+
+    const resource = await loadAudioFromA3P(archive, "resources/audio/tone.wav", {
+      decode: false,
+    });
+
+    expect(resource.duration).toBe(0);
+    expect(resource.decodedBuffer).toBeUndefined();
+    expect(resource.decodeStatus).toBe("decode-unavailable");
   });
 });

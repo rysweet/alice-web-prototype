@@ -8,6 +8,7 @@ import {
   ScreenshotCapture,
   VideoExporter,
 } from "../src/project-export.js";
+import { ProjectIoError } from "../src/project-io.js";
 
 function createProjectFixture() {
   const project = createMinimalProject();
@@ -89,5 +90,18 @@ describe("project-export", () => {
     expect(await zip.file("round-84-demo.a3p")?.async("uint8array")).toBeTruthy();
     expect(await zip.file("round-84-demo.html")?.async("string")).toContain("Round 84 Demo");
     expect(await zip.file("assets/readme.txt")?.async("string")).toBe("hello");
+  });
+
+  it.each([
+    "../evil.txt",
+    "/absolute/evil.txt",
+    "C:\\Users\\Alice\\evil.txt",
+  ])("ProjectPackager rejects unsafe resource ZIP path %s", async (path) => {
+    const packaging = new ProjectPackager().packageProject(createProjectFixture(), {
+      resources: [{ path, bytes: "evil", mimeType: "text/plain" }],
+    });
+
+    await expect(packaging).rejects.toBeInstanceOf(ProjectIoError);
+    await expect(packaging).rejects.toMatchObject({ code: "unsafe-path" });
   });
 });

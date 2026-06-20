@@ -748,12 +748,12 @@ typescript-parity-gaps #80-#82
 npm test
 
 # Run only parity gap tests
-npm test -- --grep "typescript-parity-gaps"
+npm test -- test/typescript-parity-gaps.test.ts
 
 # Run tests for a specific issue
-npm test -- --grep "#80"
-npm test -- --grep "#81"
-npm test -- --grep "#82"
+npm test -- test/typescript-parity-gaps.test.ts -t "Issue #80"
+npm test -- test/typescript-parity-gaps.test.ts -t "Issue #81"
+npm test -- test/typescript-parity-gaps.test.ts -t "Issue #82"
 ```
 
 ---

@@ -141,12 +141,13 @@ export function printToText(input: PrintableTweedleInput): string {
 export function printToHtml(input: PrintableTweedleInput, options: PrintRenderOptions = {}): string {
   const source = formatPrintableTweedleSource(input);
   const ast = resolveAst(input);
-  const className = escapeHtml(options.className ?? DEFAULT_CLASS_NAME);
+  const className = escapeAttributeValue(options.className ?? DEFAULT_CLASS_NAME);
   const title = escapeHtml(resolveTitle(ast, options.title));
-  const theme = options.theme ?? "light";
+  const theme = normalizePrintTheme(options.theme);
+  const sectionClassName = escapeAttributeValue(`alice-print alice-print--${theme}`);
   const codeBlock = renderCodeBlock(source, className, options.includeLineNumbers ?? true);
 
-  return `<style>${INLINE_PRINT_STYLES}</style><section class="alice-print alice-print--${theme}"><header class="alice-print__header"><h1 class="alice-print__title">${title}</h1><span class="alice-print__meta">Tweedle source</span></header>${codeBlock}</section>`;
+  return `<style>${INLINE_PRINT_STYLES}</style><section class="${sectionClassName}"><header class="alice-print__header"><h1 class="alice-print__title">${title}</h1><span class="alice-print__meta">Tweedle source</span></header>${codeBlock}</section>`;
 }
 
 export function exportAsStandalonePage(input: PrintableTweedleInput, options: PrintRenderOptions = {}): string {
@@ -183,6 +184,10 @@ function resolveAst(input: PrintableTweedleInput): ClassDecl {
 
 function resolveTitle(ast: ClassDecl, title?: string): string {
   return title?.trim() || `${ast.name} — Printable Tweedle`;
+}
+
+function normalizePrintTheme(theme: unknown): PrintTheme {
+  return theme === "dark" ? "dark" : "light";
 }
 
 function renderCodeBlock(source: string, className: string, includeLineNumbers: boolean): string {
@@ -236,4 +241,8 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;");
+}
+
+function escapeAttributeValue(value: string): string {
+  return escapeHtml(value).replace(/'/g, "&#39;");
 }

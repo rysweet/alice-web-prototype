@@ -9,22 +9,44 @@ export function sanitizeFilename(name: string): string {
 /** Matches percent-encoded dot (%2e), forward-slash (%2f), or backslash (%5c). */
 const ENCODED_TRAVERSAL_RE = /%(2e|2f|5c)/i;
 
-const resolvedDirCache = new WeakMap<readonly string[], string[]>();
-
-function getResolvedDirs(allowedProjectDirs: readonly string[]): string[] {
-  let resolved = resolvedDirCache.get(allowedProjectDirs);
-  if (!resolved) {
-    resolved = allowedProjectDirs.map((dir) => path.resolve(dir));
-    resolvedDirCache.set(allowedProjectDirs, resolved);
-  }
-  return resolved;
+function isMissingPathError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return code === "ENOENT" || code === "ENOTDIR";
 }
 
-function isPathWithinAllowedDirs(projectPath: string, allowedDirs: readonly string[]): boolean {
-  return allowedDirs.some(
-    (allowedDir) =>
-      projectPath === allowedDir ||
-      projectPath.startsWith(`${allowedDir}${path.sep}`),
+function realpathNearestExisting(resolvedPath: string): string | null {
+  let current = resolvedPath;
+  const missingSegments: string[] = [];
+
+  while (true) {
+    try {
+      const realExistingPath = fs.realpathSync.native(current);
+      return missingSegments.length === 0
+        ? realExistingPath
+        : path.join(realExistingPath, ...missingSegments.reverse());
+    } catch (error) {
+      if (!isMissingPathError(error)) {
+        return null;
+      }
+
+      const parent = path.dirname(current);
+      if (parent === current) {
+        return null;
+      }
+
+      missingSegments.push(path.basename(current));
+      current = parent;
+    }
+  }
+}
+
+function isWithinDirectory(candidatePath: string, allowedDir: string): boolean {
+  const relativePath = path.relative(allowedDir, candidatePath);
+  return (
+    relativePath === "" ||
+    (relativePath !== ".." &&
+      !relativePath.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relativePath))
   );
 }
 
@@ -59,8 +81,17 @@ export function validateProjectPath(
     return { valid: false, error: "project path must be an .a3p file" };
   }
 
-  const resolvedAllowedDirs = getResolvedDirs(allowedProjectDirs);
-  const isWithinAllowedDir = isPathWithinAllowedDirs(resolvedPath, resolvedAllowedDirs);
+  const realProjectPath = realpathNearestExisting(resolvedPath);
+  if (!realProjectPath || !realProjectPath.endsWith(".a3p")) {
+    return { valid: false, error: "project path must be an .a3p file" };
+  }
+
+  const realAllowedDirs = allowedProjectDirs
+    .map((dir) => realpathNearestExisting(path.resolve(dir)))
+    .filter((dir): dir is string => dir !== null);
+  const isWithinAllowedDir = realAllowedDirs.some((allowedDir) =>
+    isWithinDirectory(realProjectPath, allowedDir),
+  );
 
   if (!isWithinAllowedDir) {
     return {
@@ -69,7 +100,7 @@ export function validateProjectPath(
     };
   }
 
-  return { valid: true, resolvedPath };
+  return { valid: true, resolvedPath: realProjectPath };
 }
 
 export async function validateExistingProjectRealPath(
@@ -80,7 +111,7 @@ export async function validateExistingProjectRealPath(
   try {
     realProjectPath = await fs.promises.realpath(projectPath);
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+    if (isMissingPathError(error)) {
       return { valid: false, error: `project file not found: ${projectPath}` };
     }
     return { valid: false, error: `project file could not be read: ${projectPath}` };
@@ -97,7 +128,7 @@ export async function validateExistingProjectRealPath(
     return { valid: false, error: "allowed project directory could not be resolved" };
   }
 
-  if (!isPathWithinAllowedDirs(realProjectPath, realAllowedDirs)) {
+  if (!realAllowedDirs.some((allowedDir) => isWithinDirectory(realProjectPath, allowedDir))) {
     return { valid: false, error: "project path is outside allowed directories" };
   }
 

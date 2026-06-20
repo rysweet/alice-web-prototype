@@ -140,6 +140,102 @@ describe("network-layer", () => {
     expect(delays).toEqual([2_000]);
   });
 
+  it("rejects cross-origin absolute API URLs before sending default headers", async () => {
+    const fetchImpl: FetchLike = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => "application/json" },
+      json: async () => ({ ok: true }),
+    }));
+    const client = new APIClient({
+      serviceName: "project-api",
+      baseUrl: "https://alice.example.test/api",
+      defaultHeaders: {
+        authorization: "Bearer internal-token",
+      },
+      fetchImpl,
+    });
+
+    await expect(client.get("https://attacker.example.test/collect")).rejects.toMatchObject({
+      name: "ExternalServiceError",
+      serviceName: "project-api",
+      method: "GET",
+      url: "https://attacker.example.test/collect",
+      retryable: false,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("rejects disguised absolute API URLs when baseUrl is not configured", async () => {
+    const fetchImpl: FetchLike = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => "application/json" },
+      json: async () => ({ ok: true }),
+    }));
+    const client = new APIClient({
+      serviceName: "project-api",
+      defaultHeaders: {
+        authorization: "Bearer internal-token",
+      },
+      fetchImpl,
+    });
+
+    for (const path of [
+      " https://attacker.example.test/collect",
+      "//attacker.example.test/collect",
+      "\\\\attacker.example.test/collect",
+      "/\\attacker.example.test/collect",
+      "/\n/attacker.example.test/collect",
+      "/\t/attacker.example.test/collect",
+      "\u0000//attacker.example.test/collect",
+    ]) {
+      await expect(client.get(path)).rejects.toMatchObject({
+        name: "ExternalServiceError",
+        serviceName: "project-api",
+        method: "GET",
+        url: path,
+        retryable: false,
+      });
+    }
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("allows same-origin absolute API URLs and preserves default header behavior", async () => {
+    const requests: Array<{ readonly url: string; readonly init?: RequestInit }> = [];
+    const fetchImpl: FetchLike = vi.fn(async (url, init) => {
+      requests.push({ url, init });
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => "application/json" },
+        json: async () => ({ ok: true }),
+      };
+    });
+    const client = new APIClient({
+      serviceName: "project-api",
+      baseUrl: "https://alice.example.test/api",
+      defaultHeaders: {
+        authorization: "Bearer internal-token",
+      },
+      fetchImpl,
+    });
+
+    const response = await client.get<{ ok: boolean }>("https://alice.example.test/status", {
+      headers: {
+        "x-request-id": "request-1",
+      },
+    });
+
+    expect(response).toEqual({ ok: true });
+    expect(requests).toHaveLength(1);
+    expect(requests[0].url).toBe("https://alice.example.test/status");
+    expect(requests[0].init?.headers).toMatchObject({
+      authorization: "Bearer internal-token",
+      "x-request-id": "request-1",
+    });
+  });
+
   it("surfaces structured HTTP errors for external service calls", async () => {
     const fetchImpl: FetchLike = vi.fn(async () => ({
       ok: false,

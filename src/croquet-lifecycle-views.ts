@@ -37,6 +37,7 @@ export class ViewController<TModel = unknown> {
     this.handleRemovedFrom(parent);
   }
 
+  // Extension hooks: base controllers have no attach/detach side effects.
   protected handleAddedTo(_parent: ViewGroup): void {}
 
   protected handleRemovedFrom(_parent: ViewGroup): void {}
@@ -53,6 +54,7 @@ export class CompositeView<
     return this.model;
   }
 
+  // Extension hooks for views that mirror composite activation lifecycle.
   handleCompositePreActivation(): void {}
 
   handleCompositePostDeactivation(): void {}
@@ -128,6 +130,7 @@ export class Panel<
     }
   }
 
+  // Extension hook: simple panels can rely on refresh bookkeeping only.
   protected internalRefresh(): void {}
 
   protected override handleAddedTo(parent: ViewGroup): void {
