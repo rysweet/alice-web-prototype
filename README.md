@@ -28,7 +28,8 @@ npm run serve
 
 ## What's implemented
 
-**349 source modules, 80,678 lines, 3,300+ tests.**
+The core language, scene, rendering, IDE, and testing subsystems are implemented
+and maintained together in this repository.
 
 ### Tweedle Language
 

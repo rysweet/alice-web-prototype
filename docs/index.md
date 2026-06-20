@@ -6,10 +6,8 @@ so the `eatme` test suite can drive real curriculum workflows.
 
 ## Current status
 
-- **336 files** of project code
-- **73K lines** of TypeScript and support code
-- **84.5% coverage**
-- Browser UI, REST API, and curriculum testing in one repository
+- Core TypeScript project code and support tooling live in this repository
+- Browser UI, REST API, and curriculum testing are maintained together
 
 ## Start here
 
