@@ -29,6 +29,16 @@ const SMOKE_A3P = path.resolve(
 );
 
 // ─── Synthetic minimal .a3p for isolated unit tests ──────────────────
+async function createArchiveWithEntries(
+  entries: Array<{ name: string; bytes: string | Uint8Array }>,
+): Promise<Uint8Array> {
+  const zip = new JSZip();
+  for (const { name, bytes } of entries) {
+    zip.file(name, bytes);
+  }
+  return zip.generateAsync({ type: "uint8array" });
+}
+
 async function createSyntheticA3P(): Promise<Uint8Array> {
   const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <node key="1" type="org.lgna.project.ast.NamedUserType" uuid="aaa" version="3.10062">
@@ -143,6 +153,60 @@ describe("a3p-parser", () => {
     it("extracts resource type", () => {
       const tree = project.sceneObjects.find((o) => o.name === "bananaTree")!;
       expect(tree.resourceType).toContain("BananaTreeResource");
+    });
+  });
+
+  describe("archive parsing limits", () => {
+    it("rejects archives larger than the configured byte limit before loading", async () => {
+      const data = await createSyntheticA3P();
+
+      await expect(parseA3P(data, { limits: { maxArchiveBytes: data.byteLength - 1 } })).rejects.toThrow(
+        /archive size/i,
+      );
+    });
+
+    it("rejects archives with more entries than the configured limit", async () => {
+      const data = await createArchiveWithEntries([
+        { name: "version.txt", bytes: "3.10.0.0" },
+        { name: "programType.xml", bytes: "<node/>" },
+        { name: "resources/one.bin", bytes: new Uint8Array([1]) },
+      ]);
+
+      await expect(parseA3P(data, { limits: { maxEntries: 2 } })).rejects.toThrow(/entry count/i);
+    });
+
+    it("rejects entries larger than the configured uncompressed limit", async () => {
+      const data = await createArchiveWithEntries([
+        { name: "version.txt", bytes: "3.10.0.0" },
+        { name: "programType.xml", bytes: "<node/>" },
+        { name: "resources/large.bin", bytes: new Uint8Array(64) },
+      ]);
+
+      await expect(parseA3P(data, { limits: { maxEntryUncompressedBytes: 32 } })).rejects.toThrow(
+        /entry .*uncompressed size/i,
+      );
+    });
+
+    it("rejects archives whose total uncompressed size exceeds the configured limit", async () => {
+      const data = await createArchiveWithEntries([
+        { name: "version.txt", bytes: "3.10.0.0" },
+        { name: "programType.xml", bytes: "<node/>" },
+        { name: "resources/one.bin", bytes: new Uint8Array(32) },
+        { name: "resources/two.bin", bytes: new Uint8Array(32) },
+      ]);
+
+      await expect(parseA3P(data, { limits: { maxTotalUncompressedBytes: 48 } })).rejects.toThrow(
+        /total uncompressed size/i,
+      );
+    });
+
+    it("rejects XML entries larger than the configured text-size limit", async () => {
+      const data = await createArchiveWithEntries([
+        { name: "version.txt", bytes: "3.10.0.0" },
+        { name: "programType.xml", bytes: `<node>${"x".repeat(80)}</node>` },
+      ]);
+
+      await expect(parseA3P(data, { limits: { maxXmlTextBytes: 32 } })).rejects.toThrow(/XML text size/i);
     });
   });
 

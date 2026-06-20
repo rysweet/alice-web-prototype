@@ -1,7 +1,12 @@
 export {
+  A3PArchiveLimitError,
+  DEFAULT_A3P_PARSE_LIMITS,
   parseA3P,
   parseA3PFromZip,
   readA3PXmlEntry,
+  type A3PArchiveLimitKind,
+  type A3PParseLimits,
+  type A3PParseOptions,
 } from "./a3p-parser/archive.js";
 export { PARSED_A3P_STATEMENT_KINDS } from "./a3p-parser/statements.js";
 export {
