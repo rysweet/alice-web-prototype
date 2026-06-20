@@ -133,7 +133,7 @@ Five gadugi-compatible YAML scenarios in `gadugi/` provide outside-in
 integration tests covering the full API surface:
 
 ```bash
-gadugi-agentic-test run gadugi/ --verbose
+NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi
 ```
 
 | Scenario | Tests |
