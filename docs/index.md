@@ -37,6 +37,7 @@ so the `eatme` test suite can drive real curriculum workflows.
 ### Tutorials
 
 - [Getting started](./getting-started.md)
+- [Building your first Alice application](./tutorial-building-your-first-alice-app.md)
 - [Adding open-source 3D models](./tutorial-adding-3d-models.md)
 - [Creating, using, and testing 3D character assets](./creating-using-testing-3d-character-assets.md)
 - [Round-trip an `.a3p` project with Project IO](./tutorial-project-io-round-trip.md)
