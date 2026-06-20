@@ -24,10 +24,10 @@ runtime layers. `implementation.ts`, `world.ts`, and the public barrel in
 |---|---|---|
 | Implementation summaries | `implementation.ts` | Runtime implementation summaries and lifecycle helpers |
 | World helpers | `world.ts` | Story-world aggregation, diagnostics, comparison, and compatibility helpers |
-| Public barrel | [`index.ts`](../src/story-api/index.ts) | Export-only barrel for all public Story API names |
+| Public barrel | `index.ts` | Export-only barrel for all public Story API names |
 
 All public types, classes, and helper functions are exposed through
-[`src/story-api/index.ts`](../src/story-api/index.ts). See
+`src/story-api/index.ts`. See
 [Story API public barrel topology](./story-api-public-barrels.md) for the import
 contract and module ownership rules.
 
