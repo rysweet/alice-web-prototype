@@ -56,6 +56,24 @@ function createContractBounds() {
   );
 }
 
+function createSpeechSynthesisRuntime() {
+  class TestSpeechSynthesisUtterance {
+    rate = 1;
+    pitch = 1;
+    volume = 1;
+
+    constructor(readonly text: string) {}
+  }
+
+  return {
+    speechSynthesis: {
+      speak: () => undefined,
+      cancel: () => undefined,
+    } as unknown as SpeechSynthesis,
+    SpeechSynthesisUtterance: TestSpeechSynthesisUtterance as unknown as typeof SpeechSynthesisUtterance,
+  };
+}
+
 function buildFactoryCases() {
   const contractProject = createContractProject();
   const contractBounds = createContractBounds();
@@ -75,7 +93,21 @@ function buildFactoryCases() {
     ["CodeGeneration.createTweedleSource", () => PublicApi.CodeGeneration.createTweedleSource("Demo", [])],
     ["Curriculum.createCurriculumMetadata", () => PublicApi.Curriculum.createCurriculumMetadata()],
     ["Curriculum.createCurriculumProgress", () => PublicApi.Curriculum.createCurriculumProgress()],
+    ["EntityAnimation.createBrowserSpeechSynthesisAdapter", () => PublicApi.EntityAnimation.createBrowserSpeechSynthesisAdapter({
+      speechSynthesis: { speak: () => undefined, cancel: () => undefined } as unknown as SpeechSynthesis,
+      SpeechSynthesisUtterance: class {
+        text: string;
+        rate = 1;
+        pitch = 1;
+        volume = 1;
+
+        constructor(text: string) {
+          this.text = text;
+        }
+      } as typeof SpeechSynthesisUtterance,
+    })],
     ["ErrorHandling.createStructuredErrorReport", () => PublicApi.ErrorHandling.createStructuredErrorReport(new Error("boom"))],
+    ["EntityAnimation.createBrowserSpeechSynthesisAdapter", () => PublicApi.EntityAnimation.createBrowserSpeechSynthesisAdapter(createSpeechSynthesisRuntime())],
     ["ExportHtml.createHtmlExportDocument", () => PublicApi.ExportHtml.createHtmlExportDocument(contractProject)],
     ["Formatters.createDefaultFormatterRegistry", () => PublicApi.Formatters.createDefaultFormatterRegistry()],
     ["ImageEditor.createImage", () => PublicApi.ImageEditor.createImage(2, 3)],
@@ -177,8 +209,16 @@ function assertFactoryResult(key: string, value: unknown): void {
     case "Curriculum.createCurriculumProgress":
       expect(value).toEqual({ demonstratedConcepts: [] });
       return;
+    case "EntityAnimation.createBrowserSpeechSynthesisAdapter":
+      expectKeys(value, ["available", "speak", "cancel"]);
+      expect((value as { available: boolean }).available).toBe(true);
+      return;
     case "ErrorHandling.createStructuredErrorReport":
       expectKeys(value, ["message", "name", "rawStack", "stackFrames"]);
+      return;
+    case "EntityAnimation.createBrowserSpeechSynthesisAdapter":
+      expectKeys(value, ["available", "speak", "cancel"]);
+      expect((value as { available: boolean }).available).toBe(true);
       return;
     case "ExportHtml.createHtmlExportDocument":
       expectKeys(value, ["title", "previewMode", "tweedleSource", "html"]);

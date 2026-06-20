@@ -64,7 +64,8 @@ export interface LoadedPluginSummary {
   active: boolean;
 }
 
-const DEFAULT_STORAGE_KEY = "alice-web.plugins.settings";
+const DEFAULT_STORAGE_KEY = "lookingglass.plugins.settings";
+const LEGACY_STORAGE_KEY = "alice-web.plugins.settings";
 
 function cloneValue<T>(value: T): T {
   if (typeof globalThis.structuredClone === "function") {
@@ -99,6 +100,16 @@ function isPluginDiscovery(value: PluginDiscovery | readonly PluginManifest[]): 
 
 function isPluginLoader(value: PluginLoader | Record<string, Plugin | PluginModule>): value is PluginLoader {
   return typeof value === "object" && value !== null && "load" in value;
+}
+
+function migrateLegacyStorage(storage: PluginSettingsStorage | null, storageKey: string): void {
+  if (!storage || storageKey !== DEFAULT_STORAGE_KEY || storage.getItem(storageKey) !== null) {
+    return;
+  }
+  const legacyValue = storage.getItem(LEGACY_STORAGE_KEY);
+  if (legacyValue !== null) {
+    storage.setItem(storageKey, legacyValue);
+  }
 }
 
 function normalizePlugin(loaded: Plugin | PluginModule, manifest: PluginManifest): Plugin {
@@ -194,6 +205,7 @@ export class PluginSettingsManager {
   constructor(options: { storage?: PluginSettingsStorage | null; storageKey?: string } = {}) {
     this._storage = options.storage ?? null;
     this._storageKey = options.storageKey ?? DEFAULT_STORAGE_KEY;
+    migrateLegacyStorage(this._storage, this._storageKey);
     this._hydrate();
   }
 

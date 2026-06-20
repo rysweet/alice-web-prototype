@@ -2,22 +2,21 @@
 
 ## Student loads project through REST, edits, runs, and saves
 **Architecture trace**:
-- `POST /api/launch` reads the project, parses A3P, and stores `state.parsedProject` (`src/server.ts:67-106`).
-- `POST /api/code/edit-procedure` writes `state.procedures` and proof artifacts only (`src/server.ts:146-215`); the edit does not mutate `state.parsedProject`.
-- `POST /api/world/run` calls `executeProject(state.parsedProject)` (`src/server.ts:258-311`) and therefore does not consume the procedure edits stored in `state.procedures`.
-- `POST /api/project/save` copies the source `.a3p` or writes a placeholder (`src/server.ts:219-255`) instead of using the archive writer path.
-- Public server symbols are exported through `createServer`/`Server` (`src/server.ts:46`, `src/index.ts:130`).
+- `POST /api/launch` resolves the project request, reads the project, parses A3P, and stores `state.parsedProject` (`src/server/routes/launch-routes.ts:5-33`, `src/server/project-service.ts:42-72`).
+- `POST /api/code/edit-procedure` writes `state.procedures` and proof artifacts; append-statement edits also patch cached parsed methods (`src/server/routes/code-routes.ts:5-14`, `src/server/project-service.ts:74-163`).
+- `POST /api/world/run` calls `executeProject(state.parsedProject)` through the project service (`src/server/routes/world-routes.ts:5-27`, `src/server/project-service.ts:198-242`).
+- `POST /api/project/save` writes the current project archive through `writeA3P` and emits save evidence (`src/server/routes/project-routes.ts:4-13`, `src/server/project-service.ts:165-196`).
+- Public server symbols are exported through `createServer`/`Server` (`src/server.ts:12-13,38`, `src/index.ts:144`).
 **Architecture gaps**:
-- Procedure edits are evidence-only; they do not flow into the cached parsed project used by run.
-- Save copies the original project or a placeholder instead of serializing edited state through `writeProject`/`writeA3P`.
+- Default comment-style procedure edits remain evidence-oriented; statement edits patch cached parsed methods before run.
 
 ## Eatme suite drives the prototype
 **Architecture trace**:
-- `GET /api/health` and `POST /api/launch` are server routes in `src/server.ts:67-118`.
-- `POST /api/scene/add-object` mutates `state.sceneObjects` and writes `scene-object-added.json` (`src/server.ts:121-143`).
-- `POST /api/events/register` calls `EventSystem.register()` and writes `event-register.json` (`src/server.ts:357-385`, `src/events.ts:165-224`).
-- `POST /api/events/fire` calls `EventSystem.fire()` and writes `event-fire.json` (`src/server.ts:388-415`, `src/events.ts:259-300`).
-- `POST /api/world/run` calls `executeProject` and writes `run-world-result.json` (`src/server.ts:258-311`).
+- `GET /api/health` and `POST /api/launch` are server routes in `src/server/routes/health-routes.ts:4-14` and `src/server/routes/launch-routes.ts:5-33`.
+- `POST /api/scene/add-object` mutates `state.sceneObjects` and writes `scene-object-added.json` (`src/server/routes/scene-routes.ts:5-34`).
+- `POST /api/events/register` calls `EventSystem.register()` and writes `event-register.json` (`src/server/routes/event-routes.ts:5-37`, `src/events.ts:165-224`).
+- `POST /api/events/fire` calls `EventSystem.fire()` and writes `event-fire.json` (`src/server/routes/event-routes.ts:39-70`, `src/events.ts:259-300`).
+- `POST /api/world/run` calls `executeProject` and writes `run-world-result.json` (`src/server/routes/world-routes.ts:5-27`, `src/server/project-service.ts:198-242`).
 - Server/event symbols are exported through the public surface (`src/index.ts:48,130`).
 
 ## Developer test and coverage commands
@@ -47,7 +46,7 @@
 - Change application, mailbox fan-out, and last-write-wins conflict handling live in `src/collaboration.ts:259-333`.
 - Presence tracking lives in `src/collaboration.ts:232-257`.
 - The journey names `StateStore / StatePatch`, but `src/collaboration.ts` never imports `state-synchronization.ts`; the sync layer is separately exported (`src/state-synchronization.ts:52-64,172-245`, `src/index.ts:24,86`).
-- Runtime wiring is missing: the shipped runtime is the viewer client plus REST server (`src/index.html:29-41`, `src/main.ts:14-17`, `src/cli.ts:119-144`, `src/server.ts:67-415`) with no collaboration transport or API surface.
+- Runtime wiring is missing: the shipped runtime is the viewer client plus REST server (`src/index.html:29-41`, `src/main.ts:14-17`, `src/cli.ts:119-144`, `src/server.ts:1-13,38`) with no collaboration transport or API surface.
 **Architecture gaps**:
 - Collaboration is currently library-only, not a reachable end-to-end user journey.
 - The documented sync layer is adjacent to collaboration, not actually connected to it.

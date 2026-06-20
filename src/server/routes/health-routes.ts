@@ -8,7 +8,7 @@ export function registerHealthRoutes(app: Express, context: ServerContext): void
       launched: context.state.launched,
       pid: process.pid,
       uptime: process.uptime(),
-      runtime: "typescript-web-prototype",
+      runtime: "lookingglass-typescript-web",
     });
   });
 }

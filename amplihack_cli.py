@@ -11,27 +11,30 @@ from importlib.metadata import PackageNotFoundError, distribution
 from pathlib import Path
 
 
-DIST_NAME = "alice-web-prototype-amplihack"
+DIST_NAME = "lookingglass-amplihack"
 DEFAULT_REPO_URL = "https://github.com/rysweet/alice-web-prototype.git"
 NODE_HEAP_OPTION = "--max-old-space-size=32768"
-UNSAFE_MUTABLE_CHECKOUT_ENV = "ALICE_WEB_ALLOW_MUTABLE_CHECKOUT"
+LOOKINGGLASS_SOURCE_ENV = "LOOKINGGLASS_SOURCE"
+LEGACY_SOURCE_ENV = "ALICE_WEB_SOURCE"
+LOOKINGGLASS_ALLOW_MUTABLE_CHECKOUT_ENV = "LOOKINGGLASS_ALLOW_MUTABLE_CHECKOUT"
+LEGACY_ALLOW_MUTABLE_CHECKOUT_ENV = "ALICE_WEB_ALLOW_MUTABLE_CHECKOUT"
 COMMIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 
 SCENARIOS = {
     "a3p-statement-simple": {
         "description": "A3P parser/writer statement inventory contract",
         "pattern": (
-            "keeps parser round-trip cases in exact parity with PARSED_A3P_STATEMENT_KINDS|"
-            "keeps writer coverage cases in exact parity with SUPPORTED_A3P_STATEMENT_KINDS"
+            "keeps parser-recognized statement kinds explicit|"
+            "keeps writer round-trip coverage cases in exact parity with SUPPORTED_A3P_STATEMENT_KINDS"
         ),
     },
     "a3p-statement-integration": {
         "description": "A3P statement round-trip, lowering, and fail-loud coverage",
         "pattern": (
-            "round-trips parser-recognized|"
+            "round-trips writer-supported|"
             "lowers VariableAssignment statements|"
             "lowers EventListener statements|"
-            "lowers runtime ForEach statements|"
+            "rejects TS-only ForEach statements|"
             "throws instead of dropping unsupported statement kinds"
         ),
     },
@@ -41,7 +44,7 @@ SCENARIOS = {
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="amplihack",
-        description="Run alice-web-prototype outside-in validation scenarios from a uvx-installed branch.",
+        description="Run LookingGlass outside-in validation scenarios from a uvx-installed branch.",
     )
     parser.add_argument("command", choices=sorted(SCENARIOS))
     parser.add_argument(
@@ -54,7 +57,8 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=(
             "Unsafe: allow fallback to a requested branch/tag when the installation metadata "
-            f"does not include an immutable commit SHA. {UNSAFE_MUTABLE_CHECKOUT_ENV}=1 also enables this."
+            f"does not include an immutable commit SHA. {LOOKINGGLASS_ALLOW_MUTABLE_CHECKOUT_ENV}=1 "
+            f"also enables this; {LEGACY_ALLOW_MUTABLE_CHECKOUT_ENV}=1 remains a compatibility alias."
         ),
     )
     args = parser.parse_args(argv)
@@ -62,20 +66,22 @@ def main(argv: list[str] | None = None) -> int:
     scenario = SCENARIOS[args.command]
     repo = ensure_checkout(allow_mutable_checkout=args.allow_mutable_checkout)
     ensure_tool("npm")
-    ensure_tool("npx")
 
     print(f"Scenario: {scenario['description']}", flush=True)
     print(f"Checkout: {repo}", flush=True)
 
     if not args.no_install:
-        run(["npm", "ci", "--no-audit", "--no-fund", "--silent"], cwd=repo)
+        run(["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund", "--silent"], cwd=repo)
     elif not (repo / "node_modules").exists():
         raise SystemExit("--no-install was used, but cached node_modules does not exist")
 
     env = os.environ.copy()
     env["NODE_OPTIONS"] = merge_node_options(env.get("NODE_OPTIONS"))
     command = [
-        "npx",
+        "npm",
+        "exec",
+        "--no",
+        "--",
         "vitest",
         "run",
         "test/a3p-writer.test.ts",
@@ -88,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def ensure_checkout(allow_mutable_checkout: bool = False) -> Path:
-    source_override = os.environ.get("ALICE_WEB_SOURCE")
+    source_override = os.environ.get(LOOKINGGLASS_SOURCE_ENV) or os.environ.get(LEGACY_SOURCE_ENV)
     if source_override:
         repo = Path(source_override).expanduser().resolve()
         validate_repo(repo)
@@ -133,7 +139,7 @@ def resolve_checkout_revision(
     if commit:
         if not COMMIT_SHA_RE.fullmatch(commit):
             raise SystemExit(
-                "Refusing to checkout alice-web-prototype because direct_url.json commit_id "
+                "Refusing to checkout LookingGlass because direct_url.json commit_id "
                 "is not a full immutable commit SHA."
             )
         return commit, commit
@@ -144,9 +150,10 @@ def resolve_checkout_revision(
         return requested_revision, None
 
     raise SystemExit(
-        "Refusing to checkout alice-web-prototype without an immutable commit_id in direct_url.json. "
+        "Refusing to checkout LookingGlass without an immutable commit_id in direct_url.json. "
         "Mutable branch/tag checkout can execute changed upstream code. Reinstall from a commit SHA, "
-        f"or explicitly accept the risk with --allow-mutable-checkout or {UNSAFE_MUTABLE_CHECKOUT_ENV}=1."
+        f"or explicitly accept the risk with --allow-mutable-checkout or "
+        f"{LOOKINGGLASS_ALLOW_MUTABLE_CHECKOUT_ENV}=1."
     )
 
 
@@ -155,7 +162,11 @@ def string_value(value: object) -> str | None:
 
 
 def mutable_checkout_allowed(allow_mutable_checkout: bool) -> bool:
-    return allow_mutable_checkout or os.environ.get(UNSAFE_MUTABLE_CHECKOUT_ENV, "").lower() in {
+    env_value = os.environ.get(LOOKINGGLASS_ALLOW_MUTABLE_CHECKOUT_ENV) or os.environ.get(
+        LEGACY_ALLOW_MUTABLE_CHECKOUT_ENV,
+        "",
+    )
+    return allow_mutable_checkout or env_value.lower() in {
         "1",
         "true",
         "yes",
@@ -193,13 +204,13 @@ def clone_checkout(repo_url: str, revision: str, commit: str | None, target: Pat
 def validate_repo(repo: Path) -> None:
     missing = [name for name in ["package.json", "package-lock.json", "test/a3p-writer.test.ts"] if not (repo / name).exists()]
     if missing:
-        raise SystemExit(f"{repo} is not an alice-web-prototype checkout; missing {', '.join(missing)}")
+        raise SystemExit(f"{repo} is not a LookingGlass checkout; missing {', '.join(missing)}")
 
 
 def cache_root() -> Path:
     base = os.environ.get("XDG_CACHE_HOME")
     root = Path(base).expanduser() if base else Path.home() / ".cache"
-    return root / "alice-web-prototype" / "uvx-checkouts"
+    return root / "lookingglass" / "uvx-checkouts"
 
 
 def safe_cache_name(repo_url: str, revision: str) -> str:

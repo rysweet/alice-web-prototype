@@ -1,18 +1,19 @@
-# Eatme Integration — TypeScript Web Prototype
+# LookingGlass identity for eatme integration
 
-The alice-web-prototype can produce the same proof artifact JSON files that
-Java Alice produces, allowing the eatme harness to validate it as a comparison
-target alongside the original Java Alice.
+LookingGlass can produce the same proof artifact JSON files that Java Alice
+produces, allowing the eatme harness to validate it as a comparison target
+alongside the original Java Alice.
 
 ## Quick Start
 
 ```bash
-cd alice-web-prototype
+git clone https://github.com/rysweet/alice-web-prototype.git lookingglass
+cd lookingglass
 npm install
 npm run build:server
 
-# Start the eatme-compatible API server
-node dist-server/cli.js serve \
+# Start the eatme-compatible API server from a local checkout
+npm run serve -- \
   --port 3000 \
   --evidence-dir ./evidence \
   --project /path/to/starter.a3p
@@ -20,8 +21,16 @@ node dist-server/cli.js serve \
 
 ## CLI Usage
 
+Local checkout:
+
+```bash
+npm run serve -- [options]
 ```
-alice-web serve [options]
+
+Installed or linked package:
+
+```
+lookingglass serve [options]
 
 Options:
   --port <number>           Port to listen on (default: 3000)
@@ -38,7 +47,7 @@ response reference.
 Returns process status. Used by eatme for `process_started` assertion.
 
 ### `POST /api/launch`
-Start/initialize the prototype with a project.
+Start or initialize LookingGlass with a project.
 ```json
 { "project": "/path/to/starter.a3p" }
 ```
@@ -138,9 +147,20 @@ A `typescript` target entry has been added to
 
 To use:
 ```bash
-export ALICE_TYPESCRIPT_HOME=/path/to/alice-web-prototype
-export ALICE_TYPESCRIPT_API_URL=http://localhost:3000
+export LOOKINGGLASS_TYPESCRIPT_HOME=/path/to/lookingglass
+export LOOKINGGLASS_TYPESCRIPT_API_URL=http://localhost:3000
 ```
+
+Compatibility aliases stay supported for existing harnesses:
+
+```bash
+export ALICE_TYPESCRIPT_HOME=/path/to/lookingglass
+export ALICE_TYPESCRIPT_API_URL=http://localhost:3000
+export ALICE_WEB_URL=http://localhost:3000
+```
+
+If both canonical `LOOKINGGLASS_*` variables and aliases are set, the
+`LOOKINGGLASS_*` value wins.
 
 ## Gadugi Integration Test Scenarios
 
@@ -168,7 +188,7 @@ scenario documentation, schema reference, and writing guide.
 src/
   evidence-writer.ts    — Writes JSON proof artifacts matching Java schemas
   server.ts             — Express HTTP API server
-  cli.ts                — CLI entry point (alice-web serve ...)
+  cli.ts                — CLI entry point (npm run serve -- ..., lookingglass serve ...)
   a3p-parser.ts         — .a3p ZIP/XML parser + joint/bbox/texture extraction
   animation.ts          — Pure-functional tween engine (4 easings, Vec3/Quat/scalar)
   project-io.ts         — Full .a3p archive read/write (manifest, resources, thumbnail)

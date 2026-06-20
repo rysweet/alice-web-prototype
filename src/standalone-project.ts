@@ -32,6 +32,7 @@ const ORIGINAL_XML_MARKER = "__original_xml__";
 const DEFAULT_VERSION = "1.0.0-SNAPSHOT";
 const SOURCE_ROOT = "src/main/java";
 const RESOURCE_ROOT = "src/main/resources";
+const MAVEN_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 export function generateStandaloneJavaProject(
   archive: AliceProjectArchive,
@@ -41,7 +42,7 @@ export function generateStandaloneJavaProject(
   const packageName = sanitizePackageName(options.packageName ?? "org.alice.generated");
   const packagePath = packageName.replace(/\./g, "/");
   const buildSystem = options.buildSystem ?? "both";
-  const version = options.version ?? DEFAULT_VERSION;
+  const version = validateMavenVersion(options.version ?? DEFAULT_VERSION);
   const artifactId = sanitizeArtifactId(projectName);
   const mainClassName = resolveMainClassName(archive.project);
   const files = new Map<string, string | Uint8Array>();
@@ -390,7 +391,7 @@ function buildPomXml(options: {
   projectName: string;
 }): string {
   const { packageName, artifactId, version, mainClassName, projectName } = options;
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>${packageName}</groupId>\n  <artifactId>${artifactId}</artifactId>\n  <version>${version}</version>\n  <name>${escapeXml(projectName)}</name>\n  <properties>\n    <maven.compiler.source>17</maven.compiler.source>\n    <maven.compiler.target>17</maven.compiler.target>\n    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>\n  </properties>\n  <build>\n    <plugins>\n      <plugin>\n        <groupId>org.apache.maven.plugins</groupId>\n        <artifactId>maven-jar-plugin</artifactId>\n        <version>3.4.2</version>\n        <configuration>\n          <archive>\n            <manifest>\n              <mainClass>${packageName}.${mainClassName}</mainClass>\n            </manifest>\n          </archive>\n        </configuration>\n      </plugin>\n      <plugin>\n        <groupId>org.codehaus.mojo</groupId>\n        <artifactId>exec-maven-plugin</artifactId>\n        <version>3.5.0</version>\n        <configuration>\n          <mainClass>${packageName}.${mainClassName}</mainClass>\n        </configuration>\n      </plugin>\n    </plugins>\n  </build>\n</project>\n`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>${packageName}</groupId>\n  <artifactId>${artifactId}</artifactId>\n  <version>${escapeXml(version)}</version>\n  <name>${escapeXml(projectName)}</name>\n  <properties>\n    <maven.compiler.source>17</maven.compiler.source>\n    <maven.compiler.target>17</maven.compiler.target>\n    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>\n  </properties>\n  <build>\n    <plugins>\n      <plugin>\n        <groupId>org.apache.maven.plugins</groupId>\n        <artifactId>maven-jar-plugin</artifactId>\n        <version>3.4.2</version>\n        <configuration>\n          <archive>\n            <manifest>\n              <mainClass>${packageName}.${mainClassName}</mainClass>\n            </manifest>\n          </archive>\n        </configuration>\n      </plugin>\n      <plugin>\n        <groupId>org.codehaus.mojo</groupId>\n        <artifactId>exec-maven-plugin</artifactId>\n        <version>3.5.0</version>\n        <configuration>\n          <mainClass>${packageName}.${mainClassName}</mainClass>\n        </configuration>\n      </plugin>\n    </plugins>\n  </build>\n</project>\n`;
 }
 
 function buildGradleFile(options: {
@@ -480,6 +481,15 @@ function sanitizeArtifactId(projectName: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return base.length > 0 ? base : "alice-project";
+}
+
+function validateMavenVersion(version: string): string {
+  if (!MAVEN_VERSION_PATTERN.test(version)) {
+    throw new Error(
+      "Standalone project version must be a non-empty Maven version containing only letters, numbers, dots, underscores, and hyphens.",
+    );
+  }
+  return version;
 }
 
 function indentMembers(members: string[]): string {

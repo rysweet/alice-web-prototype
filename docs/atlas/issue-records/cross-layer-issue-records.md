@@ -2,11 +2,11 @@
 
 ## Infrastructure diagram under-models the a3p-parser coupling hub
 **Severity**: Medium
-**Evidence**: `docs/atlas/compile-deps/README.md:16-19` describes `a3p-parser` as the densest shared base, but `docs/atlas/service-components/service-components-infrastructure.mmd:2-14` only draws `A3P I/O` into `Project system` and `REST server`. The code fan-out is materially wider: the browser entry imports `parseA3P` in `src/main.ts:3`, grading imports it in `src/grading-pipeline.ts:1,47-52`, hooks import it in `src/hooks/place-object.ts:10` and related hook files, and the server imports it in `src/server.ts:11,81-83,267-282`. The service-components infrastructure view is under-modeled around a real cross-subsystem coupling hub.
+**Evidence**: `docs/atlas/compile-deps/README.md:16-19` describes `a3p-parser` as the densest shared base, but `docs/atlas/service-components/service-components-infrastructure.mmd:2-14` only draws `A3P I/O` into `Project system` and `REST server`. The code fan-out is materially wider: the browser entry imports `parseA3P` in `src/main.ts:3`, grading imports it in `src/grading-pipeline.ts:1,47-52`, hooks import it in `src/hooks/place-object.ts:10` and related hook files, and the server project service imports and uses it in `src/server/project-service.ts:3,60-62,203-204`. The service-components infrastructure view is under-modeled around a real cross-subsystem coupling hub.
 
 ## Collaboration journey has no runtime entrypoint
 **Severity**: High
-**Evidence**: `docs/atlas/runtime-topology/README.md:11-19` describes the shipped runtime as a local Express API plus the browser viewer in `src/main.ts`, and `docs/atlas/api-contracts/README.md:13-21` enumerates 9 REST routes with no collaboration surface. In code, `src/server.ts:1-14,67-415` wires only launch/scene/code/save/run/screenshot/events routes, `src/cli.ts:119-125` only boots that server, and `src/main.ts:14-17,104-123,149-163` only loads an `.a3p` file into the renderer. `src/collaboration.ts` exists and is exported from `src/index.ts:24`, but it is not connected to any runtime entrypoint.
+**Evidence**: `docs/atlas/runtime-topology/README.md:11-19` describes the shipped runtime as a local Express API plus the browser viewer in `src/main.ts`, and `docs/atlas/api-contracts/README.md:13-21` enumerates 9 REST routes with no collaboration surface. In code, `src/server.ts:1-13,38` plus the route modules wire only launch/scene/code/save/run/screenshot/events routes, `src/cli.ts:119-125` only boots that server, and `src/main.ts:14-17,104-123,149-163` only loads an `.a3p` file into the renderer. `src/collaboration.ts` exists and is exported from `src/index.ts:29`, but it is not connected to any runtime entrypoint.
 
 ## Dead exported helper candidates in smaller modules
 **Severity**: Low
@@ -18,7 +18,7 @@
 
 ## REST save route bypasses the archive writer stack
 **Severity**: High
-**Evidence**: `docs/atlas/data-flow/README.md:18-20` says the REST server is evidence-oriented, but `docs/atlas/data-flow/data-flow.mmd:31-37` still merges `POST /api/project/save` with `ProjectSaver.saveProject` and routes both through `writeA3P / writeProject`. The live route in `src/server.ts:219-255` does not call the writer stack: it copies the source `.a3p` or writes a placeholder buffer, then emits `desktop-save-operation-result.json`. The archive writer path lives separately in `src/project-system.ts:139-147` and `src/project-io.ts:164-200`, so the atlas diagram misstates the save boundary.
+**Evidence**: `docs/atlas/data-flow/README.md:18-20` says the REST server is evidence-oriented, but `docs/atlas/data-flow/data-flow.mmd:31-37` still merges `POST /api/project/save` with `ProjectSaver.saveProject` and routes both through `writeA3P / writeProject`. The live route delegates to the server project service (`src/server/routes/project-routes.ts:4-13`), which builds current state and writes an archive with `writeA3P` before emitting `desktop-save-operation-result.json` (`src/server/project-service.ts:165-196`). The richer archive writer path also lives in `src/project-system.ts:139-147` and `src/project-io.ts:164-200`, so the atlas diagram needs to keep the REST save boundary distinct from the authoring persistence stack.
 
 ## New-project journey has no runtime entrypoint
 **Layer**: user-journeys × runtime-topology

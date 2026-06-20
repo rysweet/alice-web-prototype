@@ -1,7 +1,7 @@
 # Getting started
 
 Use this guide when you want a clean local setup for the browser app and the
-REST API server.
+LookingGlass REST API server.
 
 ## What you need
 
@@ -54,10 +54,10 @@ The default CLI port is `3000`.
 ## Start the server for `eatme`
 
 The `eatme` web-platform tests use `http://localhost:3099` unless you set a
-different `ALICE_WEB_URL`. This command starts the prototype on that port:
+different API URL. This command starts LookingGlass on that port:
 
 ```bash
-node dist-server/cli.js serve --port 3099 --evidence-dir ./evidence
+npm run serve -- --port 3099 --evidence-dir ./evidence
 ```
 
 Check that the server is up:
@@ -72,9 +72,11 @@ Expected response shape:
 {
   "status": "running",
   "launched": false,
-  "runtime": "typescript-web-prototype"
+  "runtime": "lookingglass-typescript-web"
 }
 ```
+
+The `runtime` value is the LookingGlass runtime identity.
 
 ## Common local commands
 
@@ -86,4 +88,4 @@ Expected response shape:
 | Run tests | `npm test` |
 | Start browser dev server | `npm run dev` |
 | Start API server | `npm run serve` |
-| Start API server on eatme's default port | `node dist-server/cli.js serve --port 3099 --evidence-dir ./evidence` |
+| Start API server on eatme's default port | `npm run serve -- --port 3099 --evidence-dir ./evidence` |

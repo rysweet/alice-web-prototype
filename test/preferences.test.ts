@@ -7,7 +7,7 @@ import {
   type UserPreferences,
 } from "../src/preferences";
 
-const STORAGE_KEY = "alice-web.preferences.test";
+const STORAGE_KEY = "lookingglass.preferences.test";
 
 beforeEach(() => {
   localStorage.clear();
@@ -107,6 +107,17 @@ describe("Preferences", () => {
       cameraFov: 60,
       autoSaveInterval: 60,
     });
+  });
+
+  it("migrates legacy default storage into the LookingGlass key", () => {
+    localStorage.setItem("alice-web.preferences", JSON.stringify({ theme: "light" }));
+
+    const prefs = new Preferences();
+
+    expect(prefs.get("theme")).toBe("light");
+    expect(localStorage.getItem("lookingglass.preferences")).toBe(
+      localStorage.getItem("alice-web.preferences"),
+    );
   });
 
   it("supports manual persistence when autoSave is disabled", () => {

@@ -50,7 +50,7 @@ scenario:
         for attempt in $(seq 1 50); do if curl -fsS "http://127.0.0.1:$PORT/api/health" >"$HEALTH_JSON" 2>/dev/null; then READY=1; break; fi; sleep 0.2; done;
         test "$READY" = 1;
         grep -Eq "\"status\"[[:space:]]*:[[:space:]]*\"listening\"" "$SERVER_LOG";
-        node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"running\") throw new Error(\"health status was not running\"); if (d.runtime !== \"typescript-web-prototype\") throw new Error(\"unexpected runtime\");" "$HEALTH_JSON";
+        node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"running\") throw new Error(\"health status was not running\"); if (d.runtime !== \"lookingglass-typescript-web\") throw new Error(\"unexpected runtime\");" "$HEALTH_JSON";
         curl -fsS -X POST "http://127.0.0.1:$PORT/api/launch" -H "Content-Type: application/json" -d "{\"project\":\"$A3P_FILE\"}" >"$LAUNCH_JSON";
         node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"launched\") throw new Error(\"project did not launch\"); if (!d.projectName) throw new Error(\"projectName missing\"); if (d.sceneObjectCount < 2) throw new Error(\"expected at least 2 scene objects\");" "$LAUNCH_JSON";
         curl -fsS "http://127.0.0.1:$PORT/api/screenshot" >"$SCREENSHOT_JSON";

@@ -1,6 +1,6 @@
 # Server API
 
-The server API is the Express layer that lets `eatme`, outside-in tests, and local scripts drive Alice Web Prototype workflows over HTTP.
+The server API is the Express layer that lets `eatme`, outside-in tests, and local scripts drive LookingGlass workflows over HTTP.
 
 Contract source: server API tests, `EATME.md`, and observed HTTP behavior.
 
@@ -24,7 +24,7 @@ Build the server and start it on localhost:
 ```bash
 npm install
 npm run build:server
-node dist-server/cli.js serve --port 3000 --evidence-dir ./evidence
+npm run serve -- --port 3000 --evidence-dir ./evidence
 ```
 
 Check that the process is accepting API requests:
@@ -41,18 +41,29 @@ Response:
   "launched": false,
   "pid": 12345,
   "uptime": 1.25,
-  "runtime": "typescript-web-prototype"
+  "runtime": "lookingglass-typescript-web"
 }
 ```
+
+The `runtime` value is the LookingGlass runtime identity.
 
 `pid` and `uptime` are dynamic. Tests and clients should assert their types, not fixed values.
 
 ## Configuration
 
-The CLI accepts these options:
+The local checkout CLI accepts these options through the npm script:
 
 ```bash
-node dist-server/cli.js serve \
+npm run serve -- \
+  --port 3000 \
+  --evidence-dir ./evidence \
+  --project ./fixtures/starter.a3p
+```
+
+The installed or linked package exposes the same options through `lookingglass`:
+
+```bash
+lookingglass serve \
   --port 3000 \
   --evidence-dir ./evidence \
   --project ./fixtures/starter.a3p
@@ -76,11 +87,13 @@ Example output:
 {
   "command": "print-config",
   "port": 3100,
-  "evidenceDir": "/home/alice/alice-web-prototype/tmp/evidence",
+  "evidenceDir": "/workspace/lookingglass/tmp/evidence",
   "project": null,
-  "runtime": "typescript-web-prototype"
+  "runtime": "lookingglass-typescript-web"
 }
 ```
+
+The `runtime` value is part of the LookingGlass identity contract.
 
 For large local builds, set Node's heap limit before running build or test commands:
 
@@ -124,7 +137,10 @@ Each call to `createServer()` creates a separate server context. Mutable project
 
 The public API contract is defined by the existing tests, `EATME.md`, and observed server behavior. Response field names, status codes, schema versions, and artifact names are stable.
 
-See [API reference](./api-reference.md) for endpoint-by-endpoint request and response details. The server exposes these routes:
+See [API reference](./api-reference.md) and
+[LookingGlass identity](./lookingglass-identity.md) for endpoint-by-endpoint
+request, response, and runtime identity details. The server exposes these
+routes:
 
 | Method | Route | Success response | Main side effect |
 | --- | --- | --- | --- |

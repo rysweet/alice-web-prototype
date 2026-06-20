@@ -1,10 +1,10 @@
 {
-  "name": "alice-web-prototype",
+  "name": "lookingglass",
   "version": "0.19.0",
   "private": true,
   "type": "module",
   "bin": {
-    "alice-web": "./dist-server/cli.js"
+    "lookingglass": "./dist-server/cli.js"
   },
   "scripts": {
     "dev": "vite",
