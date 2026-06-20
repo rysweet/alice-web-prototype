@@ -13,3 +13,5 @@ worktrees/
 site/
 evidence/
 coverage/
+test-results/
+playwright-report/
