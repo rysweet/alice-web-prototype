@@ -44,7 +44,7 @@ export function createHtmlMarkup(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="generator" content="alice-web-prototype export-html">
+  <meta name="generator" content="LookingGlass export-html">
   <title>${escapeHtml(title)}</title>
   <style>${buildInlineStyles()}</style>
 </head>
@@ -55,12 +55,12 @@ export function createHtmlMarkup(
         <div>
           <p class="alice-export__eyebrow">${previewMode ? "IDE preview" : "Standalone HTML export"}</p>
           <h1 class="alice-export__title">${escapeHtml(title)}</h1>
-          <p class="alice-export__subtitle">${escapeHtml(project.projectName || "Alice Project")} • ${project.sceneObjects.length} scene objects • self-contained single file</p>
+          <p class="alice-export__subtitle">${escapeHtml(project.projectName || "LookingGlass Project")} • ${project.sceneObjects.length} scene objects • self-contained single file</p>
         </div>
         <span class="alice-export__badge">Three.js embedded</span>
       </header>
       <div class="alice-export__scene-shell">
-        <div class="alice-export__scene" data-alice-scene aria-label="Alice project preview"></div>
+        <div class="alice-export__scene" data-alice-scene aria-label="LookingGlass project preview"></div>
       </div>
       <p class="alice-export__status" data-alice-status>Initializing embedded Three.js scene…</p>
       <p class="alice-export__details" data-alice-details>Embedded Tweedle source is available below for offline viewing.</p>
@@ -195,7 +195,7 @@ function buildRenderLoop(): string {
     '  camera.position.set(center.x + radius, center.y + radius * 0.7, center.z + radius * 1.1); camera.lookAt(center);',
     '  const render = () => { const viewport = nextViewport(); renderer.setSize(viewport.width, viewport.height, false); camera.aspect = viewport.width / viewport.height; camera.updateProjectionMatrix(); renderer.render(scene, camera); };',
     '  render(); if (!config.previewMode) window.addEventListener("resize", render);',
-    '  writeText(status, "Loaded " + String(project.projectName || "Alice Project") + " into an embedded Three.js scene.");',
+    '  writeText(status, "Loaded " + String(project.projectName || "LookingGlass Project") + " into an embedded Three.js scene.");',
     '  writeText(details, String(visibleObjects.length) + " scene objects and embedded Tweedle source are available offline.");',
   ].join("\n");
 }

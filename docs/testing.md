@@ -66,12 +66,15 @@ Build and start the server, then run API-driven tests or external harnesses:
 
 ```bash
 npm run build:server
-node dist-server/cli.js serve --port 3099 --evidence-dir ./evidence
+npm run serve -- --port 3099 --evidence-dir ./evidence
 ```
 
 In another terminal, point `eatme` at that URL if you are not using the
 default:
 
 ```bash
-export ALICE_WEB_URL=http://127.0.0.1:3099
+export LOOKINGGLASS_WEB_URL=http://127.0.0.1:3099
 ```
+
+Existing harnesses may still use `ALICE_WEB_URL`; the rename keeps it as a
+compatibility alias.

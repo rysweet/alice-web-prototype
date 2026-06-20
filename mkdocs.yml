@@ -1,4 +1,4 @@
-site_name: Alice Web Prototype
+site_name: LookingGlass
 site_description: TypeScript web port of Alice 3
 repo_url: https://github.com/rysweet/alice-web-prototype
 docs_dir: docs
@@ -11,7 +11,8 @@ nav:
   - "Home": "index.md"
   - "Tutorials":
     - "Getting started": "getting-started.md"
-    - "Building your first Alice application": "tutorial-building-your-first-alice-app.md"
+    - "Verify a local LookingGlass server": "tutorial-lookingglass-server-workflow.md"
+    - "Building your first LookingGlass application": "tutorial-building-your-first-alice-app.md"
   - "How-to guides":
     - "Testing": "testing.md"
     - "IDE operations": "ide-operations.md"
@@ -24,6 +25,7 @@ nav:
     - "Event system": "event-system.md"
     - "Grading pipeline": "grading-pipeline.md"
     - "Image editor": "image-editor.md"
+    - "LookingGlass identity": "lookingglass-identity.md"
     - "Model resources": "model-resources.md"
     - "Project IO": "project-io.md"
     - "Resource manager": "resource-manager.md"

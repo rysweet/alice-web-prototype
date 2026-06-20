@@ -19,7 +19,8 @@ export interface NotificationStorage {
   removeItem(key: string): void;
 }
 
-const HISTORY_STORAGE_KEY = "alice-web.notifications.history";
+const HISTORY_STORAGE_KEY = "lookingglass.notifications.history";
+const LEGACY_HISTORY_STORAGE_KEY = "alice-web.notifications.history";
 
 function cloneNotification(notification: NotificationRecord): NotificationRecord {
   return { ...notification };
@@ -30,6 +31,16 @@ function getDefaultStorage(): NotificationStorage | null {
     return null;
   }
   return globalThis.localStorage as NotificationStorage;
+}
+
+function migrateLegacyStorage(storage: NotificationStorage | null, storageKey: string): void {
+  if (!storage || storageKey !== HISTORY_STORAGE_KEY || storage.getItem(storageKey) !== null) {
+    return;
+  }
+  const legacyValue = storage.getItem(LEGACY_HISTORY_STORAGE_KEY);
+  if (legacyValue !== null) {
+    storage.setItem(storageKey, legacyValue);
+  }
 }
 
 export class NotificationQueue {
@@ -64,6 +75,7 @@ export class NotificationHistory {
   constructor(storage: NotificationStorage | null = getDefaultStorage(), storageKey = HISTORY_STORAGE_KEY) {
     this.storage = storage;
     this.storageKey = storageKey;
+    migrateLegacyStorage(this.storage, this.storageKey);
     this.records = this.load();
   }
 

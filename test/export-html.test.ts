@@ -53,7 +53,7 @@ describe("export-html", () => {
     const dom = new JSDOM(html);
     const { document } = dom.window;
 
-    expect(document.title).toBe("Preview Demo — Alice HTML Export");
+    expect(document.title).toBe("Preview Demo — LookingGlass HTML Export");
     expect(document.body.dataset.previewMode).toBe("false");
     expect(document.querySelector("[data-alice-scene]")).not.toBeNull();
     expect(document.querySelectorAll("script[src], link[rel='stylesheet']")).toHaveLength(0);

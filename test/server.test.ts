@@ -28,7 +28,7 @@ describe("server API", () => {
     it("returns running status", async () => {
       const res = await request(app).get("/api/health").expect(200);
       expect(res.body.status).toBe("running");
-      expect(res.body.runtime).toBe("typescript-web-prototype");
+      expect(res.body.runtime).toBe("lookingglass-typescript-web");
       expect(typeof res.body.pid).toBe("number");
     });
 
@@ -175,7 +175,7 @@ describe("server API", () => {
       const editedPath = path.join(TEST_EVIDENCE_DIR, "edited-project.a3p");
       expect(fs.existsSync(editedPath)).toBe(true);
       const editedBytes = fs.readFileSync(editedPath);
-      expect(editedBytes.toString("utf-8")).not.toContain("alice-web-prototype-placeholder");
+      expect(editedBytes.toString("utf-8")).not.toContain("placeholder-source-marker");
       const editedProject = await parseA3P(editedBytes);
       expect(editedProject.methods.map((method) => method.name)).toContain("myFirstMethod");
     });

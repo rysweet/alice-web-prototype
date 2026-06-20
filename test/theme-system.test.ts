@@ -9,7 +9,7 @@ import {
   ThemeVariables,
 } from "../src/theme-system";
 
-const STORAGE_KEY = "alice-web.theme.test";
+const STORAGE_KEY = "lookingglass.theme.test";
 
 beforeEach(() => {
   localStorage.clear();
@@ -37,6 +37,19 @@ describe("theme-system", () => {
 
     const reloaded = new ThemeManager({ persistence });
     expect(reloaded.getActiveThemeId()).toBe("light");
+  });
+
+  it("migrates legacy default theme storage into the LookingGlass key", () => {
+    localStorage.setItem("alice-web.theme", JSON.stringify({
+      activeThemeId: "light",
+      highContrast: false,
+      customTheme: null,
+    }));
+
+    const manager = new ThemeManager();
+
+    expect(manager.getActiveThemeId()).toBe("light");
+    expect(localStorage.getItem("lookingglass.theme")).toBe(localStorage.getItem("alice-web.theme"));
   });
 
   it("registers and restores custom themes from persistence", () => {

@@ -158,7 +158,7 @@ describe("exportModelToGlb", () => {
     expect(json).toHaveProperty("asset");
   });
 
-  it("stores metadata in asset.extras.alice when provided", async () => {
+  it("stores metadata in asset.extras.lookingglass when provided", async () => {
     const geometry = makeBoxGeometry();
     const metadata: GlbMetadata = {
       modelId: "ALIEN",
@@ -171,10 +171,10 @@ describe("exportModelToGlb", () => {
     const asset = json.asset as Record<string, unknown>;
     expect(asset.extras).toBeDefined();
     const extras = asset.extras as Record<string, unknown>;
-    expect(extras.alice).toBeDefined();
-    const aliceMeta = extras.alice as Record<string, unknown>;
-    expect(aliceMeta.modelId).toBe("ALIEN");
-    expect(aliceMeta.category).toBe("BIPED");
+    expect(extras.lookingglass).toBeDefined();
+    const lookingGlassMeta = extras.lookingglass as Record<string, unknown>;
+    expect(lookingGlassMeta.modelId).toBe("ALIEN");
+    expect(lookingGlassMeta.category).toBe("BIPED");
   });
 
   it("omits extras when no metadata provided", async () => {
@@ -186,7 +186,7 @@ describe("exportModelToGlb", () => {
     // extras may be absent or empty — either is valid
     if (asset.extras) {
       const extras = asset.extras as Record<string, unknown>;
-      expect(extras.alice).toBeUndefined();
+      expect(extras.lookingglass).toBeUndefined();
     }
   });
 
