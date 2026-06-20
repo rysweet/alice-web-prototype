@@ -15,11 +15,20 @@ import {
 } from "./tweedle-runtime.js";
 import { parseTweedle, type ClassDecl, type ConstructorDecl, type Expression, type FieldDecl, type MethodDecl, type Statement, type TypeRef } from "./tweedle-parser.js";
 import { convertStatements } from "./tweedle-vm-core-compile.js";
-import { runStatements } from "./tweedle-vm-core-setup.js";
 import { RuntimeLambda, RuntimeObject, VMState } from "./tweedle-vm-core-types.js";
 import { registerTweedleVmDispatch } from "./tweedle-vm-dispatch-registry.js";
 import { evaluateValue, resolveRuntimeObjectByName } from "./tweedle-vm-eval-core.js";
 import { popScope, pushScope, scopeSet } from "./tweedle-vm-stack-scope.js";
+
+type MethodBodyExecutor = (statements: AliceStatement[], state: VMState) => void;
+
+let executeMethodBody: MethodBodyExecutor = () => {
+  throw new Error("Tweedle VM method body executor is not initialized.");
+};
+
+export function registerMethodBodyExecutor(executor: MethodBodyExecutor): void {
+  executeMethodBody = executor;
+}
 
 // ── Statement handlers ─────────────────────────────────────────────────
 
@@ -172,7 +181,7 @@ export function dispatchMethod(
   let methodReturnValue: unknown = undefined;
   try {
     state.depth++;
-    runStatements(target.statements, state);
+    executeMethodBody(target.statements, state);
     methodReturned = state.returned;
     methodReturnValue = state.returnValue;
     if (methodReturned && methodReturnValue !== undefined) {

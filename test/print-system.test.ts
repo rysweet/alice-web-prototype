@@ -6,6 +6,7 @@ import {
   printToHtml,
   printToText,
 } from "../src/print-system.js";
+import type { PrintTheme } from "../src/print-system.js";
 import { parseTweedle } from "../src/tweedle-parser.js";
 
 const SOURCE = `class Story {
@@ -43,6 +44,15 @@ describe("print-system", () => {
     expect(html).toContain("&lt;Alice&gt;");
     expect(html).toContain("alice-print__keyword");
     expect(html).toContain("alice-print__comment");
+  });
+
+  it("normalizes invalid runtime theme values before rendering classes", () => {
+    const html = printToHtml(SOURCE, { theme: 'dark" onclick="alert(1)' as unknown as PrintTheme });
+
+    expect(html).toContain('class="alice-print alice-print--light"');
+    expect(html).not.toContain("onclick");
+    expect(html).not.toContain("alert(1)");
+    expect(html).not.toContain("alice-print--dark&quot;");
   });
 
   it("exports a standalone printable page", () => {

@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { parseA3P } from "../src/a3p-parser";
+import { writeA3P } from "../src/a3p-writer";
 import { validateProjectPath as exportedValidateProjectPath } from "../src/server";
 import { createServerContext } from "../src/server/context";
 import { evidenceService } from "../src/server/evidence-service";
 import { projectService } from "../src/server/project-service";
 import {
+  buildCurrentProject,
   createInitialServerState,
   parseMethodParams,
   seedDefaultSceneObjects,
@@ -145,15 +148,36 @@ describe("server module boundary contracts", () => {
     expect([...state.sceneObjects.keys()]).toEqual(["ground", "camera"]);
   });
 
-  it("keeps evidence artifact fallback writes explicit and non-empty", async () => {
+  it("writes generated edited-project evidence when no source project exists", async () => {
     const evidenceDir = trackTempDir(makeTempDir("alice-evidence-service-"));
+    const state = createInitialServerState();
+    seedDefaultSceneObjects(state);
+    state.procedures.get("myFirstMethod")!.push("generated evidence marker");
+    const currentProjectBytes = await writeA3P(buildCurrentProject(state));
+
     const editedPath = await evidenceService.writeEditedProjectArtifact(
-      path.join(evidenceDir, "missing-source.a3p"),
+      null,
       evidenceDir,
+      currentProjectBytes,
     );
 
     expect(editedPath).toBe(path.join(evidenceDir, "edited-project.a3p"));
     expect(fs.existsSync(editedPath)).toBe(true);
-    expect(fs.statSync(editedPath).size).toBeGreaterThan(0);
+    const editedProject = await parseA3P(fs.readFileSync(editedPath));
+    expect(editedProject.projectName).toBe("Program");
+    expect(editedProject.methods.map((method) => method.name)).toContain("myFirstMethod");
+  });
+
+  it("surfaces source project copy failures instead of writing placeholder bytes", async () => {
+    const evidenceDir = trackTempDir(makeTempDir("alice-evidence-service-"));
+    const editedPath = path.join(evidenceDir, "edited-project.a3p");
+
+    await expect(evidenceService.writeEditedProjectArtifact(
+      path.join(evidenceDir, "missing-source.a3p"),
+      evidenceDir,
+      null,
+    )).rejects.toThrow("Failed to copy edited project artifact");
+
+    expect(fs.existsSync(editedPath)).toBe(false);
   });
 });

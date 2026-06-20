@@ -18,178 +18,225 @@ export function parseBlock(parser: Parser): Statement[] {
   return stmts;
 }
 
+type StatementParser = {
+  matches: (parser: Parser) => boolean;
+  parse: (parser: Parser) => Statement;
+};
+
+const ORDERED_STATEMENT_PARSERS: StatementParser[] = [
+  { matches: (parser) => parser.check(TT.DO_IN_ORDER), parse: parseDoInOrderStatement },
+  { matches: (parser) => parser.check(TT.DO_TOGETHER), parse: parseDoTogetherStatement },
+  { matches: (parser) => parser.check(TT.IF), parse: parseIfElseStatement },
+  { matches: (parser) => parser.check(TT.FOR_EACH), parse: parseForEachStatement },
+  { matches: (parser) => parser.check(TT.COUNT_UP_TO), parse: parseCountUpToStatement },
+  { matches: isContextualCountStatement, parse: parseContextualCountStatement },
+  { matches: (parser) => parser.check(TT.WHILE), parse: parseWhileStatement },
+  { matches: (parser) => parser.check(TT.TRY), parse: parseTryCatchStatement },
+  { matches: (parser) => parser.check(TT.SWITCH), parse: parseSwitchStatement },
+  { matches: (parser) => parser.check(TT.RETURN), parse: parseReturnStatement },
+  { matches: (parser) => parser.check(TT.LBRACE), parse: parseBlockStatement },
+  { matches: isThisConstructorInvocationStatement, parse: parseThisConstructorInvocationStatement },
+  { matches: isSuperConstructorInvocationStatement, parse: parseSuperConstructorInvocationStatement },
+  { matches: (parser) => parser.check(TT.DISABLED_BLOCK), parse: parseDisabledBlockStatement },
+  { matches: (parser) => parser.check(TT.CONSTANT), parse: parseConstantLocalVariableStatement },
+  { matches: (parser) => parser.isLocalVarStart(), parse: parseLocalVariableStatement },
+];
+
 export function parseStatement(parser: Parser): Statement {
-  // doInOrder { ... }
-  if (parser.check(TT.DO_IN_ORDER)) {
-    parser.advance();
-    const body = parser.parseBlock();
-    return { type: "DoInOrder", body };
-  }
-
-  // doTogether { ... }
-  if (parser.check(TT.DO_TOGETHER)) {
-    parser.advance();
-    const body = parser.parseBlock();
-    return { type: "DoTogether", body };
-  }
-
-  // if (cond) { ... } [else { ... }]
-  if (parser.check(TT.IF)) {
-    parser.advance();
-    parser.expect(TT.LPAREN, "'('");
-    const condition = parser.parseExpression();
-    parser.expect(TT.RPAREN, "')'");
-    const ifBody = parser.parseBlock();
-    let elseBody: Statement[] | null = null;
-    if (parser.match(TT.ELSE)) {
-      elseBody = parser.parseBlock();
+  for (const statementParser of ORDERED_STATEMENT_PARSERS) {
+    if (statementParser.matches(parser)) {
+      return statementParser.parse(parser);
     }
-    return { type: "IfElse", condition, ifBody, elseBody };
   }
 
-  // forEach (Type name in collection) { ... }
-  if (parser.check(TT.FOR_EACH)) {
-    parser.advance();
-    parser.expect(TT.LPAREN, "'('");
-    const itemType = parser.parseTypeRef();
-    const itemName = parser.expect(TT.IDENTIFIER, "variable name").text;
-    parser.expect(TT.IN, "'in'");
-    const collection = parser.parseExpression();
-    parser.expect(TT.RPAREN, "')'");
-    const body = parser.parseBlock();
-    return { type: "ForEach", itemType, itemName, collection, body };
+  return parseExpressionStatement(parser);
+}
+
+function parseDoInOrderStatement(parser: Parser): Statement {
+  parser.advance();
+  const body = parser.parseBlock();
+  return { type: "DoInOrder", body };
+}
+
+function parseDoTogetherStatement(parser: Parser): Statement {
+  parser.advance();
+  const body = parser.parseBlock();
+  return { type: "DoTogether", body };
+}
+
+function parseIfElseStatement(parser: Parser): Statement {
+  parser.advance();
+  parser.expect(TT.LPAREN, "'('");
+  const condition = parser.parseExpression();
+  parser.expect(TT.RPAREN, "')'");
+  const ifBody = parser.parseBlock();
+  let elseBody: Statement[] | null = null;
+  if (parser.match(TT.ELSE)) {
+    elseBody = parser.parseBlock();
+  }
+  return { type: "IfElse", condition, ifBody, elseBody };
+}
+
+function parseForEachStatement(parser: Parser): Statement {
+  parser.advance();
+  parser.expect(TT.LPAREN, "'('");
+  const itemType = parser.parseTypeRef();
+  const itemName = parser.expect(TT.IDENTIFIER, "variable name").text;
+  parser.expect(TT.IN, "'in'");
+  const collection = parser.parseExpression();
+  parser.expect(TT.RPAREN, "')'");
+  const body = parser.parseBlock();
+  return { type: "ForEach", itemType, itemName, collection, body };
+}
+
+function parseCountUpToStatement(parser: Parser): Statement {
+  parser.advance();
+  return parseCountLoop(parser);
+}
+
+function isContextualCountStatement(parser: Parser): boolean {
+  return parser.check(TT.IDENTIFIER) && parser.peek().text === "count" && parser.peekAt(1).type === TT.LPAREN;
+}
+
+function parseContextualCountStatement(parser: Parser): Statement {
+  parser.advance();
+  return parseCountLoop(parser);
+}
+
+function parseCountLoop(parser: Parser): Statement {
+  parser.expect(TT.LPAREN, "'('");
+  const count = parser.parseExpression();
+  parser.expect(TT.RPAREN, "')'");
+  const body = parser.parseBlock();
+  return { type: "CountUpTo", count, body };
+}
+
+function parseWhileStatement(parser: Parser): Statement {
+  parser.advance();
+  parser.expect(TT.LPAREN, "'('");
+  const condition = parser.parseExpression();
+  parser.expect(TT.RPAREN, "')'");
+  const body = parser.parseBlock();
+  return { type: "WhileLoop", condition, body };
+}
+
+function parseTryCatchStatement(parser: Parser): Statement {
+  parser.advance();
+  const tryBody = parser.parseBlock();
+  parser.expect(TT.CATCH, "'catch'");
+  parser.expect(TT.LPAREN, "'('");
+  const { catchType, catchVariable } = parseCatchBinding(parser);
+  parser.expect(TT.RPAREN, "')'");
+  const catchBody = parser.parseBlock();
+  return { type: "TryCatch", tryBody, catchType, catchVariable, catchBody };
+}
+
+function parseCatchBinding(parser: Parser): { catchType: TypeRef; catchVariable: string } {
+  if (parser.check(TT.IDENTIFIER) && parser.peekAt(1).type === TT.IDENTIFIER) {
+    const first = parser.advance().text;
+    const second = parser.advance().text;
+    if (/^[A-Z]/.test(first)) {
+      return {
+        catchType: { type: "SimpleTypeRef", name: first, isArray: false, arrayDimensions: 0 },
+        catchVariable: second,
+      };
+    }
+
+    return {
+      catchType: { type: "SimpleTypeRef", name: second, isArray: false, arrayDimensions: 0 },
+      catchVariable: first,
+    };
   }
 
-  // countUpTo (expr) { ... }
-  if (parser.check(TT.COUNT_UP_TO)) {
-    parser.advance();
-    parser.expect(TT.LPAREN, "'('");
-    const count = parser.parseExpression();
-    parser.expect(TT.RPAREN, "')'");
-    const body = parser.parseBlock();
-    return { type: "CountUpTo", count, body };
-  }
+  const catchType = parser.parseTypeRef();
+  const catchVariable = parser.expect(TT.IDENTIFIER, "variable name").text;
+  return { catchType, catchVariable };
+}
 
-  // count (expr) { ... } — contextual keyword (Alice 3 syntax)
-  if (parser.check(TT.IDENTIFIER) && parser.peek().text === "count" && parser.peekAt(1).type === TT.LPAREN) {
-    parser.advance(); // consume "count"
-    parser.expect(TT.LPAREN, "'('");
-    const count = parser.parseExpression();
-    parser.expect(TT.RPAREN, "')'");
-    const body = parser.parseBlock();
-    return { type: "CountUpTo", count, body };
-  }
-
-  // while (cond) { ... }
-  if (parser.check(TT.WHILE)) {
-    parser.advance();
-    parser.expect(TT.LPAREN, "'('");
-    const condition = parser.parseExpression();
-    parser.expect(TT.RPAREN, "')'");
-    const body = parser.parseBlock();
-    return { type: "WhileLoop", condition, body };
-  }
-
-  // try { ... } catch (Type name) { ... } / catch (name Type) { ... }
-  if (parser.check(TT.TRY)) {
-    parser.advance();
-    const tryBody = parser.parseBlock();
-    parser.expect(TT.CATCH, "'catch'");
-    parser.expect(TT.LPAREN, "'('");
-    let catchType: TypeRef;
-    let catchVariable: string;
-    if (parser.check(TT.IDENTIFIER) && parser.peekAt(1).type === TT.IDENTIFIER) {
-      const first = parser.advance().text;
-      const second = parser.advance().text;
-      if (/^[A-Z]/.test(first)) {
-        catchType = { type: "SimpleTypeRef", name: first, isArray: false, arrayDimensions: 0 };
-        catchVariable = second;
-      } else {
-        catchVariable = first;
-        catchType = { type: "SimpleTypeRef", name: second, isArray: false, arrayDimensions: 0 };
-      }
+function parseSwitchStatement(parser: Parser): Statement {
+  parser.advance();
+  parser.expect(TT.LPAREN, "'('");
+  const expression = parser.parseExpression();
+  parser.expect(TT.RPAREN, "')'");
+  parser.expect(TT.LBRACE, "'{'");
+  const cases: Array<{ value: Expression; body: Statement[] }> = [];
+  let defaultCase: Statement[] | null = null;
+  while (!parser.check(TT.RBRACE) && !parser.check(TT.EOF)) {
+    if (parser.check(TT.CASE)) {
+      cases.push(parseSwitchCase(parser));
+    } else if (parser.check(TT.DEFAULT)) {
+      defaultCase = parseSwitchDefault(parser);
     } else {
-      catchType = parser.parseTypeRef();
-      catchVariable = parser.expect(TT.IDENTIFIER, "variable name").text;
+      parser.fail("Expected 'case' or 'default'");
     }
-    parser.expect(TT.RPAREN, "')'");
-    const catchBody = parser.parseBlock();
-    return { type: "TryCatch", tryBody, catchType, catchVariable, catchBody };
   }
+  parser.expect(TT.RBRACE, "'}'");
+  return { type: "SwitchCase", expression, cases, defaultCase };
+}
 
-  // switch (expr) { case val: { ... } ... default: { ... } }
-  if (parser.check(TT.SWITCH)) {
-    parser.advance();
-    parser.expect(TT.LPAREN, "'('");
-    const expression = parser.parseExpression();
-    parser.expect(TT.RPAREN, "')'");
-    parser.expect(TT.LBRACE, "'{'");
-    const cases: Array<{ value: Expression; body: Statement[] }> = [];
-    let defaultCase: Statement[] | null = null;
-    while (!parser.check(TT.RBRACE) && !parser.check(TT.EOF)) {
-      if (parser.check(TT.CASE)) {
-        parser.advance();
-        const value = parser.parseExpression();
-        parser.expect(TT.COLON, "':'");
-        const body = parser.parseBlock();
-        cases.push({ value, body });
-      } else if (parser.check(TT.DEFAULT)) {
-        parser.advance();
-        parser.expect(TT.COLON, "':'");
-        defaultCase = parser.parseBlock();
-      } else {
-        parser.fail("Expected 'case' or 'default'");
-      }
-    }
-    parser.expect(TT.RBRACE, "'}'");
-    return { type: "SwitchCase", expression, cases, defaultCase };
+function parseSwitchCase(parser: Parser): { value: Expression; body: Statement[] } {
+  parser.advance();
+  const value = parser.parseExpression();
+  parser.expect(TT.COLON, "':'");
+  const body = parser.parseBlock();
+  return { value, body };
+}
+
+function parseSwitchDefault(parser: Parser): Statement[] {
+  parser.advance();
+  parser.expect(TT.COLON, "':'");
+  return parser.parseBlock();
+}
+
+function parseReturnStatement(parser: Parser): Statement {
+  parser.advance();
+  if (parser.match(TT.SEMI)) {
+    return { type: "Return", expression: null };
   }
+  const expression = parser.parseExpression();
+  parser.expect(TT.SEMI, "';'");
+  return { type: "Return", expression };
+}
 
-  // return [expr];
-  if (parser.check(TT.RETURN)) {
-    parser.advance();
-    if (parser.match(TT.SEMI)) {
-      return { type: "Return", expression: null };
-    }
-    const expression = parser.parseExpression();
-    parser.expect(TT.SEMI, "';'");
-    return { type: "Return", expression };
-  }
+function parseBlockStatement(parser: Parser): Statement {
+  return { type: "Block", body: parser.parseBlock() };
+}
 
-  if (parser.check(TT.LBRACE)) {
-    return { type: "Block", body: parser.parseBlock() };
-  }
+function isThisConstructorInvocationStatement(parser: Parser): boolean {
+  return parser.check(TT.THIS) && parser.peekAt(1).type === TT.LPAREN;
+}
 
-  if (parser.check(TT.THIS) && parser.peekAt(1).type === TT.LPAREN) {
-    const args = parser.parseConstructorInvocationArguments(TT.THIS);
-    parser.expect(TT.SEMI, "';'");
-    return { type: "ThisConstructorInvocationStatement", arguments: args };
-  }
+function parseThisConstructorInvocationStatement(parser: Parser): Statement {
+  const args = parser.parseConstructorInvocationArguments(TT.THIS);
+  parser.expect(TT.SEMI, "';'");
+  return { type: "ThisConstructorInvocationStatement", arguments: args };
+}
 
-  if (parser.check(TT.SUPER) && parser.peekAt(1).type === TT.LPAREN) {
-    const args = parser.parseConstructorInvocationArguments(TT.SUPER);
-    parser.expect(TT.SEMI, "';'");
-    return { type: "SuperConstructorInvocationStatement", arguments: args };
-  }
+function isSuperConstructorInvocationStatement(parser: Parser): boolean {
+  return parser.check(TT.SUPER) && parser.peekAt(1).type === TT.LPAREN;
+}
 
-  // Disabled block: *< ... >*
-  if (parser.check(TT.DISABLED_BLOCK)) {
-    const tok = parser.advance();
-    return { type: "DisabledBlock", raw: tok.text };
-  }
+function parseSuperConstructorInvocationStatement(parser: Parser): Statement {
+  const args = parser.parseConstructorInvocationArguments(TT.SUPER);
+  parser.expect(TT.SEMI, "';'");
+  return { type: "SuperConstructorInvocationStatement", arguments: args };
+}
 
-  // constant Type name <- value;
-  if (parser.check(TT.CONSTANT)) {
-    parser.advance();
-    return parser.parseLocalVariable(true);
-  }
+function parseDisabledBlockStatement(parser: Parser): Statement {
+  const tok = parser.advance();
+  return { type: "DisabledBlock", raw: tok.text };
+}
 
-  // Local variable: Type name <- value;
-  if (parser.isLocalVarStart()) {
-    return parser.parseLocalVariable(false);
-  }
+function parseConstantLocalVariableStatement(parser: Parser): Statement {
+  parser.advance();
+  return parser.parseLocalVariable(true);
+}
 
-  // Expression statement
+function parseLocalVariableStatement(parser: Parser): Statement {
+  return parser.parseLocalVariable(false);
+}
+
+function parseExpressionStatement(parser: Parser): Statement {
   const expr = parser.parseExpression();
   parser.expect(TT.SEMI, "';'");
   return { type: "ExpressionStatement", expression: expr };

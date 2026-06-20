@@ -7,6 +7,7 @@ import {
   type HtmlExportDocument,
   type HtmlExportOptions,
 } from "./export-html.js";
+import { assertSafeWritablePath } from "./project-io/path-security.js";
 
 export interface ProjectExportResource {
   path: string;
@@ -169,29 +170,32 @@ export class ProjectPackager {
   ): Promise<PackagedProject> {
     const zip = new JSZip();
     const slug = slugify(project.projectName || "project");
+    const resources = (options.resources ?? []).map(validateResourcePath);
     const a3p = await this.a3pExporter.export(project, options.a3p);
     const html = await this.htmlExporter.export(project, {
       ...options.html,
-      resources: options.resources,
+      resources,
     });
     const thumbnail = await this.screenshotCapture.capture(options.thumbnail);
 
-    zip.file(`${slug}.a3p`, a3p);
-    zip.file(`${slug}.html`, html.html);
-    zip.file("thumbnail.png", thumbnail.bytes);
+    const generatedEntries = [
+      addZipFile(zip, `${slug}.a3p`, a3p),
+      addZipFile(zip, `${slug}.html`, html.html),
+      addZipFile(zip, "thumbnail.png", thumbnail.bytes),
+    ];
 
-    for (const resource of options.resources ?? []) {
-      zip.file(resource.path, normalizeResourceBytes(resource.bytes));
+    for (const resource of resources) {
+      addZipFile(zip, resource.path, normalizeResourceBytes(resource.bytes));
     }
 
     const dependencies = [...new Set(options.dependencies ?? [])].sort();
     const manifest = {
       projectName: project.projectName || "Project",
       dependencies,
-      resourceCount: options.resources?.length ?? 0,
-      generatedEntries: [`${slug}.a3p`, `${slug}.html`, "thumbnail.png"],
+      resourceCount: resources.length,
+      generatedEntries,
     };
-    zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+    addZipFile(zip, "manifest.json", JSON.stringify(manifest, null, 2));
 
     const archive = await zip.generateAsync({ type: "uint8array" });
     return {
@@ -207,6 +211,19 @@ function buildResourceScript(resources: Record<string, string>): string {
     return "";
   }
   return `<script id="alice-export-resources" type="application/json">${escapeScriptText(JSON.stringify(resources))}</script>`;
+}
+
+function addZipFile(zip: JSZip, path: string, bytes: Uint8Array | string): string {
+  const safePath = assertSafeWritablePath(path);
+  zip.file(safePath, bytes);
+  return safePath;
+}
+
+function validateResourcePath(resource: ProjectExportResource): ProjectExportResource {
+  return {
+    ...resource,
+    path: assertSafeWritablePath(resource.path),
+  };
 }
 
 function injectBeforeBodyEnd(html: string, injectedMarkup: string): string {

@@ -84,6 +84,13 @@ def parse_args():
         "--no-rename", action="store_true",
         help="Skip bone renaming"
     )
+    parser.add_argument(
+        "--allow-modifier-failures", action="store_true",
+        help=(
+            "Continue exporting even if one or more modifiers fail to apply "
+            "(default: abort export)"
+        )
+    )
     return parser.parse_args(argv)
 
 
@@ -104,7 +111,12 @@ def rename_bones_to_alice(armature_obj):
 
 
 def apply_all_modifiers():
-    """Apply all modifiers on mesh objects."""
+    """Apply all modifiers on mesh objects.
+
+    Returns:
+        A list of modifier failures as (object name, modifier name, error) tuples.
+    """
+    failures = []
     for obj in bpy.data.objects:
         if obj.type == "MESH":
             bpy.context.view_layer.objects.active = obj
@@ -115,7 +127,9 @@ def apply_all_modifiers():
                     bpy.ops.object.modifier_apply(modifier=mod_name)
                     print(f"  Applied modifier: {mod_name} on {obj.name}")
                 except Exception as e:
-                    print(f"  Warning: Could not apply {mod_name}: {e}")
+                    failures.append((obj.name, mod_name, str(e)))
+                    print(f"  Error: Could not apply {mod_name} on {obj.name}: {e}")
+    return failures
 
 
 def export_gltf(output_path, export_format):
@@ -166,7 +180,21 @@ def main():
     # Step 2: Apply modifiers
     if APPLY_MODIFIERS:
         print("\nApplying modifiers...")
-        apply_all_modifiers()
+        modifier_failures = apply_all_modifiers()
+        if modifier_failures:
+            print("\nModifier application failed:")
+            for obj_name, mod_name, error in modifier_failures:
+                print(f"  - {obj_name}.{mod_name}: {error}")
+            if not args.allow_modifier_failures:
+                print(
+                    "\nAborting export because modifiers failed to apply. "
+                    "Pass --allow-modifier-failures to export anyway."
+                )
+                sys.exit(1)
+            print(
+                "\nContinuing despite modifier failures because "
+                "--allow-modifier-failures was set."
+            )
 
     # Step 3: Export
     print("\nExporting...")

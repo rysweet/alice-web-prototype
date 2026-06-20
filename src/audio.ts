@@ -8,6 +8,14 @@
 import JSZip from "jszip";
 import type { Vec3 } from "./story-api/types";
 
+export type AudioDecodeStatus = "decoded" | "decode-unavailable" | "decode-failed";
+export type AudioRuntimeMode = "web-audio" | "simulation";
+
+/** Minimal decoded buffer contract used by Web Audio and tests. */
+export interface AudioBufferLike {
+  duration: number;
+}
+
 /** DOM-free audio resource descriptor. */
 export interface AudioResource {
   id: string;
@@ -15,6 +23,9 @@ export interface AudioResource {
   buffer: ArrayBuffer;
   duration: number;
   format: string;
+  decodedBuffer?: AudioBufferLike;
+  decodeStatus?: AudioDecodeStatus;
+  decodeError?: string;
 }
 
 export interface SpatialAudioOptions {
@@ -33,6 +44,23 @@ export interface SpatialAudioMix {
 export type AudioPlayerState = "stopped" | "playing" | "paused";
 export type AudioEventType = "play" | "pause" | "stop" | "load";
 export type AudioEventCallback = () => void;
+
+export type AudioDecoder = (buffer: ArrayBuffer) => Promise<AudioBufferLike> | AudioBufferLike;
+
+export interface LoadAudioOptions {
+  /**
+   * Decode bytes with this function. In browsers, pass
+   * `audioContext.decodeAudioData.bind(audioContext)` or inject a fake decoder
+   * in tests.
+   */
+  decodeAudioData?: AudioDecoder;
+  /** AudioContext-like object used for decoding when decodeAudioData is absent. */
+  audioContext?: AudioContextLike;
+  /** Set false to explicitly skip decoding and mark the resource metadata-only. */
+  decode?: boolean;
+  /** Throw when a supplied decoder fails instead of returning decode-failed metadata. */
+  requireDecode?: boolean;
+}
 
 const ZERO_VEC3: Vec3 = Object.freeze({ x: 0, y: 0, z: 0 });
 
@@ -345,6 +373,7 @@ export class AudioPlayer {
 export async function loadAudioFromA3P(
   data: ArrayBuffer | Uint8Array,
   resourcePath: string,
+  options: LoadAudioOptions = {},
 ): Promise<AudioResource> {
   const zip = await JSZip.loadAsync(data);
   const entry = zip.file(resourcePath);
@@ -356,73 +385,164 @@ export async function loadAudioFromA3P(
   const name = lastSlash !== -1 ? resourcePath.slice(lastSlash + 1) : resourcePath;
   const lastDot = name.lastIndexOf(".");
   const format = lastDot !== -1 ? name.slice(lastDot + 1) : "unknown";
+  const decoded = await decodeAudioBuffer(buffer, options);
   return {
     id: resourcePath,
     name,
     buffer,
-    duration: 0,
+    duration: decoded.buffer?.duration ?? 0,
     format,
+    decodedBuffer: decoded.buffer,
+    decodeStatus: decoded.status,
+    decodeError: decoded.error,
   };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Stub Web Audio API interfaces for DOM-free testing and parity
+// Web Audio API interfaces plus explicit simulation fallback
 // ═══════════════════════════════════════════════════════════════════════════
 
-export interface StubAudioDestinationNode {
+export interface AudioDestinationNodeLike {
   channelCount: number;
 }
 
-export interface StubGainNode {
+export interface AudioNodeLike {
+  connect(dest: AudioDestinationNodeLike | AudioNodeLike): void;
+}
+
+export interface GainNodeLike extends AudioNodeLike {
   gain: { value: number };
-  connect(dest: StubAudioDestinationNode | StubGainNode): void;
 }
 
-export interface StubAudioBufferSourceNode {
-  buffer: ArrayBuffer | null;
+export interface AudioBufferSourceNodeLike extends AudioNodeLike {
+  buffer: AudioBufferLike | null;
   loop: boolean;
-  connect(dest: StubGainNode): void;
-  start(): void;
-  stop(): void;
+  onended?: (() => void) | null;
+  start(when?: number): void;
+  stop(when?: number): void;
 }
 
-export interface StubAudioContext {
+export interface AudioContextLike {
   sampleRate: number;
   currentTime: number;
   state: string;
-  destination: StubAudioDestinationNode;
-  createGain(): StubGainNode;
-  createBufferSource(): StubAudioBufferSourceNode;
+  destination: AudioDestinationNodeLike;
+  createGain(): GainNodeLike;
+  createBufferSource(): AudioBufferSourceNodeLike;
+  decodeAudioData?(audioData: ArrayBuffer): Promise<AudioBufferLike>;
+  resume?(): Promise<void>;
+}
+
+/** @deprecated Use AudioDestinationNodeLike. Simulation mode is explicit via WebAudioPlayer.runtimeMode. */
+export type StubAudioDestinationNode = AudioDestinationNodeLike;
+/** @deprecated Use GainNodeLike. Simulation mode is explicit via WebAudioPlayer.runtimeMode. */
+export type StubGainNode = GainNodeLike;
+/** @deprecated Use AudioBufferSourceNodeLike. Simulation mode is explicit via WebAudioPlayer.runtimeMode. */
+export type StubAudioBufferSourceNode = AudioBufferSourceNodeLike;
+/** @deprecated Use AudioContextLike. Simulation mode is explicit via WebAudioPlayer.runtimeMode. */
+export type StubAudioContext = AudioContextLike;
+
+export interface WebAudioPlayerOptions {
+  audioContext?: AudioContextLike;
+  runtimeMode?: AudioRuntimeMode;
+}
+
+interface DecodeResult {
+  buffer?: AudioBufferLike;
+  status: AudioDecodeStatus;
+  error?: string;
+}
+
+function resolveDecoder(options: LoadAudioOptions): AudioDecoder | undefined {
+  if (options.decode === false) {
+    return undefined;
+  }
+  if (options.decodeAudioData) {
+    return options.decodeAudioData;
+  }
+  if (options.audioContext?.decodeAudioData) {
+    return options.audioContext.decodeAudioData.bind(options.audioContext);
+  }
+  return undefined;
+}
+
+async function decodeAudioBuffer(buffer: ArrayBuffer, options: LoadAudioOptions): Promise<DecodeResult> {
+  const decoder = resolveDecoder(options);
+  if (!decoder) {
+    return { status: "decode-unavailable" };
+  }
+  try {
+    const decoded = await decoder(buffer.slice(0));
+    if (!Number.isFinite(decoded.duration)) {
+      return { buffer: { duration: 0 }, status: "decoded" };
+    }
+    return { buffer: decoded, status: "decoded" };
+  } catch (error) {
+    if (options.requireDecode) {
+      throw error;
+    }
+    return {
+      status: "decode-failed",
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function createSimulationAudioContext(): AudioContextLike {
+  const connect = (_dest: AudioDestinationNodeLike | AudioNodeLike): void => {};
+  return {
+    sampleRate: 44100,
+    currentTime: 0,
+    state: "simulation",
+    destination: { channelCount: 2 },
+    createGain: (): GainNodeLike => ({
+      gain: { value: 1 },
+      connect,
+    }),
+    createBufferSource: (): AudioBufferSourceNodeLike => ({
+      buffer: null,
+      loop: false,
+      connect,
+      start() {},
+      stop() {},
+    }),
+  };
+}
+
+function createBrowserAudioContext(): AudioContextLike | null {
+  const BrowserAudioContext = globalThis.AudioContext
+    ?? (globalThis as typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!BrowserAudioContext) {
+    return null;
+  }
+  try {
+    return new BrowserAudioContext() as AudioContextLike;
+  } catch {
+    return null;
+  }
 }
 
 export class WebAudioPlayer {
   readonly player: AudioPlayer;
-  readonly audioContext: StubAudioContext;
-  readonly gainNode: StubGainNode;
+  readonly audioContext: AudioContextLike;
+  readonly gainNode: GainNodeLike;
+  readonly runtimeMode: AudioRuntimeMode;
+  readonly canOutputAudio: boolean;
+  private sourceNode: AudioBufferSourceNodeLike | null = null;
 
-  constructor() {
+  constructor(options: WebAudioPlayerOptions = {}) {
     this.player = new AudioPlayer();
-    this.gainNode = {
-      gain: { value: 1 },
-      connect(_dest: StubAudioDestinationNode | StubGainNode) {},
-    };
-    this.audioContext = {
-      sampleRate: 44100,
-      currentTime: 0,
-      state: "running",
-      destination: { channelCount: 2 },
-      createGain: (): StubGainNode => ({
-        gain: { value: 1 },
-        connect(_dest: StubAudioDestinationNode | StubGainNode) {},
-      }),
-      createBufferSource: (): StubAudioBufferSourceNode => ({
-        buffer: null,
-        loop: false,
-        connect(_dest: StubGainNode) {},
-        start() {},
-        stop() {},
-      }),
-    };
+    const browserContext = options.runtimeMode === "simulation"
+      ? null
+      : options.audioContext ?? createBrowserAudioContext();
+    if (options.runtimeMode === "web-audio" && !browserContext) {
+      throw new Error("WebAudioPlayer requested web-audio mode, but AudioContext is unavailable");
+    }
+    this.runtimeMode = browserContext ? "web-audio" : "simulation";
+    this.canOutputAudio = this.runtimeMode === "web-audio";
+    this.audioContext = browserContext ?? createSimulationAudioContext();
+    this.gainNode = this.audioContext.createGain();
+    this.gainNode.connect(this.audioContext.destination);
   }
 
   get state(): AudioPlayerState {
@@ -451,26 +571,60 @@ export class WebAudioPlayer {
   }
 
   load(resource: AudioResource): void {
+    this.stopSource();
     this.player.load(resource);
   }
 
   loadFromManager(manager: SoundResourceManager, resourceId: string): void {
-    this.player.loadFromManager(manager, resourceId);
+    const resource = manager.get(resourceId);
+    if (!resource) {
+      throw new Error(`Audio resource not found: ${resourceId}`);
+    }
+    this.load(resource);
   }
 
   play(): void {
+    if (this.player.state === "playing") {
+      return;
+    }
+    if (this.runtimeMode === "web-audio") {
+      const resource = this.player.resource;
+      if (!resource) {
+        this.player.play();
+        return;
+      }
+      if (!resource.decodedBuffer) {
+        throw new Error(
+          `Cannot output audio: resource '${resource.id}' is not decoded (decodeStatus: ${resource.decodeStatus ?? "unknown"})`,
+        );
+      }
+      const source = this.audioContext.createBufferSource();
+      source.buffer = resource.decodedBuffer;
+      source.connect(this.gainNode);
+      source.onended = () => {
+        if (this.sourceNode !== source) {
+          return;
+        }
+        this.sourceNode = null;
+        this.player.stop();
+      };
+      source.start();
+      this.sourceNode = source;
+    }
     this.player.play();
   }
 
   pause(): void {
+    this.stopSource();
     this.player.pause();
   }
 
   stop(): void {
+    this.stopSource();
     this.player.stop();
   }
 
-  connect(destination?: StubAudioDestinationNode): void {
+  connect(destination?: AudioDestinationNodeLike): void {
     this.gainNode.connect(destination ?? this.audioContext.destination);
   }
 
@@ -480,5 +634,17 @@ export class WebAudioPlayer {
 
   off(event: AudioEventType, callback: AudioEventCallback): void {
     this.player.off(event, callback);
+  }
+
+  private stopSource(): void {
+    if (!this.sourceNode) {
+      return;
+    }
+    this.sourceNode.onended = null;
+    try {
+      this.sourceNode.stop();
+    } finally {
+      this.sourceNode = null;
+    }
   }
 }

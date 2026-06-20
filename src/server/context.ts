@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import * as path from "path";
 import { createInitialServerState, type ServerState } from "./state.js";
 import { evidenceService, type EvidenceService } from "./evidence-service.js";
 import { projectService, type ProjectService } from "./project-service.js";
@@ -25,11 +26,16 @@ export interface ServerContext {
 
 export function createServerContext(options: ServerOptions): ServerContext {
   fs.mkdirSync(options.evidenceDir, { recursive: true });
+  const allowedProjectDirs = options.allowedProjectDirs
+    ?? [
+      process.cwd(),
+      ...(options.projectPath ? [path.dirname(options.projectPath)] : []),
+    ];
 
   return {
     options,
     evidenceDir: options.evidenceDir,
-    allowedProjectDirs: options.allowedProjectDirs ?? [process.cwd()],
+    allowedProjectDirs,
     state: createInitialServerState(),
     evidenceService,
     projectService,

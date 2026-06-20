@@ -1,10 +1,20 @@
 // Outside-in scenario 2: Edge cases & cross-module integration
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { AudioPlayer, type AudioResource } from "../src/audio.js";
 import { SceneManager } from "../src/scene-manager.js";
 import { parseTweedle } from "../src/tweedle-parser.js";
 import { generateTweedle, generateExpression } from "../src/tweedle-codegen.js";
+import type { AliceProject } from "../src/a3p-parser.js";
 import type { Expression } from "../src/tweedle-parser.js";
+
+function makeProject(name: string): AliceProject {
+  return {
+    version: "3.6",
+    projectName: name,
+    sceneObjects: [],
+    methods: [],
+  };
+}
 
 describe("Outside-In Scenario 2: Edge cases & integration", () => {
   describe("AudioPlayer edge cases", () => {
@@ -122,10 +132,14 @@ describe("Outside-In Scenario 2: Edge cases & integration", () => {
 
     it("offTransition removes callback", () => {
       const mgr = new SceneManager();
-      const cb = () => {};
+      mgr.addScene("a", makeProject("A"));
+      mgr.addScene("b", makeProject("B"));
+      const cb = vi.fn();
       mgr.onTransition(cb);
       mgr.offTransition(cb);
-      // No way to directly verify but at least no crash
+      mgr.setActive("b");
+      expect(cb).not.toHaveBeenCalled();
+      expect(mgr.activeSceneName).toBe("b");
     });
   });
 });

@@ -11,6 +11,12 @@
 import type { Command } from "./undo-redo";
 import type { SelectionModel } from "./ide-command-operations";
 
+function throwNonUndoableUndo(description: string): never {
+  throw new Error(
+    `Command "${description}" is non-undoable; UndoRedoManager skips it and undo() must not be called directly.`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Receiver Interfaces (narrow, per-domain)
 // ---------------------------------------------------------------------------
@@ -218,8 +224,8 @@ export class SwitchPerspectiveCommand implements Command {
     this.receiver.switchTo(this.targetPerspective);
   }
 
-  undo(): void {
-    // non-undoable
+  undo(): never {
+    throwNonUndoableUndo(this.description);
   }
 }
 
@@ -243,8 +249,8 @@ export class TogglePanelCommand implements Command {
     }
   }
 
-  undo(): void {
-    // non-undoable
+  undo(): never {
+    throwNonUndoableUndo(this.description);
   }
 }
 
@@ -272,8 +278,8 @@ export class GoToLineCommand implements Command {
     this.editor.setSelection(offset, offset);
   }
 
-  undo(): void {
-    // non-undoable
+  undo(): never {
+    throwNonUndoableUndo(this.description);
   }
 }
 
@@ -303,8 +309,8 @@ export class FindInCodeCommand implements Command {
     this.foundResults = this.receiver.search(this.query, this.options);
   }
 
-  undo(): void {
-    // non-undoable
+  undo(): never {
+    throwNonUndoableUndo(this.description);
   }
 }
 

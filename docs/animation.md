@@ -397,7 +397,7 @@ animation primitives for entity-specific operations:
 | `OpacityAnimation` | Animate entity opacity (0–1) |
 | `SayAnimation` | Display speech bubble text on a model entity |
 | `ThinkAnimation` | Display thought bubble text on a model entity |
-| `SayOutLoudAnimation` | TTS playback via stub SpeechSynthesis API |
+| `SayOutLoudAnimation` | TTS playback through browser SpeechSynthesis adapter when available, with explicit status otherwise |
 | `PlayAudioAnimation` | Trigger audio playback on an entity |
 | `VehicleAnimation` | Attach/detach entity vehicle relationships |
 

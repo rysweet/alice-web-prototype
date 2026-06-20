@@ -28,8 +28,10 @@ describe("Step 16b: Outside-In Scenario 2 (Edge - Listener Lifecycle)", () => {
   it("add and remove key press listener without error", () => {
     const scene = new SScene();
     const cb = () => {};
-    scene.addKeyPressListener(cb);
-    scene.removeKeyPressListener(cb);
+    expect(() => {
+      scene.addKeyPressListener(cb);
+      scene.removeKeyPressListener(cb);
+    }).not.toThrow();
   });
 
   it("removing a non-existent listener does not throw", () => {
@@ -40,9 +42,11 @@ describe("Step 16b: Outside-In Scenario 2 (Edge - Listener Lifecycle)", () => {
   it("double-adding then removing a listener does not throw", () => {
     const scene = new SScene();
     const cb = () => {};
-    scene.addMouseClickOnScreenListener(cb);
-    scene.addMouseClickOnScreenListener(cb);
-    scene.removeMouseClickOnScreenListener(cb);
+    expect(() => {
+      scene.addMouseClickOnScreenListener(cb);
+      scene.addMouseClickOnScreenListener(cb);
+      scene.removeMouseClickOnScreenListener(cb);
+    }).not.toThrow();
   });
 
   it("full lifecycle for all proximity/occlusion listeners", () => {
@@ -55,35 +59,41 @@ describe("Step 16b: Outside-In Scenario 2 (Edge - Listener Lifecycle)", () => {
       ["addWhileInViewListener", "removeWhileInViewListener"],
       ["addWhileOcclusionListener", "removeWhileOcclusionListener"],
     ] as const;
-    for (const [add, remove] of entityBound) {
-      (scene as any)[add](entity, noop);
-      (scene as any)[remove](entity, noop);
-    }
-    // Proximity methods require (entity, distance, listener)
-    scene.addProximityEnterListener(entity, 5, noop);
-    scene.removeProximityEnterListener(entity, noop);
-    scene.addProximityExitListener(entity, 5, noop);
-    scene.removeProximityExitListener(entity, noop);
+    expect(() => {
+      for (const [add, remove] of entityBound) {
+        (scene as any)[add](entity, noop);
+        (scene as any)[remove](entity, noop);
+      }
+      // Proximity methods require (entity, distance, listener)
+      scene.addProximityEnterListener(entity, 5, noop);
+      scene.removeProximityEnterListener(entity, noop);
+      scene.addProximityExitListener(entity, 5, noop);
+      scene.removeProximityExitListener(entity, noop);
+    }).not.toThrow();
   });
 
   it("collision start/end listener lifecycle", () => {
     const scene = new SScene();
     const entity = new SBox();
     const noop = () => {};
-    scene.addCollisionStartListener(entity, noop);
-    scene.addCollisionEndListener(entity, noop);
-    scene.removeCollisionStartListener(entity, noop);
-    scene.removeCollisionEndListener(entity, noop);
+    expect(() => {
+      scene.addCollisionStartListener(entity, noop);
+      scene.addCollisionEndListener(entity, noop);
+      scene.removeCollisionStartListener(entity, noop);
+      scene.removeCollisionEndListener(entity, noop);
+    }).not.toThrow();
   });
 
   it("PointOfView, Arrow key, and Number key listener lifecycle", () => {
     const scene = new SScene();
     const noop = () => {};
-    scene.addPointOfViewChangeListener(noop);
-    scene.addArrowKeyPressListener(noop);
-    scene.addNumberKeyPressListener(noop);
-    scene.removePointOfViewChangeListener(noop);
-    scene.removeArrowKeyPressListener(noop);
-    scene.removeNumberKeyPressListener(noop);
+    expect(() => {
+      scene.addPointOfViewChangeListener(noop);
+      scene.addArrowKeyPressListener(noop);
+      scene.addNumberKeyPressListener(noop);
+      scene.removePointOfViewChangeListener(noop);
+      scene.removeArrowKeyPressListener(noop);
+      scene.removeNumberKeyPressListener(noop);
+    }).not.toThrow();
   });
 });
