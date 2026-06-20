@@ -155,6 +155,29 @@ describe("server API", () => {
       });
       await request(freshApp).post("/api/world/run").send({}).expect(400);
     });
+
+    it("rejects run when the launched project cannot be parsed", async () => {
+      const corruptProjectPath = path.join(TEST_EVIDENCE_DIR, "corrupt.a3p");
+      fs.writeFileSync(corruptProjectPath, Buffer.from("not a zip"));
+      const freshApp = createServer({
+        port: 0,
+        evidenceDir: TEST_EVIDENCE_DIR,
+        allowedProjectDirs: [TEST_EVIDENCE_DIR],
+      });
+      await request(freshApp)
+        .post("/api/launch")
+        .send({ project: corruptProjectPath })
+        .expect(200);
+
+      const res = await request(freshApp)
+        .post("/api/world/run")
+        .send({})
+        .expect(400);
+
+      expect(res.body).toEqual({
+        error: "Failed to parse .a3p before running the world.",
+      });
+    });
   });
 
   describe("GET /api/project/templates", () => {
