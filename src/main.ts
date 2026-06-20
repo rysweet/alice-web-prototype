@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { parseA3P, type AliceObject, type AliceProject } from "./a3p-parser";
 import { buildScene } from "./scene-builder";
+import { disposeSceneResources } from "./scene-disposal";
 
 function requireElement<T extends HTMLElement>(id: string, ctor: abstract new (...args: never[]) => T): T {
   const element = document.getElementById(id);
@@ -75,6 +76,7 @@ function disposeControls(): void {
 
 function applyScene(project: AliceProject): void {
   const { scene, camera, cameraConfig } = buildScene(project);
+  disposeSceneResources(currentScene);
   currentScene = scene;
   currentCamera = camera;
   resizeRenderer();
