@@ -16,7 +16,7 @@ import {
 import { ExpressionEvaluator } from "./expression-evaluator.js";
 import { StatementExecutor } from "./statement-executor.js";
 import { VirtualMachine } from "./virtual-machine.js";
-import { dispatchMethod, execMethodCall, resolveRuntimeMethod } from "./tweedle-vm-builtins-dispatch.js";
+import { dispatchMethod, execMethodCall, registerMethodBodyExecutor, resolveRuntimeMethod } from "./tweedle-vm-builtins-dispatch.js";
 import { instantiateSceneObjects } from "./tweedle-vm-builtins-runtime.js";
 import { execCountLoop, execCountUpTo, execDoInOrder, execDoTogether, execEventListener, execForEach, execIfElse, execReturn, execThrow, execTryCatch, execVariableAssignment, execVariableDeclaration, execWhileLoop } from "./tweedle-vm-core-control.js";
 import { DebugRuntime, ExecutionResult, LogEntry, MAX_DEPTH, MAX_TOTAL_STEPS, RuntimeLambda, RuntimeObject, VMEnvironment, VMExecutionOptions, VMState } from "./tweedle-vm-core-types.js";
@@ -118,6 +118,8 @@ export function runScopedStatements(stmts: AliceStatement[], state: VMState): vo
   state.depth--;
   popScope(state);
 }
+
+registerMethodBodyExecutor(runStatements);
 
 function executeOne(stmt: AliceStatement, state: VMState): void {
   if (state.returned) return;
