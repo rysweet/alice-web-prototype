@@ -1,7 +1,7 @@
 # Tutorial: Building Your First Alice Application
 
 This hands-on tutorial walks you through building an Alice 3D application
-from scratch using the alice-web-prototype REST API. You will create a
+from scratch using the LookingGlass REST API. You will create a
 project from a template, populate a scene with objects, write code, run
 the world, wire up events, capture screenshots, and save your work — all
 from the command line.
@@ -61,7 +61,7 @@ Response:
   "launched": false,
   "pid": 48291,
   "uptime": 1.42,
-  "runtime": "typescript-web-prototype"
+  "runtime": "lookingglass"
 }
 ```
 

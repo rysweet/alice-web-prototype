@@ -1,4 +1,4 @@
-site_name: Alice Web Prototype
+site_name: LookingGlass
 site_description: TypeScript web port of Alice 3
 repo_url: https://github.com/rysweet/alice-web-prototype
 docs_dir: docs
@@ -14,6 +14,7 @@ nav:
   - "How-to guides":
     - "Testing": "testing.md"
     - "IDE operations": "ide-operations.md"
+    - "LookingGlass eatme validation": "lookingglass-eatme-validation.md"
     - "Gadugi test scenarios": "gadugi-test-scenarios.md"
   - "Reference":
     - "API reference": "api-reference.md"

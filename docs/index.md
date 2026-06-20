@@ -1,8 +1,8 @@
-# Alice Web Prototype
+# LookingGlass
 
-This project is a TypeScript web port of Alice 3. It keeps the same teaching
-goals as the desktop app, but runs in a browser and exposes a small REST API
-so the `eatme` test suite can drive real curriculum workflows.
+LookingGlass is the TypeScript web port of Alice 3. It keeps the same teaching
+goals as the desktop app, runs in a browser, and exposes a local REST API so
+the `eatme` test suite can drive real curriculum workflows.
 
 ## Current status
 
@@ -17,6 +17,7 @@ so the `eatme` test suite can drive real curriculum workflows.
 - [Architecture](./architecture.md)
 - [API reference](./api-reference.md)
 - [Server API](./server-api.md)
+- [LookingGlass eatme validation](./lookingglass-eatme-validation.md)
 - [Testing](./testing.md)
 
 ## Subsystem overview
@@ -29,7 +30,7 @@ so the `eatme` test suite can drive real curriculum workflows.
 | Rendering | Builds and draws 3D scenes in the browser | [Scene graph](./scene-graph.md), [Scene rendering](./scene-rendering.md), [Scene manager](./scene-manager.md) |
 | IDE workflows | Supports editing, running, and curriculum tasks | [IDE operations](./ide-operations.md), [Grading pipeline](./grading-pipeline.md) |
 | Assets and resources | Loads models, images, audio, and project files | [Creating, using, and testing 3D character assets](./creating-using-testing-3d-character-assets.md), [Model resources](./model-resources.md), [Open-asset pipeline](./open-asset-pipeline.md), [Resource manager](./resource-manager.md), [Project IO](./project-io.md), [Image editor](./image-editor.md), [Audio](./audio.md) |
-| eatme integration | Exposes HTTP endpoints and scenario-friendly workflows | [API reference](./api-reference.md), [Server API](./server-api.md), [Gadugi test scenarios](./gadugi-test-scenarios.md) |
+| eatme integration | Exposes HTTP endpoints and scenario-friendly workflows | [API reference](./api-reference.md), [Server API](./server-api.md), [LookingGlass eatme validation](./lookingglass-eatme-validation.md), [Gadugi test scenarios](./gadugi-test-scenarios.md) |
 | External service integration | Wraps outbound HTTP and WebSocket calls behind retryable adapters | [External service integration](./external-service-integration.md) |
 
 ## Documentation map
@@ -45,6 +46,7 @@ so the `eatme` test suite can drive real curriculum workflows.
 
 - [Testing](./testing.md)
 - [IDE operations](./ide-operations.md)
+- [LookingGlass eatme validation](./lookingglass-eatme-validation.md)
 - [Gadugi test scenarios](./gadugi-test-scenarios.md)
 - [Project IO usage guide](./project-io-usage.md)
 

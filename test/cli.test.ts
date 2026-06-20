@@ -31,6 +31,6 @@ describe("CLI / server lifecycle", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.status).toBe("running");
-    expect(body.runtime).toBe("typescript-web-prototype");
+    expect(body.runtime).toBe("lookingglass");
   });
 });

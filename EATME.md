@@ -1,8 +1,9 @@
-# Eatme Integration — TypeScript Web Prototype
+# Eatme Integration - LookingGlass
 
-The alice-web-prototype can produce the same proof artifact JSON files that
+LookingGlass can produce the same proof artifact JSON files that RabbitHole
 Java Alice produces, allowing the eatme harness to validate it as a comparison
-target alongside the original Java Alice.
+target alongside the desktop application. The repository path remains
+`alice-web-prototype`.
 
 ## Quick Start
 
@@ -11,7 +12,7 @@ cd alice-web-prototype
 npm install
 npm run build:server
 
-# Start the eatme-compatible API server
+# Start the eatme-compatible LookingGlass API server
 node dist-server/cli.js serve \
   --port 3000 \
   --evidence-dir ./evidence \
@@ -21,7 +22,7 @@ node dist-server/cli.js serve \
 ## CLI Usage
 
 ```
-alice-web serve [options]
+lookingglass serve [options]
 
 Options:
   --port <number>           Port to listen on (default: 3000)
@@ -35,7 +36,7 @@ Options:
 Returns process status. Used by eatme for `process_started` assertion.
 
 ### `POST /api/launch`
-Start/initialize the prototype with a project.
+Start or initialize LookingGlass with a project.
 ```json
 { "project": "/path/to/starter.a3p" }
 ```
@@ -116,15 +117,14 @@ All artifacts match the exact JSON schemas that Java Alice produces:
 | `desktop-save-operation-result.json` | `eatme.alice-desktop-save-operation-result/v1` |
 | `run-world-result.json` | `eatme.alice-run-world-result/v1` |
 
-## Eatme Comparison Target
+## Eatme comparison target
 
-A `typescript` target entry has been added to
-`eatme-test/assets/alice-comparison-targets.yaml`.
+The `lookingglass` target in eatme points to the local LookingGlass API.
 
 To use:
 ```bash
-export ALICE_TYPESCRIPT_HOME=/path/to/alice-web-prototype
-export ALICE_TYPESCRIPT_API_URL=http://localhost:3000
+export LOOKINGGLASS_HOME=/path/to/alice-web-prototype
+export ALICE_WEB_URL=http://127.0.0.1:3000
 ```
 
 ## Gadugi Integration Test Scenarios
@@ -133,7 +133,7 @@ Five gadugi-compatible YAML scenarios in `gadugi/` provide outside-in
 integration tests covering the full API surface:
 
 ```bash
-gadugi-agentic-test run gadugi/ --verbose
+NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi
 ```
 
 | Scenario | Tests |
@@ -144,7 +144,8 @@ gadugi-agentic-test run gadugi/ --verbose
 | `04-event-system` | Register → fire → verify triggers |
 | `05-save-export-roundtrip` | Edit → save → re-launch → verify |
 
-See [docs/gadugi-test-scenarios.md](docs/gadugi-test-scenarios.md) for full
+See [docs/lookingglass-eatme-validation.md](docs/lookingglass-eatme-validation.md)
+and [docs/gadugi-test-scenarios.md](docs/gadugi-test-scenarios.md) for full
 scenario documentation, schema reference, and writing guide.
 
 ## Architecture
@@ -153,7 +154,7 @@ scenario documentation, schema reference, and writing guide.
 src/
   evidence-writer.ts    — Writes JSON proof artifacts matching Java schemas
   server.ts             — Express HTTP API server
-  cli.ts                — CLI entry point (alice-web serve ...)
+  cli.ts                — CLI entry point (lookingglass serve ...)
   a3p-parser.ts         — .a3p ZIP/XML parser + joint/bbox/texture extraction
   animation.ts          — Pure-functional tween engine (4 easings, Vec3/Quat/scalar)
   project-io.ts         — Full .a3p archive read/write (manifest, resources, thumbnail)
@@ -198,7 +199,7 @@ docs/
 
 The `tools/` directory contains shell scripts matching the exact interface
 of Java Alice's `tools/eatme-*` hooks. These allow the eatme harness to
-validate the TypeScript prototype using the same mechanism as Java Alice.
+validate LookingGlass using the same mechanism as RabbitHole Java Alice.
 
 ### Usage
 

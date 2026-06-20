@@ -13,9 +13,9 @@ const DEFAULT_PORT = 3000;
 const DEFAULT_EVIDENCE_DIR = "./evidence";
 const USAGE = [
   "Usage:",
-  "  alice-web serve [--port <1-65535>] [--evidence-dir <dir>] [--project <file.a3p>]",
-  "  alice-web print-config [--port <1-65535>] [--evidence-dir <dir>] [--project <file.a3p>]",
-  "  alice-web help",
+  "  lookingglass serve [--port <1-65535>] [--evidence-dir <dir>] [--project <file.a3p>]",
+  "  lookingglass print-config [--port <1-65535>] [--evidence-dir <dir>] [--project <file.a3p>]",
+  "  lookingglass help",
 ].join("\n");
 
 export function parseArgs(argv: string[]): CliConfig {
@@ -91,7 +91,7 @@ export function formatConfig(config: CliConfig): string {
       port: config.port,
       evidenceDir: path.resolve(config.evidenceDir),
       project: config.project ? path.resolve(config.project) : null,
-      runtime: "typescript-web-prototype",
+      runtime: "lookingglass",
     },
     null,
     2,
@@ -130,7 +130,7 @@ async function serve(config: CliConfig): Promise<void> {
         evidenceDir: config.evidenceDir,
         project: config.project ?? null,
         pid: process.pid,
-        runtime: "typescript-web-prototype",
+        runtime: "lookingglass",
       }),
     );
   });

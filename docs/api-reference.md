@@ -1,7 +1,7 @@
 # API reference
 
-The REST API gives `eatme` and local scripts a simple way to launch the web
-prototype, change the scene, edit code, run the world, and capture evidence.
+The REST API gives `eatme` and local scripts a simple way to launch
+LookingGlass, change the scene, edit code, run the world, and capture evidence.
 
 For server configuration, state isolation, evidence artifact semantics, and
 route ownership, see [Server API](./server-api.md).
@@ -49,7 +49,7 @@ Example response:
   "launched": false,
   "pid": 12345,
   "uptime": 3.2,
-  "runtime": "typescript-web-prototype"
+  "runtime": "lookingglass"
 }
 ```
 

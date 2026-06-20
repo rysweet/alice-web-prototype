@@ -1,9 +1,9 @@
-# alice-web-prototype — Alice 3 for the Web
+# LookingGlass - Alice 3 for the Web
 
-A TypeScript port of [Alice 3](https://www.alice.org), the educational
-programming environment, designed to run in a web browser. This project
-reimplements the core Alice subsystems — Tweedle language, AST, story API,
-scene graph, renderer, and IDE — as a modern web application.
+LookingGlass is the TypeScript port of [Alice 3](https://www.alice.org), the
+educational programming environment, designed to run in a web browser. The
+repository path remains `alice-web-prototype`, but the product and user-facing
+docs use the LookingGlass name.
 
 ## Quick start
 
@@ -19,7 +19,7 @@ Start the development server:
 npm run dev
 ```
 
-Start the REST API server (used by the eatme test suite):
+Start the REST API server used by the eatme test suite:
 
 ```bash
 npm run build:server
@@ -191,6 +191,9 @@ test suite for automated end-to-end testing:
 | `/api/events/register` | POST | Register event handler |
 | `/api/events/fire` | POST | Fire an event |
 
+See [LookingGlass eatme validation](./docs/lookingglass-eatme-validation.md) for
+the RabbitHole and eatme validation workflow.
+
 ## Testing
 
 ```bash
@@ -226,12 +229,12 @@ npm run build:server   # Build REST API server
 
 ## Relationship to Java Alice 3
 
-This is a web port of [Alice 3](https://github.com/rysweet/RabbitHole)
+LookingGlass is a web port of [Alice 3](https://github.com/rysweet/RabbitHole)
 (originally [TheAliceProject/alice3](https://github.com/TheAliceProject/alice3)).
 The Java version is a ~300K-line Swing desktop application. This TypeScript
 port reimplements the same functionality for the browser, with additional
 web-specific features (collaboration, state sync, plugin system).
 
 The [eatme](https://github.com/rysweet/eatme) test suite runs the same
-curriculum scenarios against both the Java desktop and this web port to
+curriculum scenarios against both RabbitHole Java Alice and LookingGlass to
 verify behavioral parity.

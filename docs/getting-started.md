@@ -1,7 +1,7 @@
 # Getting started
 
-Use this guide when you want a clean local setup for the browser app and the
-REST API server.
+Use this guide when you want a clean local setup for LookingGlass, including
+the browser app and the REST API server.
 
 ## What you need
 
@@ -27,7 +27,7 @@ npm run build
 npm test
 ```
 
-## Start the browser development server
+## Start the LookingGlass browser development server
 
 ```bash
 npm run dev
@@ -35,7 +35,7 @@ npm run dev
 
 Vite prints the local URL after it starts.
 
-## Start the REST API server
+## Start the LookingGlass REST API server
 
 First build the server bundle:
 
@@ -51,10 +51,10 @@ npm run serve
 
 The default CLI port is `3000`.
 
-## Start the server for `eatme`
+## Start LookingGlass for `eatme`
 
 The `eatme` web-platform tests use `http://localhost:3099` unless you set a
-different `ALICE_WEB_URL`. This command starts the prototype on that port:
+different `ALICE_WEB_URL`. This command starts LookingGlass on that port:
 
 ```bash
 node dist-server/cli.js serve --port 3099 --evidence-dir ./evidence
@@ -72,7 +72,7 @@ Expected response shape:
 {
   "status": "running",
   "launched": false,
-  "runtime": "typescript-web-prototype"
+  "runtime": "lookingglass"
 }
 ```
 
@@ -84,6 +84,6 @@ Expected response shape:
 | Build browser app | `npm run build` |
 | Build API server | `npm run build:server` |
 | Run tests | `npm test` |
-| Start browser dev server | `npm run dev` |
-| Start API server | `npm run serve` |
-| Start API server on eatme's default port | `node dist-server/cli.js serve --port 3099 --evidence-dir ./evidence` |
+| Start LookingGlass browser dev server | `npm run dev` |
+| Start LookingGlass API server | `npm run serve` |
+| Start LookingGlass API server on eatme's default port | `node dist-server/cli.js serve --port 3099 --evidence-dir ./evidence` |

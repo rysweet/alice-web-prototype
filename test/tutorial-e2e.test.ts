@@ -86,7 +86,7 @@ describe("Step 1: GET /api/health", () => {
 
     const body = await res.json();
     expect(body.status).toBe("running");
-    expect(body.runtime).toBe("typescript-web-prototype");
+    expect(body.runtime).toBe("lookingglass");
     expect(body.pid).toBeTypeOf("number");
     expect(body.uptime).toBeTypeOf("number");
     expect(body.uptime).toBeGreaterThan(0);

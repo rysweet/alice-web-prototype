@@ -1,6 +1,6 @@
 # Server API
 
-The server API is the Express layer that lets `eatme`, outside-in tests, and local scripts drive Alice Web Prototype workflows over HTTP.
+The server API is the Express layer that lets `eatme`, outside-in tests, and local scripts drive LookingGlass workflows over HTTP.
 
 Contract source: server API tests, `EATME.md`, and observed HTTP behavior.
 
@@ -41,7 +41,7 @@ Response:
   "launched": false,
   "pid": 12345,
   "uptime": 1.25,
-  "runtime": "typescript-web-prototype"
+  "runtime": "lookingglass"
 }
 ```
 
@@ -56,6 +56,12 @@ node dist-server/cli.js serve \
   --port 3000 \
   --evidence-dir ./evidence \
   --project ./fixtures/starter.a3p
+```
+
+When the package is installed as a tool, use the `lookingglass` binary:
+
+```bash
+lookingglass serve --port 3000 --evidence-dir ./evidence
 ```
 
 | Option | Required | Default | Description |
@@ -78,7 +84,7 @@ Example output:
   "port": 3100,
   "evidenceDir": "/home/alice/alice-web-prototype/tmp/evidence",
   "project": null,
-  "runtime": "typescript-web-prototype"
+  "runtime": "lookingglass"
 }
 ```
 
