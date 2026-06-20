@@ -93,19 +93,6 @@ function buildFactoryCases() {
     ["CodeGeneration.createTweedleSource", () => PublicApi.CodeGeneration.createTweedleSource("Demo", [])],
     ["Curriculum.createCurriculumMetadata", () => PublicApi.Curriculum.createCurriculumMetadata()],
     ["Curriculum.createCurriculumProgress", () => PublicApi.Curriculum.createCurriculumProgress()],
-    ["EntityAnimation.createBrowserSpeechSynthesisAdapter", () => PublicApi.EntityAnimation.createBrowserSpeechSynthesisAdapter({
-      speechSynthesis: { speak: () => undefined, cancel: () => undefined } as unknown as SpeechSynthesis,
-      SpeechSynthesisUtterance: class {
-        text: string;
-        rate = 1;
-        pitch = 1;
-        volume = 1;
-
-        constructor(text: string) {
-          this.text = text;
-        }
-      } as typeof SpeechSynthesisUtterance,
-    })],
     ["ErrorHandling.createStructuredErrorReport", () => PublicApi.ErrorHandling.createStructuredErrorReport(new Error("boom"))],
     ["EntityAnimation.createBrowserSpeechSynthesisAdapter", () => PublicApi.EntityAnimation.createBrowserSpeechSynthesisAdapter(createSpeechSynthesisRuntime())],
     ["ExportHtml.createHtmlExportDocument", () => PublicApi.ExportHtml.createHtmlExportDocument(contractProject)],
@@ -215,10 +202,6 @@ function assertFactoryResult(key: string, value: unknown): void {
       return;
     case "ErrorHandling.createStructuredErrorReport":
       expectKeys(value, ["message", "name", "rawStack", "stackFrames"]);
-      return;
-    case "EntityAnimation.createBrowserSpeechSynthesisAdapter":
-      expectKeys(value, ["available", "speak", "cancel"]);
-      expect((value as { available: boolean }).available).toBe(true);
       return;
     case "ExportHtml.createHtmlExportDocument":
       expectKeys(value, ["title", "previewMode", "tweedleSource", "html"]);
