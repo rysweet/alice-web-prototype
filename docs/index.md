@@ -1,8 +1,8 @@
-# Alice Web Prototype
+# LookingGlass
 
-This project is a TypeScript web port of Alice 3. It keeps the same teaching
-goals as the desktop app, but runs in a browser and exposes a small REST API
-so the `eatme` test suite can drive real curriculum workflows.
+LookingGlass is a TypeScript web port of Alice 3. It keeps the same teaching
+goals as the desktop app, but runs in a browser and exposes a small REST API so
+the `eatme` test suite can drive real curriculum workflows.
 
 ## Current status
 
@@ -12,8 +12,10 @@ so the `eatme` test suite can drive real curriculum workflows.
 ## Start here
 
 - [Getting started](./getting-started.md)
+- [Verify a local LookingGlass server](./tutorial-lookingglass-server-workflow.md)
 - [Architecture](./architecture.md)
 - [API reference](./api-reference.md)
+- [LookingGlass identity](./lookingglass-identity.md)
 - [Server API](./server-api.md)
 - [Testing](./testing.md)
 
@@ -35,7 +37,8 @@ so the `eatme` test suite can drive real curriculum workflows.
 ### Tutorials
 
 - [Getting started](./getting-started.md)
-- [Building your first Alice application](./tutorial-building-your-first-alice-app.md)
+- [Verify a local LookingGlass server](./tutorial-lookingglass-server-workflow.md)
+- [Building your first LookingGlass application](./tutorial-building-your-first-alice-app.md)
 - [Adding open-source 3D models](./tutorial-adding-3d-models.md)
 - [Creating, using, and testing 3D character assets](./creating-using-testing-3d-character-assets.md)
 - [Round-trip an `.a3p` project with Project IO](./tutorial-project-io-round-trip.md)
@@ -62,6 +65,7 @@ so the `eatme` test suite can drive real curriculum workflows.
 - [External service integration](./external-service-integration.md)
 - [Grading pipeline](./grading-pipeline.md)
 - [Image editor](./image-editor.md)
+- [LookingGlass identity](./lookingglass-identity.md)
 - [Creating, using, and testing 3D character assets](./creating-using-testing-3d-character-assets.md)
 - [Model resources](./model-resources.md)
 - [Open-asset pipeline](./open-asset-pipeline.md)

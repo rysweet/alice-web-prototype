@@ -1,34 +1,34 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createServer } from "../src/server";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import type { Express } from "express";
 import request from "supertest";
 
-const TEST_EVIDENCE_DIR = path.resolve(__dirname, "../.test-events-evidence");
-
 describe("event system", () => {
   let app: Express;
-
-  beforeAll(() => {
-    fs.mkdirSync(TEST_EVIDENCE_DIR, { recursive: true });
-  });
-
-  afterAll(() => {
-    fs.rmSync(TEST_EVIDENCE_DIR, { recursive: true, force: true });
-  });
+  let evidenceDir: string;
 
   // Fresh server + launch for each test to avoid state leaks
   beforeEach(async () => {
-    app = createServer({ port: 0, evidenceDir: TEST_EVIDENCE_DIR });
+    evidenceDir = fs.mkdtempSync(path.join(os.tmpdir(), "alice-events-test-"));
+    app = createServer({ port: 0, evidenceDir });
     await request(app).post("/api/launch").send({});
+  });
+
+  afterEach(() => {
+    fs.rmSync(evidenceDir, { recursive: true, force: true });
   });
 
   // ── Guard: 400 before launch ──────────────────────────────────────
 
   describe("pre-launch guard", () => {
     it("register returns 400 when not launched", async () => {
-      const fresh = createServer({ port: 0, evidenceDir: TEST_EVIDENCE_DIR });
+      const fresh = createServer({
+        port: 0,
+        evidenceDir: path.join(evidenceDir, "not-launched-register"),
+      });
       const res = await request(fresh)
         .post("/api/events/register")
         .send({ eventType: "sceneActivated" })
@@ -37,7 +37,10 @@ describe("event system", () => {
     });
 
     it("fire returns 400 when not launched", async () => {
-      const fresh = createServer({ port: 0, evidenceDir: TEST_EVIDENCE_DIR });
+      const fresh = createServer({
+        port: 0,
+        evidenceDir: path.join(evidenceDir, "not-launched-fire"),
+      });
       const res = await request(fresh)
         .post("/api/events/fire")
         .send({ eventType: "sceneActivated" })
@@ -247,7 +250,7 @@ describe("event system", () => {
         .send({ eventType: "sceneActivated", handlerName: "init" })
         .expect(200);
 
-      const artifactPath = path.join(TEST_EVIDENCE_DIR, "event-register.json");
+      const artifactPath = path.join(evidenceDir, "event-register.json");
       expect(fs.existsSync(artifactPath)).toBe(true);
 
       const evidence = JSON.parse(fs.readFileSync(artifactPath, "utf-8"));
@@ -477,7 +480,7 @@ describe("event system", () => {
         .send({ eventType: "sceneActivated" })
         .expect(200);
 
-      const artifactPath = path.join(TEST_EVIDENCE_DIR, "event-fire.json");
+      const artifactPath = path.join(evidenceDir, "event-fire.json");
       expect(fs.existsSync(artifactPath)).toBe(true);
 
       const evidence = JSON.parse(fs.readFileSync(artifactPath, "utf-8"));
@@ -694,22 +697,22 @@ describe("event system", () => {
 
       // Both evidence files should exist
       expect(
-        fs.existsSync(path.join(TEST_EVIDENCE_DIR, "event-register.json")),
+        fs.existsSync(path.join(evidenceDir, "event-register.json")),
       ).toBe(true);
       expect(
-        fs.existsSync(path.join(TEST_EVIDENCE_DIR, "event-fire.json")),
+        fs.existsSync(path.join(evidenceDir, "event-fire.json")),
       ).toBe(true);
 
       // Verify schemas
       const regEvidence = JSON.parse(
         fs.readFileSync(
-          path.join(TEST_EVIDENCE_DIR, "event-register.json"),
+          path.join(evidenceDir, "event-register.json"),
           "utf-8",
         ),
       );
       const fireEvidence = JSON.parse(
         fs.readFileSync(
-          path.join(TEST_EVIDENCE_DIR, "event-fire.json"),
+          path.join(evidenceDir, "event-fire.json"),
           "utf-8",
         ),
       );
@@ -724,7 +727,7 @@ describe("event system", () => {
     it("health endpoint returns expected shape", async () => {
       const res = await request(app).get("/api/health").expect(200);
       expect(res.body.status).toBe("running");
-      expect(res.body.runtime).toBe("typescript-web-prototype");
+      expect(res.body.runtime).toBe("lookingglass-typescript-web");
     });
 
     it("add-object still works after event system is added", async () => {

@@ -63,7 +63,7 @@ describe("server API response contracts", () => {
     expect(beforeLaunch.body).toMatchObject({
       status: "running",
       launched: false,
-      runtime: "typescript-web-prototype",
+      runtime: "lookingglass-typescript-web",
     });
     expect(typeof beforeLaunch.body.pid).toBe("number");
     expect(typeof beforeLaunch.body.uptime).toBe("number");
@@ -124,7 +124,7 @@ describe("server API response contracts", () => {
 
     const editedProjectPath = path.join(evidenceDir, "edited-project.a3p");
     const editedProjectBytes = fs.readFileSync(editedProjectPath);
-    expect(editedProjectBytes.toString("utf-8")).not.toContain("alice-web-prototype-placeholder");
+    expect(editedProjectBytes.toString("utf-8")).not.toContain("placeholder-source-marker");
     const editedProject = await parseA3P(editedProjectBytes);
     expect(editedProject.projectName).toBe("Program");
     expect(editedProject.methods.map((method) => method.name)).toContain("myFirstMethod");
@@ -192,7 +192,7 @@ describe("server API response contracts", () => {
     const editedProjectPath = path.join(evidenceDir, "edited-project.a3p");
     expect(fs.existsSync(editedProjectPath)).toBe(true);
     const editedProjectBytes = fs.readFileSync(editedProjectPath);
-    expect(editedProjectBytes.toString("utf-8")).not.toContain("alice-web-prototype-placeholder");
+    expect(editedProjectBytes.toString("utf-8")).not.toContain("placeholder-source-marker");
     const editedProject = await parseA3P(editedProjectBytes);
     expect(editedProject.projectName).toBe("Program");
     expect(editedProject.methods.map((method) => method.name)).toContain("myFirstMethod");

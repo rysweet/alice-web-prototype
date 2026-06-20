@@ -27,7 +27,7 @@ export const CC0_LICENSE: AssetLicense = Object.freeze({
 export const PROCEDURAL_LICENSE: AssetLicense = Object.freeze({
   spdxId: "MIT",
   name: "Procedurally generated — MIT License",
-  author: "alice-web-prototype",
+  author: "LookingGlass",
 });
 
 // ── Entity Categories ──────────────────────────────────────────────

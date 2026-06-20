@@ -1,7 +1,7 @@
-# Tutorial: Building Your First Alice Application
+# Tutorial: Building Your First LookingGlass Application
 
-This hands-on tutorial walks you through building an Alice 3D application
-from scratch using the alice-web-prototype REST API. You will create a
+This hands-on tutorial walks you through building an Alice 3D application from
+scratch using the LookingGlass REST API. You will create a
 project from a template, populate a scene with objects, write code, run
 the world, wire up events, capture screenshots, and save your work — all
 from the command line.
@@ -39,7 +39,7 @@ Launch the API server on port 3000 (the default):
 ```bash
 npm run serve
 # or, with explicit options:
-node dist-server/cli.js serve --port 3000 --evidence-dir ./evidence
+npm run serve -- --port 3000 --evidence-dir ./evidence
 ```
 
 You should see output indicating the server is listening. Leave this
@@ -63,13 +63,11 @@ Response:
   "launched": false,
   "pid": 48291,
   "uptime": 1.42,
-  "runtime": "typescript-web-prototype"
+  "runtime": "lookingglass-typescript-web"
 }
 ```
 
-The key field is `"launched": false` — the server is up but no project
-session is active yet. The `pid` and `uptime` values will differ on your
-machine.
+The key field is `"launched": false` — the server is up but no project session is active yet. The `runtime` value is the LookingGlass identity, and the `pid` and `uptime` values will differ on your machine.
 
 ![API health JSON response](screenshots/04-api-health-json.png)
 

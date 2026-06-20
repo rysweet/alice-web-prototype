@@ -8,7 +8,7 @@ This layer maps the running browser app, the Node/Express API process, and the b
 
 ## Server shape
 
-- `src/cli.ts` is the process entry for `alice-web serve`; it binds the API to `127.0.0.1:3000` by default and passes `evidenceDir` / `project` options into `createServer()`.
+- `src/cli.ts` is the process entry for the local server CLI. A checkout runs it through `npm run serve --`; the installed binary is `lookingglass serve`. It binds the API to `127.0.0.1:3000` by default and passes `evidenceDir` / `project` options into `createServer()`.
 - `src/server.ts` exposes 9 REST endpoints: launch, health, scene mutation, code edit, save, run, screenshot, event register, and event fire.
 - The server collaborates with `a3p-parser.ts`, `scene-renderer.ts`, `tweedle-vm.ts`, `events.ts`, and `evidence-writer.ts` plus filesystem-backed `.a3p`, JSON, and PNG artifacts.
 

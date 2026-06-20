@@ -34,7 +34,8 @@ export interface PersistedThemeState {
   customTheme?: ThemeDefinition | null;
 }
 
-const DEFAULT_STORAGE_KEY = "alice-web.theme";
+const DEFAULT_STORAGE_KEY = "lookingglass.theme";
+const LEGACY_STORAGE_KEY = "alice-web.theme";
 
 function cloneVariables(values: ThemeVariableValues): ThemeVariableValues {
   return { ...values };
@@ -52,6 +53,16 @@ function getDefaultStorage(): ThemeStorage | null {
     return null;
   }
   return globalThis.localStorage as ThemeStorage;
+}
+
+function migrateLegacyStorage(storage: ThemeStorage | null, storageKey: string): void {
+  if (!storage || storageKey !== DEFAULT_STORAGE_KEY || storage.getItem(storageKey) !== null) {
+    return;
+  }
+  const legacyValue = storage.getItem(LEGACY_STORAGE_KEY);
+  if (legacyValue !== null) {
+    storage.setItem(storageKey, legacyValue);
+  }
 }
 
 export class ThemeVariables {
@@ -123,6 +134,7 @@ export class ThemePersistence {
   constructor(storage: ThemeStorage | null = getDefaultStorage(), storageKey = DEFAULT_STORAGE_KEY) {
     this.storage = storage;
     this.storageKey = storageKey;
+    migrateLegacyStorage(this.storage, this.storageKey);
   }
 
   save(state: PersistedThemeState): void {

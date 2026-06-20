@@ -38,7 +38,8 @@ export const DEFAULT_PREFERENCES: Readonly<UserPreferences> = Object.freeze({
   autoSaveInterval: 60,
 });
 
-const DEFAULT_STORAGE_KEY = "alice-web.preferences";
+const DEFAULT_STORAGE_KEY = "lookingglass.preferences";
+const LEGACY_STORAGE_KEY = "alice-web.preferences";
 const KNOWN_KEYS = Object.keys(DEFAULT_PREFERENCES) as Array<keyof UserPreferences>;
 
 type ChangeListener = (
@@ -58,6 +59,16 @@ function getDefaultStorage(): PreferenceStorage | null {
     return null;
   }
   return globalThis.localStorage as PreferenceStorage;
+}
+
+function migrateLegacyStorage(storage: PreferenceStorage | null, storageKey: string): void {
+  if (!storage || storageKey !== DEFAULT_STORAGE_KEY || storage.getItem(storageKey) !== null) {
+    return;
+  }
+  const legacyValue = storage.getItem(LEGACY_STORAGE_KEY);
+  if (legacyValue !== null) {
+    storage.setItem(storageKey, legacyValue);
+  }
 }
 
 function createSnapshot(data: UserPreferences): UserPreferences {
@@ -129,6 +140,7 @@ export class Preferences {
     this._storageKey = options.storageKey ?? DEFAULT_STORAGE_KEY;
     this._autoSave = options.autoSave ?? true;
     this._data = createSnapshot(this._defaults);
+    migrateLegacyStorage(this._storage, this._storageKey);
 
     if (options.autoLoad ?? true) {
       this.load();

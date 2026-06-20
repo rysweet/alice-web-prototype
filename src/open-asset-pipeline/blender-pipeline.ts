@@ -74,7 +74,7 @@ export function generateBlenderExportScript(config?: BlenderExportConfig): strin
 
   return `#!/usr/bin/env python3
 """
-Alice Web Prototype — Blender glTF Export Pipeline
+LookingGlass — Blender glTF Export Pipeline
 
 Exports Blender models to glTF/GLB format with Alice-compatible joint naming.
 Run from command line:
@@ -212,7 +212,7 @@ if __name__ == "__main__":
  * and how to use the Blender pipeline.
  */
 export function getAssetSourceGuide(): string {
-  return `# Open-Source 3D Asset Sources for Alice Web Prototype
+  return `# Open-Source 3D Asset Sources for LookingGlass
 
 ## Recommended Sources (CC0 / CC-BY compatible)
 

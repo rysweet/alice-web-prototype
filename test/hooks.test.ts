@@ -1,15 +1,19 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
 import { execFileSync, execSync } from "child_process";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import JSZip from "jszip";
 
-const EVIDENCE_DIR = path.resolve(".hook-integration-test-evidence");
+let evidenceDir: string;
 let testProjectPath: string;
 
-beforeAll(async () => {
+beforeAll(() => {
   execSync("npm run build:server", { stdio: "inherit" });
+});
 
+beforeEach(async () => {
+  evidenceDir = fs.mkdtempSync(path.join(os.tmpdir(), "alice-hooks-test-"));
   // Create a minimal test .a3p
   const zip = new JSZip();
   zip.file("version.txt", "3.10.0.0");
@@ -48,18 +52,17 @@ beforeAll(async () => {
 </node>`,
   );
   const buf = await zip.generateAsync({ type: "nodebuffer" });
-  testProjectPath = path.join(EVIDENCE_DIR, "test-input.a3p");
-  fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
+  testProjectPath = path.join(evidenceDir, "test-input.a3p");
   fs.writeFileSync(testProjectPath, buf);
 });
 
-afterAll(() => {
-  fs.rmSync(EVIDENCE_DIR, { recursive: true, force: true });
+afterEach(() => {
+  fs.rmSync(evidenceDir, { recursive: true, force: true });
 });
 
 function runHook(hookName: string, extraArgs: string[] = []): string {
   const hookPath = path.resolve("dist-server/hooks", `${hookName}.js`);
-  const evidenceSubdir = path.join(EVIDENCE_DIR, hookName);
+  const evidenceSubdir = path.join(evidenceDir, hookName);
   fs.mkdirSync(evidenceSubdir, { recursive: true });
   const args = [
     "--project",
@@ -85,15 +88,15 @@ describe("eatme CLI hooks", () => {
     expect(result.status).toBe("placed");
     expect(result.placement_artifact).toBe("placement.json");
 
-    const evidenceDir = path.join(EVIDENCE_DIR, "place-object");
-    expect(fs.existsSync(path.join(evidenceDir, "placed-project.a3p"))).toBe(
+    const hookEvidenceDir = path.join(evidenceDir, "place-object");
+    expect(fs.existsSync(path.join(hookEvidenceDir, "placed-project.a3p"))).toBe(
       true,
     );
-    expect(fs.existsSync(path.join(evidenceDir, "placement.json"))).toBe(true);
-    expect(fs.existsSync(path.join(evidenceDir, "scene.diff.json"))).toBe(true);
+    expect(fs.existsSync(path.join(hookEvidenceDir, "placement.json"))).toBe(true);
+    expect(fs.existsSync(path.join(hookEvidenceDir, "scene.diff.json"))).toBe(true);
 
     const placement = JSON.parse(
-      fs.readFileSync(path.join(evidenceDir, "placement.json"), "utf-8"),
+      fs.readFileSync(path.join(hookEvidenceDir, "placement.json"), "utf-8"),
     );
     expect(placement.schema_version).toBe(
       "eatme.alice-object-placement-artifact/v1",
@@ -111,12 +114,12 @@ describe("eatme CLI hooks", () => {
     const result = JSON.parse(stdout);
     expect(result.object_identifier).toBe("heroBunny");
 
-    const evidenceDir = path.join(EVIDENCE_DIR, "place-object");
+    const hookEvidenceDir = path.join(evidenceDir, "place-object");
     const placement = JSON.parse(
-      fs.readFileSync(path.join(evidenceDir, "placement.json"), "utf-8"),
+      fs.readFileSync(path.join(hookEvidenceDir, "placement.json"), "utf-8"),
     );
     const diff = JSON.parse(
-      fs.readFileSync(path.join(evidenceDir, "scene.diff.json"), "utf-8"),
+      fs.readFileSync(path.join(hookEvidenceDir, "scene.diff.json"), "utf-8"),
     );
     expect(placement.object_identifier).toBe("heroBunny");
     expect(placement.resource_type).toBe(
@@ -134,13 +137,13 @@ describe("eatme CLI hooks", () => {
     expect(result.status).toBe("proved");
     expect(result.procedure_selector).toBe("scene.eatmeFirstLessonStep");
 
-    const evidenceDir = path.join(EVIDENCE_DIR, "edit-procedure");
+    const hookEvidenceDir = path.join(evidenceDir, "edit-procedure");
     expect(
-      fs.existsSync(path.join(evidenceDir, "edited-project.a3p")),
+      fs.existsSync(path.join(hookEvidenceDir, "edited-project.a3p")),
     ).toBe(true);
     expect(
       fs.existsSync(
-        path.join(evidenceDir, "first-lesson-code-editor-action-proof.json"),
+        path.join(hookEvidenceDir, "first-lesson-code-editor-action-proof.json"),
       ),
     ).toBe(true);
   });
@@ -155,9 +158,9 @@ describe("eatme CLI hooks", () => {
     const result = JSON.parse(stdout);
     expect(result.procedure_selector).toBe("customStep");
 
-    const evidenceDir = path.join(EVIDENCE_DIR, "edit-procedure");
+    const hookEvidenceDir = path.join(evidenceDir, "edit-procedure");
     const diff = JSON.parse(
-      fs.readFileSync(path.join(evidenceDir, "procedure.diff.json"), "utf-8"),
+      fs.readFileSync(path.join(hookEvidenceDir, "procedure.diff.json"), "utf-8"),
     );
     expect(diff.method_name).toBe("customStep");
     expect(diff.before_statement_count).toBe(0);
@@ -171,9 +174,9 @@ describe("eatme CLI hooks", () => {
     expect(result.schema_version).toBe("eatme.alice-run-world-result/v1");
     expect(result.status).toBe("completed");
 
-    const evidenceDir = path.join(EVIDENCE_DIR, "run-world");
+    const hookEvidenceDir = path.join(evidenceDir, "run-world");
     expect(
-      fs.existsSync(path.join(evidenceDir, "run-world-result.json")),
+      fs.existsSync(path.join(hookEvidenceDir, "run-world-result.json")),
     ).toBe(true);
   });
 
@@ -186,19 +189,19 @@ describe("eatme CLI hooks", () => {
     expect(result.schema_version).toBe("eatme.alice-project-save-result/v1");
     expect(result.status).toBe("saved");
 
-    const evidenceDir = path.join(EVIDENCE_DIR, "save-project");
+    const hookEvidenceDir = path.join(evidenceDir, "save-project");
     expect(
-      fs.existsSync(path.join(evidenceDir, "saved-project.a3p")),
+      fs.existsSync(path.join(hookEvidenceDir, "saved-project.a3p")),
     ).toBe(true);
     expect(
       fs.existsSync(
-        path.join(evidenceDir, "desktop-save-operation-result.json"),
+        path.join(hookEvidenceDir, "desktop-save-operation-result.json"),
       ),
     ).toBe(true);
 
     const saveResult = JSON.parse(
       fs.readFileSync(
-        path.join(evidenceDir, "desktop-save-operation-result.json"),
+        path.join(hookEvidenceDir, "desktop-save-operation-result.json"),
         "utf-8",
       ),
     );
@@ -210,7 +213,7 @@ describe("eatme CLI hooks", () => {
   });
 
   it("save-project preserves custom targets while emitting canonical evidence copy", () => {
-    const customTarget = path.join(EVIDENCE_DIR, "custom-output", "lesson-copy.a3p");
+    const customTarget = path.join(evidenceDir, "custom-output", "lesson-copy.a3p");
     const stdout = runHook("save-project", [
       "--save-selector",
       "scene.eatmeFirstLessonStep",
@@ -220,10 +223,10 @@ describe("eatme CLI hooks", () => {
     const result = JSON.parse(stdout);
     expect(result.status).toBe("saved");
 
-    const evidenceDir = path.join(EVIDENCE_DIR, "save-project");
+    const hookEvidenceDir = path.join(evidenceDir, "save-project");
     expect(fs.existsSync(customTarget)).toBe(true);
     expect(
-      fs.existsSync(path.join(evidenceDir, "saved-project.a3p")),
+      fs.existsSync(path.join(hookEvidenceDir, "saved-project.a3p")),
     ).toBe(true);
   });
 });

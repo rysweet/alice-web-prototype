@@ -41,11 +41,11 @@ export async function exportModelToGlb(
 
   // Asset info
   doc.getRoot().getAsset().version = "2.0";
-  doc.getRoot().getAsset().generator = "alice-web-prototype";
+  doc.getRoot().getAsset().generator = "LookingGlass";
 
   if (metadata) {
     const extras = doc.getRoot().getAsset().extras as Record<string, unknown> ?? {};
-    extras.alice = {
+    extras.lookingglass = {
       modelId: metadata.modelId,
       category: metadata.category,
       generatedAt: metadata.generatedAt,

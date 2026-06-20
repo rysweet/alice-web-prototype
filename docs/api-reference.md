@@ -1,7 +1,7 @@
 # API reference
 
-The REST API gives `eatme` and local scripts a simple way to launch the web
-prototype, change the scene, edit code, run the world, and capture evidence.
+The REST API gives `eatme` and local scripts a simple way to launch
+LookingGlass, change the scene, edit code, run the world, and capture evidence.
 
 For server configuration, state isolation, evidence artifact semantics, and
 route ownership, see [Server API](./server-api.md).
@@ -12,7 +12,7 @@ Build and run the server:
 
 ```bash
 npm run build:server
-node dist-server/cli.js serve --evidence-dir ./evidence
+npm run serve -- --evidence-dir ./evidence
 ```
 
 Base URL examples below use `http://127.0.0.1:3000`. Mutating requests must
@@ -52,9 +52,11 @@ Example response:
   "launched": false,
   "pid": 12345,
   "uptime": 3.2,
-  "runtime": "typescript-web-prototype"
+  "runtime": "lookingglass-typescript-web"
 }
 ```
+
+The `runtime` value is the LookingGlass runtime identity.
 
 ## `POST /api/launch`
 
@@ -77,7 +79,7 @@ Example response:
 ```json
 {
   "status": "launched",
-  "project": "/home/alice/alice-web-prototype/fixtures/starter.a3p",
+  "project": "/workspace/lookingglass/fixtures/starter.a3p",
   "projectName": "starter",
   "sceneObjectCount": 2
 }

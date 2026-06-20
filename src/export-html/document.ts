@@ -18,7 +18,7 @@ export function createHtmlExportDocument(
 ): HtmlExportDocument {
   const previewMode = options.previewMode ?? false;
   const viewport = normalizeViewport(options.viewport, previewMode ? DEFAULT_PREVIEW_VIEWPORT : DEFAULT_STANDALONE_VIEWPORT);
-  const title = options.title?.trim() || `${project.projectName || "Alice Project"} — Alice HTML Export`;
+  const title = options.title?.trim() || `${project.projectName || "LookingGlass Project"} — LookingGlass HTML Export`;
   const tweedleSource = options.tweedleSource?.trim() || buildEmbeddedTweedleSource(project);
   return {
     title,

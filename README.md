@@ -1,7 +1,7 @@
-# alice-web-prototype — Alice 3 for the Web
+# LookingGlass — Alice 3 for the Web
 
-A TypeScript port of [Alice 3](https://www.alice.org), the educational
-programming environment, designed to run in a web browser. This project
+LookingGlass is a TypeScript port of [Alice 3](https://www.alice.org), the
+educational programming environment, designed to run in a web browser. It
 reimplements the core Alice subsystems — Tweedle language, AST, story API,
 scene graph, renderer, and IDE — as a modern web application.
 
@@ -180,6 +180,11 @@ standard library, and debugger.
 The server exposes endpoints used by the [eatme](https://github.com/rysweet/eatme)
 test suite for automated end-to-end testing. See the
 [API reference](./docs/api-reference.md) for request and response details.
+
+The LookingGlass identity contract is documented in
+[docs/lookingglass-identity.md](./docs/lookingglass-identity.md), including the
+package name, CLI command, runtime string, generated metadata, and compatibility
+terms that intentionally remain Alice-branded.
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|

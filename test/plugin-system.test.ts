@@ -80,6 +80,20 @@ describe("plugin-system", () => {
     expect(reloaded.getAll("orbit-camera")).toEqual({ speed: 2, invertY: false });
   });
 
+  it("migrates legacy default plugin settings into the LookingGlass key", () => {
+    const storage = new MemoryStorage();
+    storage.setItem("alice-web.plugins.settings", JSON.stringify({
+      "orbit-camera": { speed: 5 },
+    }));
+
+    const settings = new PluginSettingsManager({ storage });
+
+    expect(settings.getAll("orbit-camera")).toEqual({ speed: 5 });
+    expect(storage.getItem("lookingglass.plugins.settings")).toBe(
+      storage.getItem("alice-web.plugins.settings"),
+    );
+  });
+
   it("discovers, loads, activates, and deactivates plugins", async () => {
     const registry = new ExtensionRegistry();
     registry.registerExtensionPoint({ id: "ide.panels", allowsMultiple: true });

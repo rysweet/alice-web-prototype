@@ -299,7 +299,7 @@ export class IdeMenuBarModel {
   getAboutDialog(): AboutDialogModel {
     return {
       applicationName:
-        this.aboutOverrides.applicationName ?? "Alice Web Prototype",
+        this.aboutOverrides.applicationName ?? "LookingGlass",
       version: this.aboutOverrides.version ?? "0.10.0",
       summary:
         this.aboutOverrides.summary

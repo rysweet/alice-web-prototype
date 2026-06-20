@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { parseA3P } from "../src/a3p-parser";
 import { createServer } from "../src/server";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import type { Express } from "express";
 import request from "supertest";
 import { LOCAL_API_TOKEN_HEADER } from "../src/server/security";
 
-const TEST_EVIDENCE_DIR = path.resolve(__dirname, "../.test-server-evidence");
 const TEST_LOCAL_API_TOKEN = "test-local-api-token";
 const EXCESSIVE_ROUTE_STRING = "x".repeat(1025);
 
@@ -26,24 +26,25 @@ function localPost(app: Express, apiPath: string) {
 
 describe("server API", () => {
   let app: Express;
+  let evidenceDir: string;
 
-  beforeAll(() => {
-    fs.mkdirSync(TEST_EVIDENCE_DIR, { recursive: true });
+  beforeEach(() => {
+    evidenceDir = fs.mkdtempSync(path.join(os.tmpdir(), "alice-server-test-"));
     app = createTestServer({
       port: 0,
-      evidenceDir: TEST_EVIDENCE_DIR,
+      evidenceDir,
     });
   });
 
-  afterAll(() => {
-    fs.rmSync(TEST_EVIDENCE_DIR, { recursive: true, force: true });
+  afterEach(() => {
+    fs.rmSync(evidenceDir, { recursive: true, force: true });
   });
 
   describe("GET /api/health", () => {
     it("returns running status", async () => {
       const res = await request(app).get("/api/health").expect(200);
       expect(res.body.status).toBe("running");
-      expect(res.body.runtime).toBe("typescript-web-prototype");
+      expect(res.body.runtime).toBe("lookingglass-typescript-web");
       expect(typeof res.body.pid).toBe("number");
     });
 
@@ -82,7 +83,7 @@ describe("server API", () => {
     it("rejects mutating requests with a missing token", async () => {
       const protectedApp = createTestServer({
         port: 0,
-        evidenceDir: path.join(TEST_EVIDENCE_DIR, "missing-token"),
+        evidenceDir: path.join(evidenceDir, "missing-token"),
       });
 
       const res = await request(protectedApp)
@@ -95,7 +96,7 @@ describe("server API", () => {
     it("rejects case-variant API mutation paths with a missing token", async () => {
       const protectedApp = createTestServer({
         port: 0,
-        evidenceDir: path.join(TEST_EVIDENCE_DIR, "case-variant-missing-token"),
+        evidenceDir: path.join(evidenceDir, "case-variant-missing-token"),
       });
 
       const res = await request(protectedApp)
@@ -108,7 +109,7 @@ describe("server API", () => {
     it("rejects mutating requests with an invalid token", async () => {
       const protectedApp = createTestServer({
         port: 0,
-        evidenceDir: path.join(TEST_EVIDENCE_DIR, "invalid-token"),
+        evidenceDir: path.join(evidenceDir, "invalid-token"),
       });
 
       const res = await request(protectedApp)
@@ -122,7 +123,7 @@ describe("server API", () => {
     it("rejects mutating requests from an invalid origin", async () => {
       const protectedApp = createTestServer({
         port: 0,
-        evidenceDir: path.join(TEST_EVIDENCE_DIR, "invalid-origin"),
+        evidenceDir: path.join(evidenceDir, "invalid-origin"),
       });
 
       const res = await localPost(protectedApp, "/api/launch")
@@ -135,7 +136,7 @@ describe("server API", () => {
     it("rejects mutating requests with a non-local host", async () => {
       const protectedApp = createTestServer({
         port: 0,
-        evidenceDir: path.join(TEST_EVIDENCE_DIR, "invalid-host"),
+        evidenceDir: path.join(evidenceDir, "invalid-host"),
       });
 
       const res = await localPost(protectedApp, "/api/launch")
@@ -148,7 +149,7 @@ describe("server API", () => {
     it("rejects mutating requests without a JSON content type", async () => {
       const protectedApp = createTestServer({
         port: 0,
-        evidenceDir: path.join(TEST_EVIDENCE_DIR, "invalid-content-type"),
+        evidenceDir: path.join(evidenceDir, "invalid-content-type"),
       });
 
       const res = await request(protectedApp)
@@ -163,7 +164,7 @@ describe("server API", () => {
     it("accepts valid local mutating requests with a token and local origin", async () => {
       const protectedApp = createTestServer({
         port: 0,
-        evidenceDir: path.join(TEST_EVIDENCE_DIR, "valid-local"),
+        evidenceDir: path.join(evidenceDir, "valid-local"),
       });
 
       const res = await localPost(protectedApp, "/api/launch")
@@ -214,7 +215,7 @@ describe("server API", () => {
 
       // Verify evidence artifact was written
       const artifactPath = path.join(
-        TEST_EVIDENCE_DIR,
+        evidenceDir,
         "scene-object-added.json",
       );
       expect(fs.existsSync(artifactPath)).toBe(true);
@@ -264,7 +265,7 @@ describe("server API", () => {
 
       // Verify proof artifact was written
       const proofPath = path.join(
-        TEST_EVIDENCE_DIR,
+        evidenceDir,
         "first-lesson-code-editor-action-proof.json",
       );
       expect(fs.existsSync(proofPath)).toBe(true);
@@ -276,10 +277,10 @@ describe("server API", () => {
       expect(proof.success).toBe(true);
 
       // Verify edited project was written
-      const editedPath = path.join(TEST_EVIDENCE_DIR, "edited-project.a3p");
+      const editedPath = path.join(evidenceDir, "edited-project.a3p");
       expect(fs.existsSync(editedPath)).toBe(true);
       const editedBytes = fs.readFileSync(editedPath);
-      expect(editedBytes.toString("utf-8")).not.toContain("alice-web-prototype-placeholder");
+      expect(editedBytes.toString("utf-8")).not.toContain("placeholder-source-marker");
       const editedProject = await parseA3P(editedBytes);
       expect(editedProject.methods.map((method) => method.name)).toContain("myFirstMethod");
     });
@@ -405,36 +406,33 @@ describe("server API", () => {
       expect(res.body.status).toBe("completed");
       expect(typeof res.body.run_duration_ms).toBe("number");
 
-      const evidencePath = path.join(TEST_EVIDENCE_DIR, "run-world-result.json");
+      const evidencePath = path.join(evidenceDir, "run-world-result.json");
       expect(fs.existsSync(evidencePath)).toBe(true);
       const evidence = JSON.parse(fs.readFileSync(evidencePath, "utf-8"));
       expect(evidence.status).toBe("completed");
     });
 
     it("rejects run before launch", async () => {
-      // Create fresh server without launching
       const freshApp = createTestServer({
         port: 0,
-        evidenceDir: TEST_EVIDENCE_DIR,
+        evidenceDir: path.join(evidenceDir, "fresh-run-before-launch"),
       });
       await localPost(freshApp, "/api/world/run").send({}).expect(400);
     });
 
     it("rejects run when the launched project cannot be parsed", async () => {
-      const corruptProjectPath = path.join(TEST_EVIDENCE_DIR, "corrupt.a3p");
+      const corruptProjectPath = path.join(evidenceDir, "corrupt.a3p");
       fs.writeFileSync(corruptProjectPath, Buffer.from("not a zip"));
-      const freshApp = createServer({
+      const freshApp = createTestServer({
         port: 0,
-        evidenceDir: TEST_EVIDENCE_DIR,
-        allowedProjectDirs: [TEST_EVIDENCE_DIR],
+        evidenceDir,
+        allowedProjectDirs: [evidenceDir],
       });
-      await request(freshApp)
-        .post("/api/launch")
+      await localPost(freshApp, "/api/launch")
         .send({ project: corruptProjectPath })
         .expect(200);
 
-      const res = await request(freshApp)
-        .post("/api/world/run")
+      const res = await localPost(freshApp, "/api/world/run")
         .send({})
         .expect(400);
 
@@ -515,12 +513,12 @@ describe("server API", () => {
       expect(res.body.rendered).toBe(true);
       expect(res.body.placeholder).toBeUndefined();
 
-      const screenshotPath = path.join(TEST_EVIDENCE_DIR, "screenshot.png");
+      const screenshotPath = path.join(evidenceDir, "screenshot.png");
       expect(fs.existsSync(screenshotPath)).toBe(true);
     });
 
     it("does not write screenshots on GET", async () => {
-      const screenshotEvidenceDir = path.join(TEST_EVIDENCE_DIR, "get-screenshot");
+      const screenshotEvidenceDir = path.join(evidenceDir, "get-screenshot");
       const protectedApp = createTestServer({
         port: 0,
         evidenceDir: screenshotEvidenceDir,
@@ -535,11 +533,11 @@ describe("server API", () => {
     it("keeps mutable project state scoped to each server instance", async () => {
       const firstApp = createTestServer({
         port: 0,
-        evidenceDir: path.join(TEST_EVIDENCE_DIR, "isolated-first"),
+        evidenceDir: path.join(evidenceDir, "isolated-first"),
       });
       const secondApp = createTestServer({
         port: 0,
-        evidenceDir: path.join(TEST_EVIDENCE_DIR, "isolated-second"),
+        evidenceDir: path.join(evidenceDir, "isolated-second"),
       });
 
       await localPost(firstApp, "/api/launch").send({}).expect(200);
