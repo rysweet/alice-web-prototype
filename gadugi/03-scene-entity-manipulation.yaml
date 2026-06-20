@@ -30,6 +30,7 @@ scenario:
         bash -lc 'set -euo pipefail;
         PORT="${PORT:-3103}";
         case "$PORT" in (*[!0-9]*|"") echo "PORT must be numeric" >&2; exit 2;; esac;
+        API_TOKEN="gadugi-local-api-token";
         EVIDENCE_DIR="./evidence/03-scene-entity-manipulation-$$";
         case "$EVIDENCE_DIR" in (""|"/"|".") echo "unsafe EVIDENCE_DIR: $EVIDENCE_DIR" >&2; exit 2;; esac;
         HEALTH_JSON="$EVIDENCE_DIR/health.json";
@@ -45,25 +46,25 @@ scenario:
         mkdir -p "$EVIDENCE_DIR";
         cleanup() { status=$?; if [ -n "${SERVER_PID:-}" ] && kill -0 "$SERVER_PID" 2>/dev/null; then kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true; fi; rm -rf "$EVIDENCE_DIR"; exit "$status"; };
         trap cleanup EXIT;
-        node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" >"$SERVER_LOG" 2>&1 &
+        node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" --api-token "$API_TOKEN" >"$SERVER_LOG" 2>&1 &
         SERVER_PID=$!;
         READY=0;
         for attempt in $(seq 1 50); do if curl -fsS "http://127.0.0.1:$PORT/api/health" >"$HEALTH_JSON" 2>/dev/null; then READY=1; break; fi; sleep 0.2; done;
         test "$READY" = 1;
         grep -Eq "\"status\"[[:space:]]*:[[:space:]]*\"listening\"" "$SERVER_LOG";
         node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"running\") throw new Error(\"health status was not running\"); if (d.runtime !== \"lookingglass-typescript-web\") throw new Error(\"unexpected runtime\");" "$HEALTH_JSON";
-        curl -fsS -X POST "http://127.0.0.1:$PORT/api/launch" -H "Content-Type: application/json" -d "{}" >"$LAUNCH_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/launch" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{}" >"$LAUNCH_JSON";
         node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"launched\") throw new Error(\"default scene did not launch\"); if (d.sceneObjectCount !== 2) throw new Error(\"expected default ground and camera\");" "$LAUNCH_JSON";
-        curl -fsS -X POST "http://127.0.0.1:$PORT/api/scene/add-object" -H "Content-Type: application/json" -d "{\"className\":\"org.lgna.story.SBiped\",\"name\":\"bunny\"}" >"$BUNNY_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/scene/add-object" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{\"className\":\"org.lgna.story.SBiped\",\"name\":\"bunny\"}" >"$BUNNY_JSON";
         node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"added\") throw new Error(\"bunny was not added\"); if (d.objectName !== \"bunny\") throw new Error(\"unexpected bunny name\"); if (d.className !== \"org.lgna.story.SBiped\") throw new Error(\"unexpected bunny class\"); if (d.sceneFieldCountAfter !== 3) throw new Error(\"expected 3 scene objects after bunny\"); if (!d.evidenceArtifact) throw new Error(\"bunny evidence missing\");" "$BUNNY_JSON";
-        curl -fsS -X POST "http://127.0.0.1:$PORT/api/scene/add-object" -H "Content-Type: application/json" -d "{\"className\":\"org.lgna.story.SProp\",\"name\":\"tree\"}" >"$TREE_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/scene/add-object" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{\"className\":\"org.lgna.story.SProp\",\"name\":\"tree\"}" >"$TREE_JSON";
         node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"added\") throw new Error(\"tree was not added\"); if (d.objectName !== \"tree\") throw new Error(\"unexpected tree name\"); if (d.className !== \"org.lgna.story.SProp\") throw new Error(\"unexpected tree class\"); if (d.sceneFieldCountAfter !== 4) throw new Error(\"expected 4 scene objects after tree\");" "$TREE_JSON";
-        curl -fsS -X POST "http://127.0.0.1:$PORT/api/scene/add-object" -H "Content-Type: application/json" -d "{\"className\":\"org.lgna.story.SFlyer\"}" >"$FLYER_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/scene/add-object" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{\"className\":\"org.lgna.story.SFlyer\"}" >"$FLYER_JSON";
         node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"added\") throw new Error(\"flyer was not added\"); if (d.objectName !== \"sflyer\") throw new Error(\"class-derived flyer name mismatch\"); if (d.className !== \"org.lgna.story.SFlyer\") throw new Error(\"unexpected flyer class\"); if (d.sceneFieldCountAfter !== 5) throw new Error(\"expected 5 scene objects after flyer\");" "$FLYER_JSON";
-        HTTP_CODE="$(curl -sS -o "$MISSING_CLASS_JSON" -w "%{http_code}" -X POST "http://127.0.0.1:$PORT/api/scene/add-object" -H "Content-Type: application/json" -d "{\"name\":\"orphan\"}")";
+        HTTP_CODE="$(curl -sS -o "$MISSING_CLASS_JSON" -w "%{http_code}" -X POST "http://127.0.0.1:$PORT/api/scene/add-object" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{\"name\":\"orphan\"}")";
         test "$HTTP_CODE" = 400;
         node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.error !== \"className is required\") throw new Error(\"missing className error mismatch\");" "$MISSING_CLASS_JSON";
-        curl -fsS "http://127.0.0.1:$PORT/api/screenshot" >"$SCREENSHOT_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/screenshot" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{}" >"$SCREENSHOT_JSON";
         node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"captured\") throw new Error(\"screenshot was not captured\"); if (!d.path || !d.path.endsWith(\"screenshot.png\")) throw new Error(\"screenshot path missing\"); if (d.objectCount !== undefined && d.objectCount < 3) throw new Error(\"expected screenshot objectCount >= 3 added objects\"); if (d.objectCount === undefined && d.placeholder !== true) throw new Error(\"screenshot objectCount missing without placeholder fallback\");" "$SCREENSHOT_JSON";
         kill "$SERVER_PID";
         wait "$SERVER_PID" 2>/dev/null || true;

@@ -139,6 +139,7 @@ steps:
       bash -lc 'set -euo pipefail;
       PORT="${PORT:-3000}";
       case "$PORT" in (*[!0-9]*|"") echo "PORT must be numeric" >&2; exit 2;; esac;
+      API_TOKEN="gadugi-local-api-token";
       EVIDENCE_DIR="./evidence/example";
       case "$EVIDENCE_DIR" in (""|"/"|".") echo "unsafe EVIDENCE_DIR" >&2; exit 2;; esac;
       HEALTH_JSON="$EVIDENCE_DIR/health.json";
@@ -157,7 +158,7 @@ steps:
         exit "$status";
       };
       trap cleanup EXIT;
-      node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" >"$SERVER_LOG" 2>&1 &
+      node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" --api-token "$API_TOKEN" >"$SERVER_LOG" 2>&1 &
       SERVER_PID=$!;
       READY=0;
       for attempt in $(seq 1 50); do
@@ -169,7 +170,7 @@ steps:
       done;
       test "$READY" = 1;
       node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"running\") throw new Error(\"health failed\");" "$HEALTH_JSON";
-      curl -fsS -X POST "http://127.0.0.1:$PORT/api/launch" -H "Content-Type: application/json" -d "{}" >"$LAUNCH_JSON";
+      curl -fsS -X POST "http://127.0.0.1:$PORT/api/launch" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{}" >"$LAUNCH_JSON";
       node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"launched\") throw new Error(\"launch failed\");" "$LAUNCH_JSON";
       kill "$SERVER_PID";
       wait "$SERVER_PID" 2>/dev/null || true;
@@ -190,7 +191,7 @@ uses.
 | --- | --- | --- |
 | `/api/health` | `GET` | all scenarios |
 | `/api/launch` | `POST` | all scenarios |
-| `/api/screenshot` | `GET` | 01, 03 |
+| `/api/screenshot` | `POST` | 01, 03 |
 | `/api/world/run` | `POST` | 02 |
 | `/api/scene/add-object` | `POST` | 03, 04 |
 | `/api/events/register` | `POST` | 04 |
@@ -212,7 +213,7 @@ Flow:
 3. `POST /api/launch` with the project path.
 4. Assert `status: "launched"`, a non-empty `projectName`, and at least two
    scene objects.
-5. `GET /api/screenshot`.
+5. `POST /api/screenshot`.
 6. Assert `status: "captured"` and the screenshot artifact path; when the
    renderer returns `objectCount`, assert at least two objects.
 7. Stop the captured server process and verify shutdown was logged.

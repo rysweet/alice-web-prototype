@@ -90,6 +90,7 @@ describe("CLI argument behavior", () => {
     expect(result.stdout).toContain("Usage:");
     expect(result.stdout).toContain("lookingglass serve");
     expect(result.stdout).toContain("lookingglass print-config");
+    expect(result.stdout).toContain("--api-token <token>");
   });
 
   it("prints help when launched through a bin-style symlink", () => {
@@ -124,6 +125,7 @@ describe("CLI argument behavior", () => {
       port: 4187,
       evidenceDir: path.resolve(PROJECT_ROOT, "evidence/custom"),
       project: path.resolve(PROJECT_ROOT, "stories/demo.a3p"),
+      localApiToken: null,
       runtime: "lookingglass-typescript-web",
     });
   });

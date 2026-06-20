@@ -44,6 +44,8 @@ npm run serve -- --port 3000 --evidence-dir ./evidence
 
 You should see output indicating the server is listening. Leave this
 terminal open and use a second terminal for the `curl` commands below.
+Copy the startup `localApiToken` into `ALICE_LOCAL_API_TOKEN`; mutating
+requests use it in `X-Alice-Local-Api-Token`.
 
 ## Step 1 — Health check
 
@@ -114,6 +116,7 @@ Create a project from the `snow` template:
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/project/new \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"templateId": "snow"}'
 ```
@@ -154,7 +157,10 @@ server's active session to this project.
 Capture the starting state before making changes:
 
 ```bash
-curl http://127.0.0.1:3000/api/screenshot
+curl -X POST http://127.0.0.1:3000/api/screenshot \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{}'
 ```
 
 Response:
@@ -186,6 +192,7 @@ Add a fox character to make the story more interesting:
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/scene/add-object \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"className": "Fox"}'
 ```
@@ -213,6 +220,7 @@ code is edited by appending statements:
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/code/edit-procedure \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
     "procedureSelector": "scene.myFirstMethod",
@@ -250,6 +258,7 @@ Execute the project through the Tweedle VM:
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/world/run \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{}'
 ```
@@ -287,7 +296,10 @@ edit-procedure proof.
 Capture the scene again to see the fox:
 
 ```bash
-curl http://127.0.0.1:3000/api/screenshot
+curl -X POST http://127.0.0.1:3000/api/screenshot \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{}'
 ```
 
 Response:
@@ -318,6 +330,7 @@ Wire up a `sceneActivated` event that fires when the world starts:
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/events/register \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"eventType": "sceneActivated", "handlerName": "onWorldStart"}'
 ```
@@ -343,6 +356,7 @@ Simulate the scene activation:
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/events/fire \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"eventType": "sceneActivated", "payload": {}}'
 ```
@@ -371,6 +385,7 @@ Save everything to a portable `.a3p` archive:
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/project/save \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"saveSelector": "scene.myFirstMethod"}'
 ```
@@ -394,7 +409,10 @@ Alice 3 desktop or re-loaded into the web prototype via `POST /api/launch`.
 Take a final screenshot to document the completed state:
 
 ```bash
-curl http://127.0.0.1:3000/api/screenshot
+curl -X POST http://127.0.0.1:3000/api/screenshot \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{}'
 cp evidence/screenshot.png docs/screenshots/07-final-saved-project.png
 ```
 
@@ -407,11 +425,11 @@ cp evidence/screenshot.png docs/screenshots/07-final-saved-project.png
 | 1 | `GET /api/health` | Verify server is running |
 | 2 | `GET /api/project/templates` | Browse available templates |
 | 3 | `POST /api/project/new` | Create project from template |
-| 4 | `GET /api/screenshot` | Capture initial scene |
+| 4 | `POST /api/screenshot` | Capture initial scene |
 | 5 | `POST /api/scene/add-object` | Add a fox to the scene |
 | 6 | `POST /api/code/edit-procedure` | Write code in myFirstMethod |
 | 7 | `POST /api/world/run` | Execute the project |
-| 8 | `GET /api/screenshot` | Capture scene with fox |
+| 8 | `POST /api/screenshot` | Capture scene with fox |
 | 9 | `POST /api/events/register` | Wire up sceneActivated event |
 | 10 | `POST /api/events/fire` | Simulate event firing |
 | 11 | `POST /api/project/save` | Save the completed project |
@@ -425,6 +443,7 @@ end-to-end:
 #!/usr/bin/env bash
 set -euo pipefail
 BASE=http://127.0.0.1:3000
+TOKEN_HEADER="X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN"
 
 echo "=== Health check ==="
 curl -s "$BASE/api/health" | jq .
@@ -434,48 +453,55 @@ curl -s "$BASE/api/project/templates" | jq .
 
 echo "=== Create project from snow template ==="
 curl -s -X POST "$BASE/api/project/new" \
+  -H "$TOKEN_HEADER" \
   -H 'Content-Type: application/json' \
   -d '{"templateId":"snow"}' | jq .
 
 echo "=== Screenshot: initial scene ==="
-curl -s "$BASE/api/screenshot" | jq .
+curl -s -X POST "$BASE/api/screenshot" -H "$TOKEN_HEADER" -H 'Content-Type: application/json' -d '{}' | jq .
 cp evidence/screenshot.png docs/screenshots/01-initial-snow-scene.png
 
 echo "=== Add fox ==="
 curl -s -X POST "$BASE/api/scene/add-object" \
+  -H "$TOKEN_HEADER" \
   -H 'Content-Type: application/json' \
   -d '{"className":"Fox"}' | jq .
 
 echo "=== Edit procedure ==="
 curl -s -X POST "$BASE/api/code/edit-procedure" \
+  -H "$TOKEN_HEADER" \
   -H 'Content-Type: application/json' \
   -d '{"procedureSelector":"scene.myFirstMethod","editSpec":"append-comment:fox turns to face the snowPerson"}' | jq .
 
 echo "=== Run world ==="
 curl -s -X POST "$BASE/api/world/run" \
+  -H "$TOKEN_HEADER" \
   -H 'Content-Type: application/json' -d '{}' | jq .
 
 echo "=== Screenshot: with fox ==="
-curl -s "$BASE/api/screenshot" | jq .
+curl -s -X POST "$BASE/api/screenshot" -H "$TOKEN_HEADER" -H 'Content-Type: application/json' -d '{}' | jq .
 cp evidence/screenshot.png docs/screenshots/03-scene-with-fox.png
 
 echo "=== Register event ==="
 curl -s -X POST "$BASE/api/events/register" \
+  -H "$TOKEN_HEADER" \
   -H 'Content-Type: application/json' \
   -d '{"eventType":"sceneActivated","handlerName":"onWorldStart"}' | jq .
 
 echo "=== Fire event ==="
 curl -s -X POST "$BASE/api/events/fire" \
+  -H "$TOKEN_HEADER" \
   -H 'Content-Type: application/json' \
   -d '{"eventType":"sceneActivated","payload":{}}' | jq .
 
 echo "=== Save project ==="
 curl -s -X POST "$BASE/api/project/save" \
+  -H "$TOKEN_HEADER" \
   -H 'Content-Type: application/json' \
   -d '{"saveSelector":"scene.myFirstMethod"}' | jq .
 
 echo "=== Screenshot: final ==="
-curl -s "$BASE/api/screenshot" | jq .
+curl -s -X POST "$BASE/api/screenshot" -H "$TOKEN_HEADER" -H 'Content-Type: application/json' -d '{}' | jq .
 cp evidence/screenshot.png docs/screenshots/07-final-saved-project.png
 
 echo "Done! All 11 steps completed."
@@ -490,6 +516,7 @@ The tutorial used `snow`, but you can substitute any template. Here are
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/project/new \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"templateId": "blank", "projectName": "MyBlankProject"}'
 ```
@@ -498,6 +525,7 @@ curl -X POST http://127.0.0.1:3000/api/project/new \
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/project/new \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"templateId": "sea-floor", "projectName": "OceanAdventure"}'
 ```
@@ -506,6 +534,7 @@ curl -X POST http://127.0.0.1:3000/api/project/new \
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/project/new \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"templateId": "moon", "projectName": "LunarExploration"}'
 ```
@@ -628,6 +657,7 @@ tutorial uses `POST /api/project/new` (Step 3), which sets
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/events/register \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"eventType": "sceneActivated", "handlerName": "myHandler"}'
 ```
@@ -644,6 +674,7 @@ curl -X POST http://127.0.0.1:3000/api/events/register \
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/events/register \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"eventType": "keyPress", "handlerName": "onJump", "key": "SPACE"}'
 ```

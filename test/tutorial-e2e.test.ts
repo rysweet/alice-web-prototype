@@ -375,13 +375,13 @@ describe("Step 7: POST /api/world/run", () => {
 });
 
 // ── Step 8: Screenshot ───────────────────────────────────────────────
-describe("Step 8: GET /api/screenshot", () => {
+describe("Step 8: POST /api/screenshot", () => {
   beforeAll(async () => {
     await post("/api/project/new", { templateId: "snow", projectName: "ScreenshotTest" });
   });
 
   it("captures a screenshot and returns metadata", async () => {
-    const res = await get("/api/screenshot");
+    const res = await post("/api/screenshot");
     expect(res.status).toBe(200);
 
     const body = await res.json();
@@ -393,7 +393,7 @@ describe("Step 8: GET /api/screenshot", () => {
   });
 
   it("writes a PNG file to the evidence directory", async () => {
-    const res = await get("/api/screenshot");
+    const res = await post("/api/screenshot");
     const body = await res.json();
     expect(fs.existsSync(body.path)).toBe(true);
     const stat = fs.statSync(body.path);
@@ -401,7 +401,7 @@ describe("Step 8: GET /api/screenshot", () => {
   });
 
   it("includes object count when rendering succeeds", async () => {
-    const res = await get("/api/screenshot");
+    const res = await post("/api/screenshot");
     const body = await res.json();
     if (body.rendered) {
       expect(body.objectCount).toBeTypeOf("number");
@@ -649,7 +649,7 @@ describe("Full tutorial workflow (sequential)", () => {
     expect(run.scene_object_count).toBe(5);
 
     // Step 8: Screenshot
-    const screenshotRes = await wGet("/api/screenshot");
+    const screenshotRes = await wPost("/api/screenshot");
     expect(screenshotRes.status).toBe(200);
     const screenshot = await screenshotRes.json();
     expect(screenshot.status).toBe("captured");

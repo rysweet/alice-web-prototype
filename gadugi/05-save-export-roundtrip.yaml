@@ -30,6 +30,7 @@ scenario:
         bash -lc 'set -euo pipefail;
         PORT="${PORT:-3105}";
         case "$PORT" in (*[!0-9]*|"") echo "PORT must be numeric" >&2; exit 2;; esac;
+        API_TOKEN="gadugi-local-api-token";
         EVIDENCE_DIR="./evidence/05-save-export-roundtrip-$$";
         case "$EVIDENCE_DIR" in (""|"/"|".") echo "unsafe EVIDENCE_DIR: $EVIDENCE_DIR" >&2; exit 2;; esac;
         HEALTH_JSON="$EVIDENCE_DIR/health.json";
@@ -45,22 +46,22 @@ scenario:
         wait_for_health() { local log_file="$1"; READY=0; for attempt in $(seq 1 50); do if curl -fsS "http://127.0.0.1:$PORT/api/health" >"$HEALTH_JSON" 2>/dev/null; then READY=1; break; fi; sleep 0.2; done; test "$READY" = 1; grep -Eq "\"status\"[[:space:]]*:[[:space:]]*\"listening\"" "$log_file"; node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"running\") throw new Error(\"health status was not running\");" "$HEALTH_JSON"; };
         stop_server() { local log_file="$1"; kill "$SERVER_PID"; wait "$SERVER_PID" 2>/dev/null || true; SERVER_PID=""; grep -q "shutting down" "$log_file"; };
         SERVER_LOG="$EVIDENCE_DIR/server-1.log";
-        node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" >"$SERVER_LOG" 2>&1 &
+        node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" --api-token "$API_TOKEN" >"$SERVER_LOG" 2>&1 &
         SERVER_PID=$!;
         wait_for_health "$SERVER_LOG";
-        curl -fsS -X POST "http://127.0.0.1:$PORT/api/launch" -H "Content-Type: application/json" -d "{}" >"$LAUNCH_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/launch" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{}" >"$LAUNCH_JSON";
         node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"launched\") throw new Error(\"project did not launch\");" "$LAUNCH_JSON";
-        curl -fsS -X POST "http://127.0.0.1:$PORT/api/code/edit-procedure" -H "Content-Type: application/json" -d "{\"procedureSelector\":\"scene.myFirstMethod\",\"editSpec\":\"append-comment:gadugi-round-trip-proof\"}" >"$EDIT_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/code/edit-procedure" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{\"procedureSelector\":\"scene.myFirstMethod\",\"editSpec\":\"append-comment:gadugi-round-trip-proof\"}" >"$EDIT_JSON";
         node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"proved\") throw new Error(\"edit was not proved\"); if (d.schema_version !== \"eatme.alice-first-lesson-code-editor-action-proof-result/v1\") throw new Error(\"unexpected edit schema\"); if (d.procedure_selector !== \"scene.myFirstMethod\") throw new Error(\"unexpected procedure selector\"); if (d.edited_project_artifact !== \"edited-project.a3p\") throw new Error(\"unexpected edited artifact\"); if (d.action_proof !== \"first-lesson-code-editor-action-proof.json\") throw new Error(\"unexpected action proof\"); if (!Array.isArray(d.doesNotClaim)) throw new Error(\"doesNotClaim is not an array\");" "$EDIT_JSON";
-        curl -fsS -X POST "http://127.0.0.1:$PORT/api/project/save" -H "Content-Type: application/json" -d "{\"saveSelector\":\"scene.myFirstMethod\"}" >"$SAVE_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/project/save" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{\"saveSelector\":\"scene.myFirstMethod\"}" >"$SAVE_JSON";
         node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"saved\") throw new Error(\"project was not saved\"); if (d.schema_version !== \"eatme.alice-project-save-result/v1\") throw new Error(\"unexpected save schema\"); if (d.save_selector !== \"scene.myFirstMethod\") throw new Error(\"unexpected save selector\"); if (d.saved_project_artifact !== \"saved-project.a3p\") throw new Error(\"unexpected saved artifact\"); if (d.save_artifact !== \"desktop-save-operation-result.json\") throw new Error(\"unexpected save proof\");" "$SAVE_JSON";
         test -f "$EVIDENCE_DIR/project-save/saved-project.a3p";
         stop_server "$SERVER_LOG";
         SERVER_LOG="$EVIDENCE_DIR/server-2.log";
-        node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" >"$SERVER_LOG" 2>&1 &
+        node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" --api-token "$API_TOKEN" >"$SERVER_LOG" 2>&1 &
         SERVER_PID=$!;
         wait_for_health "$SERVER_LOG";
-        curl -fsS -X POST "http://127.0.0.1:$PORT/api/launch" -H "Content-Type: application/json" -d "{\"project\":\"$EVIDENCE_DIR/project-save/saved-project.a3p\"}" >"$REOPEN_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/launch" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{\"project\":\"$EVIDENCE_DIR/project-save/saved-project.a3p\"}" >"$REOPEN_JSON";
         node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"launched\") throw new Error(\"saved project did not launch\"); if (d.sceneObjectCount < 2) throw new Error(\"expected saved project scene objects\");" "$REOPEN_JSON";
         stop_server "$SERVER_LOG"'
       timeout: 45000

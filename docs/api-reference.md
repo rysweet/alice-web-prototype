@@ -15,7 +15,10 @@ npm run build:server
 npm run serve -- --evidence-dir ./evidence
 ```
 
-Base URL examples below use `http://127.0.0.1:3000`.
+Base URL examples below use `http://127.0.0.1:3000`. Mutating requests must
+send `Content-Type: application/json`. When using the CLI server, copy the
+startup `localApiToken` into `ALICE_LOCAL_API_TOKEN` and send it as
+`X-Alice-Local-Api-Token`.
 
 ## Endpoint summary
 
@@ -31,7 +34,7 @@ Base URL examples below use `http://127.0.0.1:3000`.
 | `/api/code/edit-procedure` | `POST` | Append a procedure edit proof |
 | `/api/project/save` | `POST` | Save the current project and proof artifact |
 | `/api/world/run` | `POST` | Run the cached project through the Tweedle VM |
-| `/api/screenshot` | `GET` | Render the current scene to a PNG file |
+| `/api/screenshot` | `POST` | Render the current scene to a PNG file |
 | `/api/events/register` | `POST` | Register an event handler |
 | `/api/events/fire` | `POST` | Fire an event and report which handlers ran |
 
@@ -371,10 +374,13 @@ Error response when nothing has been launched yet:
 { "error": "Not launched. Call POST /api/launch first." }
 ```
 
-## `GET /api/screenshot`
+## `POST /api/screenshot`
 
 ```bash
-curl http://127.0.0.1:3000/api/screenshot
+curl -X POST http://127.0.0.1:3000/api/screenshot \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{}'
 ```
 
 Example response:

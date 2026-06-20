@@ -154,7 +154,7 @@ routes:
 | `POST` | `/api/code/edit-procedure` | `eatme.alice-first-lesson-code-editor-action-proof-result/v1` | writes edit proof and `edited-project.a3p` |
 | `POST` | `/api/project/save` | `eatme.alice-project-save-result/v1` | writes save proof and `project-save/saved-project.a3p` |
 | `POST` | `/api/world/run` | `eatme.alice-run-world-result/v1` | writes `run-world-result.json` |
-| `GET` | `/api/screenshot` | screenshot capture summary | writes `screenshot.png` |
+| `POST` | `/api/screenshot` | screenshot capture summary | writes `screenshot.png` |
 | `POST` | `/api/events/register` | event registration summary | writes `event-register.json` |
 | `POST` | `/api/events/fire` | triggered handler summary | writes `event-fire.json` |
 
@@ -163,6 +163,11 @@ Bad request responses use HTTP `400` with an `error` field. Unhandled server err
 ```json
 { "error": "Internal server error" }
 ```
+
+Mutating local API routes require `Content-Type: application/json`. CLI-served
+instances also require the per-server startup token in the
+`X-Alice-Local-Api-Token` header and reject non-local `Host` or browser
+`Origin` headers.
 
 ## Evidence artifacts
 
@@ -214,7 +219,7 @@ A successful launch stores the resolved absolute project path in server state an
 
 ## Screenshot behavior
 
-`GET /api/screenshot` always returns a successful JSON response when the route handler completes.
+`POST /api/screenshot` always returns a successful JSON response when the route handler completes.
 
 When rendering succeeds:
 
@@ -329,7 +334,10 @@ curl -X POST http://127.0.0.1:3000/api/project/save \
 Capture a screenshot:
 
 ```bash
-curl http://127.0.0.1:3000/api/screenshot
+curl -X POST http://127.0.0.1:3000/api/screenshot \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{}'
 ```
 
 After the workflow, `./evidence` contains the proof JSON, project archives, and screenshot files used by `eatme` and outside-in tests.

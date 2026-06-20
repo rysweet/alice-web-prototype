@@ -56,7 +56,7 @@ describe("screenshot fallback contract", () => {
     const screenshotPath = path.join(evidenceDir, "screenshot.png");
     const app = createServer({ port: 0, evidenceDir });
 
-    const res = await request(app).get("/api/screenshot").expect(500);
+    const res = await request(app).post("/api/screenshot").send({}).expect(500);
 
     expect(res.body).toEqual({
       status: "failed",

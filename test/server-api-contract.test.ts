@@ -7,6 +7,9 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import request from "supertest";
+import { LOCAL_API_TOKEN_HEADER } from "../src/server/security";
+
+const TEST_LOCAL_API_TOKEN = "test-local-api-token";
 
 function makeTempDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -18,6 +21,19 @@ function expectOnlyKeys(value: Record<string, unknown>, keys: string[]): void {
 
 function readJson(filePath: string): Record<string, unknown> {
   return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+}
+
+function createTestServer(options: Parameters<typeof createServer>[0]) {
+  return createServer({
+    ...options,
+    localApiToken: TEST_LOCAL_API_TOKEN,
+  });
+}
+
+function localPost(app: ReturnType<typeof createServer>, apiPath: string) {
+  return request(app)
+    .post(apiPath)
+    .set(LOCAL_API_TOKEN_HEADER, TEST_LOCAL_API_TOKEN);
 }
 
 const tempDirs: string[] = [];
@@ -36,7 +52,7 @@ afterEach(() => {
 describe("server API response contracts", () => {
   it("characterizes health and default launch response shapes", async () => {
     const evidenceDir = trackTempDir(makeTempDir("alice-api-contract-"));
-    const app = createServer({ port: 0, evidenceDir });
+    const app = createTestServer({ port: 0, evidenceDir });
 
     const beforeLaunch = await request(app).get("/api/health").expect(200);
     expectOnlyKeys(beforeLaunch.body, [
@@ -54,7 +70,7 @@ describe("server API response contracts", () => {
     expect(typeof beforeLaunch.body.pid).toBe("number");
     expect(typeof beforeLaunch.body.uptime).toBe("number");
 
-    const launch = await request(app).post("/api/launch").send({}).expect(200);
+    const launch = await localPost(app, "/api/launch").send({}).expect(200);
     expectOnlyKeys(launch.body, [
       "status",
       "project",
@@ -76,14 +92,13 @@ describe("server API response contracts", () => {
     const evidenceDir = trackTempDir(makeTempDir("alice-api-contract-"));
     const projectRoot = trackTempDir(makeTempDir("alice-project-root-"));
     const requestedProject = path.join(projectRoot, "missing-project.a3p");
-    const app = createServer({
+    const app = createTestServer({
       port: 0,
       evidenceDir,
       allowedProjectDirs: [projectRoot],
     });
 
-    const response = await request(app)
-      .post("/api/launch")
+    const response = await localPost(app, "/api/launch")
       .send({ project: requestedProject })
       .expect(400);
 
@@ -100,14 +115,13 @@ describe("server API response contracts", () => {
     const projectRoot = trackTempDir(makeTempDir("alice-project-root-"));
     const requestedProject = path.join(projectRoot, "corrupt-project.a3p");
     fs.writeFileSync(requestedProject, "not a zip archive");
-    const app = createServer({
+    const app = createTestServer({
       port: 0,
       evidenceDir,
       allowedProjectDirs: [projectRoot],
     });
 
-    const response = await request(app)
-      .post("/api/launch")
+    const response = await localPost(app, "/api/launch")
       .send({ project: requestedProject })
       .expect(400);
 
@@ -123,14 +137,13 @@ describe("server API response contracts", () => {
     const projectRoot = trackTempDir(makeTempDir("alice-project-root-"));
     const requestedProject = path.join(projectRoot, "directory-project.a3p");
     fs.mkdirSync(requestedProject);
-    const app = createServer({
+    const app = createTestServer({
       port: 0,
       evidenceDir,
       allowedProjectDirs: [projectRoot],
     });
 
-    const response = await request(app)
-      .post("/api/launch")
+    const response = await localPost(app, "/api/launch")
       .send({ project: requestedProject })
       .expect(400);
 
@@ -149,14 +162,13 @@ describe("server API response contracts", () => {
       requestedProject,
       await writeA3P(createEmptyWorldProject({ projectName: "Valid Project" })),
     );
-    const app = createServer({
+    const app = createTestServer({
       port: 0,
       evidenceDir,
       allowedProjectDirs: [projectRoot],
     });
 
-    const response = await request(app)
-      .post("/api/launch")
+    const response = await localPost(app, "/api/launch")
       .send({ project: requestedProject })
       .expect(200);
 
@@ -179,11 +191,10 @@ describe("server API response contracts", () => {
 
   it("characterizes scene, code edit, save, and run artifact contracts", async () => {
     const evidenceDir = trackTempDir(makeTempDir("alice-api-contract-"));
-    const app = createServer({ port: 0, evidenceDir });
-    await request(app).post("/api/launch").send({}).expect(200);
+    const app = createTestServer({ port: 0, evidenceDir });
+    await localPost(app, "/api/launch").send({}).expect(200);
 
-    const scene = await request(app)
-      .post("/api/scene/add-object")
+    const scene = await localPost(app, "/api/scene/add-object")
       .send({ className: "org.lgna.story.SBiped", name: "bunny" })
       .expect(200);
     expectOnlyKeys(scene.body, [
@@ -214,8 +225,7 @@ describe("server API response contracts", () => {
     });
     expect(typeof sceneArtifact.timestamp).toBe("number");
 
-    const edit = await request(app)
-      .post("/api/code/edit-procedure")
+    const edit = await localPost(app, "/api/code/edit-procedure")
       .send({
         procedureSelector: "scene.myFirstMethod",
         editSpec: "append-comment:contract marker",
@@ -253,8 +263,7 @@ describe("server API response contracts", () => {
       success: true,
     });
 
-    const save = await request(app)
-      .post("/api/project/save")
+    const save = await localPost(app, "/api/project/save")
       .send({ saveSelector: "scene.myFirstMethod" })
       .expect(200);
     expectOnlyKeys(save.body, [
@@ -280,7 +289,7 @@ describe("server API response contracts", () => {
       wroteFile: true,
     });
 
-    const run = await request(app).post("/api/world/run").send({}).expect(200);
+    const run = await localPost(app, "/api/world/run").send({}).expect(200);
     expectOnlyKeys(run.body, [
       "schema_version",
       "status",
@@ -313,30 +322,27 @@ describe("server API response contracts", () => {
 
   it("characterizes error response contracts without mutating launch state", async () => {
     const evidenceDir = trackTempDir(makeTempDir("alice-api-contract-"));
-    const app = createServer({
+    const app = createTestServer({
       port: 0,
       evidenceDir,
       allowedProjectDirs: [evidenceDir],
     });
 
-    const runBeforeLaunch = await request(app)
-      .post("/api/world/run")
+    const runBeforeLaunch = await localPost(app, "/api/world/run")
       .send({})
       .expect(400);
     expect(runBeforeLaunch.body).toEqual({
       error: "Not launched. Call POST /api/launch first.",
     });
 
-    const invalidLaunch = await request(app)
-      .post("/api/launch")
+    const invalidLaunch = await localPost(app, "/api/launch")
       .send({ project: 12345 })
       .expect(400);
     expect(invalidLaunch.body).toEqual({
       error: "project path must be a string",
     });
 
-    const unknownTemplate = await request(app)
-      .post("/api/project/new")
+    const unknownTemplate = await localPost(app, "/api/project/new")
       .send({ templateId: "does-not-exist" })
       .expect(400);
     expectOnlyKeys(unknownTemplate.body, ["error", "availableTemplates"]);

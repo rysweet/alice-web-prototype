@@ -6,8 +6,23 @@ import * as os from "os";
 import * as path from "path";
 import type { Express } from "express";
 import request from "supertest";
+import { LOCAL_API_TOKEN_HEADER } from "../src/server/security";
 
+const TEST_LOCAL_API_TOKEN = "test-local-api-token";
 const EXCESSIVE_ROUTE_STRING = "x".repeat(1025);
+
+function createTestServer(options: Parameters<typeof createServer>[0]): Express {
+  return createServer({
+    ...options,
+    localApiToken: TEST_LOCAL_API_TOKEN,
+  });
+}
+
+function localPost(app: Express, apiPath: string) {
+  return request(app)
+    .post(apiPath)
+    .set(LOCAL_API_TOKEN_HEADER, TEST_LOCAL_API_TOKEN);
+}
 
 describe("server API", () => {
   let app: Express;
@@ -15,7 +30,7 @@ describe("server API", () => {
 
   beforeEach(() => {
     evidenceDir = fs.mkdtempSync(path.join(os.tmpdir(), "alice-server-test-"));
-    app = createServer({
+    app = createTestServer({
       port: 0,
       evidenceDir,
     });
@@ -64,9 +79,105 @@ describe("server API", () => {
     });
   });
 
+  describe("local API mutation protection", () => {
+    it("rejects mutating requests with a missing token", async () => {
+      const protectedApp = createTestServer({
+        port: 0,
+        evidenceDir: path.join(evidenceDir, "missing-token"),
+      });
+
+      const res = await request(protectedApp)
+        .post("/api/launch")
+        .send({})
+        .expect(401);
+      expect(res.body.error).toBe("Missing or invalid local API token");
+    });
+
+    it("rejects case-variant API mutation paths with a missing token", async () => {
+      const protectedApp = createTestServer({
+        port: 0,
+        evidenceDir: path.join(evidenceDir, "case-variant-missing-token"),
+      });
+
+      const res = await request(protectedApp)
+        .post("/API/launch")
+        .send({})
+        .expect(401);
+      expect(res.body.error).toBe("Missing or invalid local API token");
+    });
+
+    it("rejects mutating requests with an invalid token", async () => {
+      const protectedApp = createTestServer({
+        port: 0,
+        evidenceDir: path.join(evidenceDir, "invalid-token"),
+      });
+
+      const res = await request(protectedApp)
+        .post("/api/launch")
+        .set(LOCAL_API_TOKEN_HEADER, "wrong-token")
+        .send({})
+        .expect(401);
+      expect(res.body.error).toBe("Missing or invalid local API token");
+    });
+
+    it("rejects mutating requests from an invalid origin", async () => {
+      const protectedApp = createTestServer({
+        port: 0,
+        evidenceDir: path.join(evidenceDir, "invalid-origin"),
+      });
+
+      const res = await localPost(protectedApp, "/api/launch")
+        .set("Origin", "http://evil.example")
+        .send({})
+        .expect(403);
+      expect(res.body.error).toBe("Forbidden origin");
+    });
+
+    it("rejects mutating requests with a non-local host", async () => {
+      const protectedApp = createTestServer({
+        port: 0,
+        evidenceDir: path.join(evidenceDir, "invalid-host"),
+      });
+
+      const res = await localPost(protectedApp, "/api/launch")
+        .set("Host", "evil.example")
+        .send({})
+        .expect(403);
+      expect(res.body.error).toBe("Forbidden host");
+    });
+
+    it("rejects mutating requests without a JSON content type", async () => {
+      const protectedApp = createTestServer({
+        port: 0,
+        evidenceDir: path.join(evidenceDir, "invalid-content-type"),
+      });
+
+      const res = await request(protectedApp)
+        .post("/api/launch")
+        .set(LOCAL_API_TOKEN_HEADER, TEST_LOCAL_API_TOKEN)
+        .type("text/plain")
+        .send("{}")
+        .expect(415);
+      expect(res.body.error).toBe("Content-Type must be application/json");
+    });
+
+    it("accepts valid local mutating requests with a token and local origin", async () => {
+      const protectedApp = createTestServer({
+        port: 0,
+        evidenceDir: path.join(evidenceDir, "valid-local"),
+      });
+
+      const res = await localPost(protectedApp, "/api/launch")
+        .set("Origin", "http://127.0.0.1:3000")
+        .send({})
+        .expect(200);
+      expect(res.body.status).toBe("launched");
+    });
+  });
+
   describe("POST /api/launch", () => {
     it("launches with default project", async () => {
-      const res = await request(app).post("/api/launch").send({}).expect(200);
+      const res = await localPost(app, "/api/launch").send({}).expect(200);
       expect(res.body.status).toBe("launched");
       expect(res.body.sceneObjectCount).toBeGreaterThanOrEqual(2);
     });
@@ -74,26 +185,24 @@ describe("server API", () => {
 
   describe("request body parsing", () => {
     it("rejects malformed JSON bodies with a client error", async () => {
-      await request(app)
-        .post("/api/project/new")
+      await localPost(app, "/api/project/new")
         .set("Content-Type", "application/json")
         .send("{")
         .expect(400);
     });
 
     it("rejects non-JSON request bodies before route defaults run", async () => {
-      await request(app)
-        .post("/api/project/new")
+      const res = await localPost(app, "/api/project/new")
         .set("Content-Type", "text/plain")
         .send("not json")
-        .expect(400);
+        .expect(415);
+      expect(res.body.error).toBe("Content-Type must be application/json");
     });
   });
 
   describe("POST /api/scene/add-object", () => {
     it("adds object and writes evidence", async () => {
-      const res = await request(app)
-        .post("/api/scene/add-object")
+      const res = await localPost(app, "/api/scene/add-object")
         .send({
           className: "org.lgna.story.SBiped",
           name: "bunny",
@@ -115,25 +224,21 @@ describe("server API", () => {
     });
 
     it("rejects missing className", async () => {
-      await request(app)
-        .post("/api/scene/add-object")
+      await localPost(app, "/api/scene/add-object")
         .send({})
         .expect(400);
     });
 
     it("rejects malformed object fields", async () => {
-      await request(app)
-        .post("/api/scene/add-object")
+      await localPost(app, "/api/scene/add-object")
         .send({ className: 123 })
         .expect(400);
 
-      await request(app)
-        .post("/api/scene/add-object")
+      await localPost(app, "/api/scene/add-object")
         .send({ className: "" })
         .expect(400);
 
-      await request(app)
-        .post("/api/scene/add-object")
+      await localPost(app, "/api/scene/add-object")
         .send({
           className: "org.lgna.story.SBiped",
           name: EXCESSIVE_ROUTE_STRING,
@@ -144,8 +249,7 @@ describe("server API", () => {
 
   describe("POST /api/code/edit-procedure", () => {
     it("edits procedure and writes proof artifacts", async () => {
-      const res = await request(app)
-        .post("/api/code/edit-procedure")
+      const res = await localPost(app, "/api/code/edit-procedure")
         .send({
           procedureSelector: "scene.myFirstMethod",
           editSpec: "append-comment:eatme first lesson edit proof",
@@ -182,24 +286,21 @@ describe("server API", () => {
     });
 
     it("rejects malformed edit fields", async () => {
-      await request(app)
-        .post("/api/code/edit-procedure")
+      await localPost(app, "/api/code/edit-procedure")
         .send({
           procedureSelector: 123,
           editSpec: "append-comment:bad selector",
         })
         .expect(400);
 
-      await request(app)
-        .post("/api/code/edit-procedure")
+      await localPost(app, "/api/code/edit-procedure")
         .send({
           procedureSelector: "scene.myFirstMethod",
           editSpec: "",
         })
         .expect(400);
 
-      await request(app)
-        .post("/api/code/edit-procedure")
+      await localPost(app, "/api/code/edit-procedure")
         .send({
           procedureSelector: "scene.myFirstMethod",
           editSpec: EXCESSIVE_ROUTE_STRING,
@@ -210,8 +311,7 @@ describe("server API", () => {
 
   describe("POST /api/code/create-procedure", () => {
     it("accepts valid parameter fields", async () => {
-      const res = await request(app)
-        .post("/api/code/create-procedure")
+      const res = await localPost(app, "/api/code/create-procedure")
         .send({
           name: "validParameterFields",
           parameters: [
@@ -226,24 +326,21 @@ describe("server API", () => {
     });
 
     it("rejects malformed parameter fields", async () => {
-      await request(app)
-        .post("/api/code/create-procedure")
+      await localPost(app, "/api/code/create-procedure")
         .send({
           name: "badParameterContainer",
           parameters: { name: "speed" },
         })
         .expect(400);
 
-      await request(app)
-        .post("/api/code/create-procedure")
+      await localPost(app, "/api/code/create-procedure")
         .send({
           name: "badParameterName",
           parameters: [{ name: "" }],
         })
         .expect(400);
 
-      await request(app)
-        .post("/api/code/create-procedure")
+      await localPost(app, "/api/code/create-procedure")
         .send({
           name: "badParameterDefault",
           parameters: [{ name: "speed", defaultValue: EXCESSIVE_ROUTE_STRING }],
@@ -254,8 +351,7 @@ describe("server API", () => {
 
   describe("POST /api/code/create-function", () => {
     it("rejects malformed function parameter fields", async () => {
-      await request(app)
-        .post("/api/code/create-function")
+      await localPost(app, "/api/code/create-function")
         .send({
           name: "badFunctionParameter",
           returnType: "DecimalNumber",
@@ -267,8 +363,7 @@ describe("server API", () => {
 
   describe("POST /api/project/save", () => {
     it("saves project and writes proof artifacts", async () => {
-      const res = await request(app)
-        .post("/api/project/save")
+      const res = await localPost(app, "/api/project/save")
         .send({ saveSelector: "scene.myFirstMethod" })
         .expect(200);
 
@@ -282,18 +377,15 @@ describe("server API", () => {
     });
 
     it("rejects malformed save fields", async () => {
-      await request(app)
-        .post("/api/project/save")
+      await localPost(app, "/api/project/save")
         .send({ saveSelector: 123 })
         .expect(400);
 
-      await request(app)
-        .post("/api/project/save")
+      await localPost(app, "/api/project/save")
         .send({ targetPath: "" })
         .expect(400);
 
-      await request(app)
-        .post("/api/project/save")
+      await localPost(app, "/api/project/save")
         .send({ targetPath: EXCESSIVE_ROUTE_STRING })
         .expect(400);
     });
@@ -302,10 +394,9 @@ describe("server API", () => {
   describe("POST /api/world/run", () => {
     it("runs world and writes evidence", async () => {
       // Launch first
-      await request(app).post("/api/launch").send({});
+      await localPost(app, "/api/launch").send({});
 
-      const res = await request(app)
-        .post("/api/world/run")
+      const res = await localPost(app, "/api/world/run")
         .send({})
         .expect(200);
 
@@ -322,24 +413,26 @@ describe("server API", () => {
     });
 
     it("rejects run before launch", async () => {
-      await request(app).post("/api/world/run").send({}).expect(400);
+      const freshApp = createTestServer({
+        port: 0,
+        evidenceDir: path.join(evidenceDir, "fresh-run-before-launch"),
+      });
+      await localPost(freshApp, "/api/world/run").send({}).expect(400);
     });
 
     it("rejects corrupt requested projects before world run", async () => {
       const corruptProjectPath = path.join(evidenceDir, "corrupt.a3p");
       fs.writeFileSync(corruptProjectPath, Buffer.from("not a zip"));
-      const freshApp = createServer({
+      const freshApp = createTestServer({
         port: 0,
         evidenceDir,
         allowedProjectDirs: [evidenceDir],
       });
-      await request(freshApp)
-        .post("/api/launch")
+      await localPost(freshApp, "/api/launch")
         .send({ project: corruptProjectPath })
         .expect(400);
 
-      const res = await request(freshApp)
-        .post("/api/world/run")
+      const res = await localPost(freshApp, "/api/world/run")
         .send({})
         .expect(400);
 
@@ -365,8 +458,7 @@ describe("server API", () => {
 
   describe("POST /api/project/new", () => {
     it("creates a new project from blank template", async () => {
-      const res = await request(app)
-        .post("/api/project/new")
+      const res = await localPost(app, "/api/project/new")
         .send({ templateId: "blank", projectName: "TestProject" })
         .expect(200);
 
@@ -381,8 +473,7 @@ describe("server API", () => {
     });
 
     it("creates a project with default template when none specified", async () => {
-      const res = await request(app)
-        .post("/api/project/new")
+      const res = await localPost(app, "/api/project/new")
         .send({ projectName: "DefaultTemplate" })
         .expect(200);
 
@@ -391,8 +482,7 @@ describe("server API", () => {
     });
 
     it("rejects unknown template", async () => {
-      const res = await request(app)
-        .post("/api/project/new")
+      const res = await localPost(app, "/api/project/new")
         .send({ templateId: "nonexistent" })
         .expect(400);
 
@@ -401,26 +491,23 @@ describe("server API", () => {
     });
 
     it("rejects malformed template fields", async () => {
-      await request(app)
-        .post("/api/project/new")
+      await localPost(app, "/api/project/new")
         .send({ templateId: 123 })
         .expect(400);
 
-      await request(app)
-        .post("/api/project/new")
+      await localPost(app, "/api/project/new")
         .send({ projectName: "" })
         .expect(400);
 
-      await request(app)
-        .post("/api/project/new")
+      await localPost(app, "/api/project/new")
         .send({ projectName: EXCESSIVE_ROUTE_STRING })
         .expect(400);
     });
   });
 
-  describe("GET /api/screenshot", () => {
+  describe("POST /api/screenshot", () => {
     it("returns screenshot info", async () => {
-      const res = await request(app).get("/api/screenshot").expect(200);
+      const res = await localPost(app, "/api/screenshot").send({}).expect(200);
       expect(res.body.status).toBe("captured");
       expect(res.body.path).toContain("screenshot.png");
       expect(res.body.rendered).toBe(true);
@@ -429,26 +516,36 @@ describe("server API", () => {
       const screenshotPath = path.join(evidenceDir, "screenshot.png");
       expect(fs.existsSync(screenshotPath)).toBe(true);
     });
+
+    it("does not write screenshots on GET", async () => {
+      const screenshotEvidenceDir = path.join(evidenceDir, "get-screenshot");
+      const protectedApp = createTestServer({
+        port: 0,
+        evidenceDir: screenshotEvidenceDir,
+      });
+
+      await request(protectedApp).get("/api/screenshot").expect(404);
+      expect(fs.existsSync(path.join(screenshotEvidenceDir, "screenshot.png"))).toBe(false);
+    });
   });
 
   describe("createServer state isolation", () => {
     it("keeps mutable project state scoped to each server instance", async () => {
-      const firstApp = createServer({
+      const firstApp = createTestServer({
         port: 0,
         evidenceDir: path.join(evidenceDir, "isolated-first"),
       });
-      const secondApp = createServer({
+      const secondApp = createTestServer({
         port: 0,
         evidenceDir: path.join(evidenceDir, "isolated-second"),
       });
 
-      await request(firstApp).post("/api/launch").send({}).expect(200);
-      const firstAdd = await request(firstApp)
-        .post("/api/scene/add-object")
+      await localPost(firstApp, "/api/launch").send({}).expect(200);
+      const firstAdd = await localPost(firstApp, "/api/scene/add-object")
         .send({ className: "org.lgna.story.SBiped", name: "bunny" })
         .expect(200);
       const secondHealth = await request(secondApp).get("/api/health").expect(200);
-      const secondLaunch = await request(secondApp).post("/api/launch").send({}).expect(200);
+      const secondLaunch = await localPost(secondApp, "/api/launch").send({}).expect(200);
 
       expect(firstAdd.body.sceneFieldCountAfter).toBe(3);
       expect(secondHealth.body.launched).toBe(false);
