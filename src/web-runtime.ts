@@ -218,6 +218,18 @@ export class WebGLContext {
     return this.contextLost;
   }
 
+  dispose(): void {
+    if (this.eventsBound && this.canvas.removeEventListener) {
+      this.canvas.removeEventListener("webglcontextlost", this.handleContextLost);
+      this.canvas.removeEventListener("webglcontextrestored", this.handleContextRestored);
+    }
+
+    this.activeContext = null;
+    this.activeContextName = null;
+    this.contextLost = false;
+    this.eventsBound = false;
+  }
+
   private bindLifecycleEvents(): void {
     if (this.eventsBound || !this.canvas.addEventListener) {
       return;

@@ -121,6 +121,44 @@ describe("web-runtime", () => {
     expect(context.isLost).toBe(false);
   });
 
+  it("disposes WebGL lifecycle listeners and resets binding state idempotently", () => {
+    const listeners = new Map<string, (event?: unknown) => void>();
+    const removeEventListener = vi.fn((type: string, listener: (event?: unknown) => void) => {
+      if (listeners.get(type) === listener) {
+        listeners.delete(type);
+      }
+    });
+    const canvas: ManagedCanvas = {
+      width: 0,
+      height: 0,
+      style: {},
+      getContext: (name: string) => name === "webgl2" ? { name } : null,
+      addEventListener: (type, listener) => {
+        listeners.set(type, listener);
+      },
+      removeEventListener,
+    };
+    const context = new WebGLContext(canvas);
+
+    expect(context.initialize()).toEqual({ name: "webgl2" });
+    listeners.get("webglcontextlost")?.({ preventDefault: vi.fn() });
+    expect(context.isLost).toBe(true);
+
+    context.dispose();
+    context.dispose();
+
+    expect(listeners.size).toBe(0);
+    expect(removeEventListener).toHaveBeenCalledTimes(2);
+    expect(removeEventListener).toHaveBeenCalledWith("webglcontextlost", expect.any(Function));
+    expect(removeEventListener).toHaveBeenCalledWith("webglcontextrestored", expect.any(Function));
+    expect(context.context).toBeNull();
+    expect(context.contextName).toBeNull();
+    expect(context.isLost).toBe(false);
+
+    expect(context.initialize()).toEqual({ name: "webgl2" });
+    expect(listeners.size).toBe(2);
+  });
+
   it("observes size changes through fallback resize handling", () => {
     const observations: Array<{ width: number; height: number }> = [];
     let resizeListener: (() => void) | undefined;
