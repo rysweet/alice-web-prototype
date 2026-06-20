@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import type { ServerContext } from "../context.js";
-import { validateProjectPath } from "../validation.js";
+import { validateExistingProjectRealPath, validateProjectPath } from "../validation.js";
 
 export function registerLaunchRoutes(app: Express, context: ServerContext): void {
   app.post("/api/launch", async (req, res) => {
@@ -19,10 +19,26 @@ export function registerLaunchRoutes(app: Express, context: ServerContext): void
         return;
       }
 
-      resolvedProjectFile = validation.resolvedPath;
+      const realPathValidation = await validateExistingProjectRealPath(
+        validation.resolvedPath,
+        context.allowedProjectDirs,
+      );
+      if (!realPathValidation.valid) {
+        res.status(400).json({ error: realPathValidation.error });
+        return;
+      }
+
+      resolvedProjectFile = realPathValidation.resolvedPath;
     }
 
-    await context.projectService.launchProject(context.state, resolvedProjectFile);
+    const launchResult = await context.projectService.launchProject(
+      context.state,
+      resolvedProjectFile,
+    );
+    if (!launchResult.ok) {
+      res.status(400).json({ error: launchResult.error });
+      return;
+    }
 
     res.json({
       status: "launched",

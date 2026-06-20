@@ -8,10 +8,6 @@
 **Severity**: High
 **Evidence**: `docs/atlas/runtime-topology/README.md:11-19` describes the shipped runtime as a local Express API plus the browser viewer in `src/main.ts`, and `docs/atlas/api-contracts/README.md:13-21` enumerates 9 REST routes with no collaboration surface. In code, `src/server.ts:1-13,38` plus the route modules wire only launch/scene/code/save/run/screenshot/events routes, `src/cli.ts:119-125` only boots that server, and `src/main.ts:14-17,104-123,149-163` only loads an `.a3p` file into the renderer. `src/collaboration.ts` exists and is exported from `src/index.ts:29`, but it is not connected to any runtime entrypoint.
 
-## Dead exported helper candidates in smaller modules
-**Severity**: Low
-**Evidence**: `docs/atlas/ast-lsp-bindings/README.md:13-16` labels these as local dead-export candidates. Repo-local reference checks identify no in-repository consumers outside the defining files for `walkBinaryExpression` (`src/search/resolvers.ts:85-91`) or `cloneEntityBoundingBox`, `captureEntityTransform`, `ensureJointedModel`, and `describeJointedModel` (`src/story-api/entities.ts:30-33,101-112,140-145,171-175`). External package consumers cannot be ruled out from this repository alone.
-
 ## Event registration docs under-declare the request contract
 **Severity**: Medium
 **Evidence**: The atlas contract in `docs/atlas/api-contracts/README.md:20-31` matches implementation behavior, but `docs/api-reference.md:217-232` still marks `handlerName` as required and omits `target`, `useCapture`, `targetObjects`, and `threshold`. The implementation defaults `handlerName` in `src/events.ts:165-173`, validates `target` and `useCapture` in `src/events.ts:172-177`, and handles proximity-specific `targetObjects`/`threshold` in `src/events.ts:179-193`; tests in `test/events.test.ts:78-137` cover omitted `handlerName` and proximity registrations.

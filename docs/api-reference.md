@@ -86,9 +86,11 @@ Example response:
 ```
 
 Relative request paths are resolved before they are stored or returned. The
-path must be a safe `.a3p` path inside an allowed directory, but it does not
-have to exist at launch time. Existing files are parsed when present; absent
-files launch with the default in-memory scene state.
+path must be a safe, readable `.a3p` file inside an allowed directory. Requested
+project files that are missing, unreadable, corrupt, or resolve outside the
+allowed directories fail the launch instead of falling back to default state.
+Omitting `project` uses the configured `projectPath` when present; otherwise it
+launches the default in-memory scene state.
 
 Error response:
 

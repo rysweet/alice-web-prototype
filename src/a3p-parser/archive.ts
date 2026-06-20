@@ -9,22 +9,55 @@ import {
   snapshotAliceProject,
   type AliceProject,
 } from "./types.js";
+import {
+  A3PArchiveLimitError,
+  assertA3PArchiveBytes,
+  assertA3PXmlTextSize,
+  createA3PArchiveReadBudget,
+  normalizeA3PParseLimits,
+  readA3PZipEntryBytes,
+  type A3PArchiveReadBudget,
+  type A3PParseOptions,
+} from "./limits.js";
 
-export async function parseA3P(data: ArrayBuffer | Uint8Array): Promise<AliceProject> {
+export {
+  A3PArchiveLimitError,
+  DEFAULT_A3P_PARSE_LIMITS,
+  type A3PArchiveLimitKind,
+  type A3PParseLimits,
+  type A3PParseOptions,
+} from "./limits.js";
+
+export async function parseA3P(
+  data: ArrayBuffer | Uint8Array,
+  options: A3PParseOptions = {},
+): Promise<AliceProject> {
+  const limits = normalizeA3PParseLimits(options);
+  assertA3PArchiveBytes(data, limits);
+
   try {
     const zip = await JSZip.loadAsync(data);
-    return parseA3PFromZip(zip);
+    return parseA3PFromZip(zip, { limits });
   } catch (error) {
+    if (error instanceof A3PArchiveLimitError) {
+      throw error;
+    }
     throw new Error("Failed to parse .a3p archive: corrupted ZIP data", {
       cause: error instanceof Error ? error : undefined,
     });
   }
 }
 
-export async function parseA3PFromZip(zip: JSZip): Promise<AliceProject> {
+export async function parseA3PFromZip(
+  zip: JSZip,
+  options: A3PParseOptions = {},
+): Promise<AliceProject> {
+  const limits = normalizeA3PParseLimits(options);
+  const budget = createA3PArchiveReadBudget(zip, limits);
+
   await ensureNodeXml();
-  const version = await readTextFile(zip, "version.txt");
-  const xmlEntry = await readA3PXmlEntry(zip);
+  const version = await readTextFile(zip, "version.txt", budget);
+  const xmlEntry = await readA3PXmlEntryFromBudget(zip, budget);
   const doc = parseXmlString(xmlEntry.text);
   const nodeIndex = indexNodes(doc.documentElement);
 
@@ -49,13 +82,29 @@ export async function parseA3PFromZip(zip: JSZip): Promise<AliceProject> {
   return project;
 }
 
-async function readTextFile(zip: JSZip, name: string): Promise<string> {
-  const entry = zip.file(name);
-  if (!entry) return "";
-  return entry.async("string");
+async function readTextFile(
+  zip: JSZip,
+  name: string,
+  budget: A3PArchiveReadBudget,
+): Promise<string> {
+  const raw = await readA3PZipEntryBytes(zip, name, budget);
+  if (!raw) return "";
+  return new TextDecoder("utf-8").decode(raw);
 }
 
-export async function readA3PXmlEntry(zip: JSZip): Promise<{ name: string; text: string }> {
+export async function readA3PXmlEntry(
+  zip: JSZip,
+  options: A3PParseOptions = {},
+): Promise<{ name: string; text: string }> {
+  const limits = normalizeA3PParseLimits(options);
+  const budget = createA3PArchiveReadBudget(zip, limits);
+  return readA3PXmlEntryFromBudget(zip, budget);
+}
+
+async function readA3PXmlEntryFromBudget(
+  zip: JSZip,
+  budget: A3PArchiveReadBudget,
+): Promise<{ name: string; text: string }> {
   const entryName = zip.file(DEFAULT_A3P_XML_ENTRY)
     ? DEFAULT_A3P_XML_ENTRY
     : zip.file(LEGACY_A3P_XML_ENTRY)
@@ -66,8 +115,25 @@ export async function readA3PXmlEntry(zip: JSZip): Promise<{ name: string; text:
     throw new Error(`No ${DEFAULT_A3P_XML_ENTRY} or ${LEGACY_A3P_XML_ENTRY} found in .a3p archive`);
   }
 
-  const raw = await zip.file(entryName)!.async("uint8array");
-  return { name: entryName, text: decodeXmlBytes(raw) };
+  const raw = await readA3PZipEntryBytes(zip, entryName, budget, {
+    maxBytes: budget.limits.maxXmlTextBytes,
+    createMaxBytesError: createXmlTextLimitError,
+  });
+  if (!raw) {
+    throw new Error(`No ${DEFAULT_A3P_XML_ENTRY} or ${LEGACY_A3P_XML_ENTRY} found in .a3p archive`);
+  }
+
+  assertA3PXmlTextSize(entryName, raw.length, budget.limits);
+  const text = decodeXmlBytes(raw);
+  assertA3PXmlTextSize(entryName, text.length, budget.limits, "characters");
+  return { name: entryName, text };
+}
+
+function createXmlTextLimitError(path: string, size: number, maxBytes: number): A3PArchiveLimitError {
+  return new A3PArchiveLimitError(
+    "xml-text-bytes",
+    `A3P XML text size for ${path} is ${size} bytes and exceeds ${maxBytes} byte limit.`,
+  );
 }
 
 function decodeXmlBytes(raw: Uint8Array): string {

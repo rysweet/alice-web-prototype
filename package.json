@@ -12,6 +12,7 @@
     "build:server": "tsc -p tsconfig.server.json",
     "serve": "node dist-server/cli.js serve",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage --testTimeout=120000 --hookTimeout=120000",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
   },

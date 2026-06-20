@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { parseA3P } from "../src/a3p-parser";
 import { createServer } from "../src/server";
+import { createEmptyWorldProject } from "../src/project-template";
+import { writeA3P } from "../src/a3p-writer/archive";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -86,10 +88,80 @@ describe("server API response contracts", () => {
     expect(afterLaunch.body.launched).toBe(true);
   });
 
-  it("preserves launch path semantics for valid missing .a3p files", async () => {
+  it("rejects a requested missing .a3p file without launching", async () => {
     const evidenceDir = trackTempDir(makeTempDir("alice-api-contract-"));
     const projectRoot = trackTempDir(makeTempDir("alice-project-root-"));
     const requestedProject = path.join(projectRoot, "missing-project.a3p");
+    const app = createTestServer({
+      port: 0,
+      evidenceDir,
+      allowedProjectDirs: [projectRoot],
+    });
+
+    const response = await localPost(app, "/api/launch")
+      .send({ project: requestedProject })
+      .expect(400);
+
+    expectOnlyKeys(response.body, ["error"]);
+    expect(response.body.error).toContain("not found");
+    expect(fs.existsSync(requestedProject)).toBe(false);
+
+    const health = await request(app).get("/api/health").expect(200);
+    expect(health.body.launched).toBe(false);
+  });
+
+  it("rejects a requested corrupt .a3p file without launching", async () => {
+    const evidenceDir = trackTempDir(makeTempDir("alice-api-contract-"));
+    const projectRoot = trackTempDir(makeTempDir("alice-project-root-"));
+    const requestedProject = path.join(projectRoot, "corrupt-project.a3p");
+    fs.writeFileSync(requestedProject, "not a zip archive");
+    const app = createTestServer({
+      port: 0,
+      evidenceDir,
+      allowedProjectDirs: [projectRoot],
+    });
+
+    const response = await localPost(app, "/api/launch")
+      .send({ project: requestedProject })
+      .expect(400);
+
+    expectOnlyKeys(response.body, ["error"]);
+    expect(response.body.error).toContain("corrupt");
+
+    const health = await request(app).get("/api/health").expect(200);
+    expect(health.body.launched).toBe(false);
+  });
+
+  it("rejects a requested unreadable .a3p path without launching", async () => {
+    const evidenceDir = trackTempDir(makeTempDir("alice-api-contract-"));
+    const projectRoot = trackTempDir(makeTempDir("alice-project-root-"));
+    const requestedProject = path.join(projectRoot, "directory-project.a3p");
+    fs.mkdirSync(requestedProject);
+    const app = createTestServer({
+      port: 0,
+      evidenceDir,
+      allowedProjectDirs: [projectRoot],
+    });
+
+    const response = await localPost(app, "/api/launch")
+      .send({ project: requestedProject })
+      .expect(400);
+
+    expectOnlyKeys(response.body, ["error"]);
+    expect(response.body.error).toContain("could not be read");
+
+    const health = await request(app).get("/api/health").expect(200);
+    expect(health.body.launched).toBe(false);
+  });
+
+  it("launches with a requested readable .a3p file", async () => {
+    const evidenceDir = trackTempDir(makeTempDir("alice-api-contract-"));
+    const projectRoot = trackTempDir(makeTempDir("alice-project-root-"));
+    const requestedProject = path.join(projectRoot, "valid-project.a3p");
+    fs.writeFileSync(
+      requestedProject,
+      await writeA3P(createEmptyWorldProject({ projectName: "Valid Project" })),
+    );
     const app = createTestServer({
       port: 0,
       evidenceDir,
@@ -108,26 +180,13 @@ describe("server API response contracts", () => {
     ]);
     expect(response.body).toEqual({
       status: "launched",
-      project: requestedProject,
-      projectName: "Program",
+      project: fs.realpathSync(requestedProject),
+      projectName: "Valid Project",
       sceneObjectCount: 2,
     });
-    expect(fs.existsSync(requestedProject)).toBe(false);
 
-    const edit = await localPost(app, "/api/code/edit-procedure")
-      .send({
-        procedureSelector: "scene.myFirstMethod",
-        editSpec: "append-comment:missing source marker",
-      })
-      .expect(200);
-    expect(edit.body.status).toBe("proved");
-
-    const editedProjectPath = path.join(evidenceDir, "edited-project.a3p");
-    const editedProjectBytes = fs.readFileSync(editedProjectPath);
-    expect(editedProjectBytes.toString("utf-8")).not.toContain("placeholder-source-marker");
-    const editedProject = await parseA3P(editedProjectBytes);
-    expect(editedProject.projectName).toBe("Program");
-    expect(editedProject.methods.map((method) => method.name)).toContain("myFirstMethod");
+    const health = await request(app).get("/api/health").expect(200);
+    expect(health.body.launched).toBe(true);
   });
 
   it("characterizes scene, code edit, save, and run artifact contracts", async () => {

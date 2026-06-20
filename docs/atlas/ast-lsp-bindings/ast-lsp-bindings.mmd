@@ -27,10 +27,10 @@ graph LR
     tests["test/*.test.ts"]
   end
 
-  deadSummary["80 local dead-export candidates<br/>zero imports in src/ or test/"]
-  deadUi["IDE/UI examples<br/>accessibility, alice-ide-state,<br/>dialog-system, image-editor, workspace"]
-  deadScene["Scene/runtime examples<br/>scene-graph, scene-layout, scene-management,<br/>render-materials, render-picking"]
-  deadApi["API/runtime examples<br/>story-api-events, entity-lifecycle,<br/>tweedle-runtime, web-runtime"]
+  apiReviewSummary["80 public-surface review signals<br/>zero imports in src/ or test/"]
+  apiReviewUi["IDE/UI examples<br/>accessibility, alice-ide-state,<br/>dialog-system, image-editor, workspace"]
+  apiReviewScene["Scene/runtime examples<br/>scene-graph, scene-layout, scene-management,<br/>render-materials, render-picking"]
+  apiReviewRuntime["API/runtime examples<br/>story-api-events, entity-lifecycle,<br/>tweedle-runtime, web-runtime"]
 
   barrel --> a3p
   barrel --> twParser
@@ -58,7 +58,7 @@ graph LR
   story --> tests
   anim --> tests
 
-  barrel -.-> deadSummary
-  deadSummary -.-> deadUi
-  deadSummary -.-> deadScene
-  deadSummary -.-> deadApi
+  barrel -.-> apiReviewSummary
+  apiReviewSummary -.-> apiReviewUi
+  apiReviewSummary -.-> apiReviewScene
+  apiReviewSummary -.-> apiReviewRuntime

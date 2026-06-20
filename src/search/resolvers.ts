@@ -6,7 +6,6 @@ import {
   NamedUserType,
   UserField,
   UserMethod,
-  type Expression,
 } from "../ast-nodes.js";
 import type { Scope } from "./shared.js";
 import { isSupportedDeclaration } from "./shared.js";
@@ -80,12 +79,4 @@ function findTypeInHierarchy(
 ): NamedUserType | ClassDeclaration | null {
   if (type?.name === name) return type;
   return typeIndex.get(name) ?? null;
-}
-
-export function walkBinaryExpression(
-  expression: Expression & { left: Expression; right: Expression },
-  visitor: (value: Expression) => void,
-): void {
-  visitor(expression.left);
-  visitor(expression.right);
 }

@@ -1,13 +1,17 @@
 import * as fs from "fs";
 import * as path from "path";
-import { parseA3P } from "../a3p-parser.js";
+import { parseA3P, type AliceProject } from "../a3p-parser.js";
 import { writeA3P } from "../a3p-writer/archive.js";
 import { executeProject, type LogEntry } from "../tweedle-vm.js";
 import { buildCurrentProject, seedDefaultSceneObjects, type ServerState } from "./state.js";
 import type { EvidenceService } from "./evidence-service.js";
 
+export type LaunchProjectResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
 export interface ProjectService {
-  launchProject(state: ServerState, resolvedProjectFile: string | null): Promise<void>;
+  launchProject(state: ServerState, resolvedProjectFile: string | null): Promise<LaunchProjectResult>;
   editProcedure(
     state: ServerState,
     evidenceDir: string,
@@ -27,6 +31,60 @@ export interface ProjectService {
   ): Promise<Record<string, unknown>>;
 }
 
+type RequestedProjectLoadResult =
+  | { ok: true; project: AliceProject; projectName: string }
+  | { ok: false; error: string };
+
+function getErrorCode(error: unknown): string | null {
+  if (error && typeof error === "object" && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === "string") return code;
+  }
+  return null;
+}
+
+async function readRequestedProjectFile(
+  resolvedProjectFile: string,
+): Promise<{ ok: true; data: Buffer } | { ok: false; error: string }> {
+  let handle: fs.promises.FileHandle | null = null;
+  try {
+    handle = await fs.promises.open(
+      resolvedProjectFile,
+      fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+    );
+    const openedPath = await fs.promises.realpath(`/proc/self/fd/${handle.fd}`);
+    if (openedPath !== resolvedProjectFile) {
+      return { ok: false, error: `project file could not be read: ${resolvedProjectFile}` };
+    }
+    return { ok: true, data: await handle.readFile() };
+  } catch (error) {
+    if (getErrorCode(error) === "ENOENT") {
+      return { ok: false, error: `project file not found: ${resolvedProjectFile}` };
+    }
+    return { ok: false, error: `project file could not be read: ${resolvedProjectFile}` };
+  } finally {
+    await handle?.close();
+  }
+}
+
+async function loadRequestedProject(
+  resolvedProjectFile: string,
+): Promise<RequestedProjectLoadResult> {
+  const readResult = await readRequestedProjectFile(resolvedProjectFile);
+  if (!readResult.ok) return readResult;
+
+  try {
+    const project = await parseA3P(readResult.data);
+    return {
+      ok: true,
+      project,
+      projectName: project.projectName || path.basename(resolvedProjectFile, ".a3p"),
+    };
+  } catch {
+    return { ok: false, error: `project file is corrupt or unsupported: ${resolvedProjectFile}` };
+  }
+}
+
 export class ProjectRunError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
@@ -40,35 +98,24 @@ function isMissingProjectFileError(error: unknown): boolean {
 
 export const projectService: ProjectService = {
   async launchProject(state, resolvedProjectFile) {
-    state.launched = true;
-    state.projectPath = resolvedProjectFile;
+    let parsedProject: AliceProject | null = null;
+    let projectName = "Program";
 
     if (resolvedProjectFile) {
-      let data: Buffer | null = null;
-      try {
-        data = await fs.promises.readFile(resolvedProjectFile);
-      } catch (err) {
-        if (!isMissingProjectFileError(err)) {
-          state.projectName = path.basename(resolvedProjectFile, ".a3p");
-          console.error("Failed to parse .a3p on launch:", err);
-          state.parsedProject = null;
-        }
-      }
-
-      if (data) {
-        state.projectName = path.basename(resolvedProjectFile, ".a3p");
-        try {
-          state.parsedProject = await parseA3P(data);
-          state.projectName = state.parsedProject.projectName || state.projectName;
-        } catch (err) {
-          console.error("Failed to parse .a3p on launch:", err);
-          state.parsedProject = null;
-        }
-      }
+      const loadResult = await loadRequestedProject(resolvedProjectFile);
+      if (!loadResult.ok) return loadResult;
+      parsedProject = loadResult.project;
+      projectName = loadResult.projectName;
     }
+
+    state.launched = true;
+    state.projectPath = resolvedProjectFile;
+    state.projectName = projectName;
+    state.parsedProject = parsedProject;
 
     seedDefaultSceneObjects(state);
     state.eventSystem.reset();
+    return { ok: true };
   },
 
   async editProcedure(state, evidenceDir, evidenceService, input) {

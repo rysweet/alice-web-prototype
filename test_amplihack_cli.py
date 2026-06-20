@@ -70,7 +70,7 @@ class ResolveCheckoutRevisionTests(unittest.TestCase):
         self.assertEqual(commit, FULL_SHA)
 
     def test_rejects_missing_commit_id_by_default(self) -> None:
-        with patch.dict(os.environ, {amplihack_cli.UNSAFE_MUTABLE_CHECKOUT_ENV: ""}):
+        with patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(SystemExit) as caught:
                 amplihack_cli.resolve_checkout_revision(
                     "https://example.invalid/repo.git",
@@ -104,10 +104,24 @@ class ResolveCheckoutRevisionTests(unittest.TestCase):
         self.assertIn("WARNING: unsafe mutable checkout enabled", stderr.getvalue())
         self.assertIn("changed upstream code", stderr.getvalue())
 
-    def test_env_allows_mutable_revision_with_warning(self) -> None:
+    def test_canonical_env_allows_mutable_revision_with_warning(self) -> None:
         stderr = io.StringIO()
 
-        with patch.dict(os.environ, {amplihack_cli.UNSAFE_MUTABLE_CHECKOUT_ENV: "1"}):
+        with patch.dict(os.environ, {amplihack_cli.LOOKINGGLASS_ALLOW_MUTABLE_CHECKOUT_ENV: "1"}, clear=True):
+            with redirect_stderr(stderr):
+                revision, commit = amplihack_cli.resolve_checkout_revision(
+                    "https://example.invalid/repo.git",
+                    {"requested_revision": "release"},
+                )
+
+        self.assertEqual(revision, "release")
+        self.assertIsNone(commit)
+        self.assertIn("WARNING: unsafe mutable checkout enabled", stderr.getvalue())
+
+    def test_legacy_env_alias_allows_mutable_revision_with_warning(self) -> None:
+        stderr = io.StringIO()
+
+        with patch.dict(os.environ, {amplihack_cli.LEGACY_ALLOW_MUTABLE_CHECKOUT_ENV: "1"}, clear=True):
             with redirect_stderr(stderr):
                 revision, commit = amplihack_cli.resolve_checkout_revision(
                     "https://example.invalid/repo.git",

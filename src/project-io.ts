@@ -1,9 +1,11 @@
 import type JSZip from "jszip";
 import {
+  A3PArchiveLimitError,
   DEFAULT_A3P_XML_ENTRY,
   parseA3PFromZip,
   readA3PXmlEntry,
   type AliceProject,
+  type A3PParseOptions,
 } from "./a3p-parser.js";
 import { writeA3P } from "./a3p-writer.js";
 import { listSafeZipEntries, loadProjectZip, readZipText } from "./project-io/archive-zip.js";
@@ -29,6 +31,8 @@ import {
 } from "./project-io/types.js";
 import { synchronizeManifestVersion } from "./project-migration.js";
 
+export type ReadProjectOptions = A3PParseOptions;
+
 export {
   ProjectIoError,
   type AliceProjectArchive,
@@ -44,12 +48,13 @@ export { generateThumbnailFromProjectScene };
  */
 export async function readProject(
   data: ArrayBuffer | Uint8Array,
+  options: ReadProjectOptions = {},
 ): Promise<AliceProjectArchive> {
-  const zip = await loadProjectZip(data);
+  const zip = await loadProjectZip(data, options);
   const safeEntries = listSafeZipEntries(zip);
 
   const manifest = parseManifestText(await readZipText(zip, "manifest.json"));
-  const xmlEntry = await readXmlEntry(zip);
+  const xmlEntry = await readXmlEntry(zip, options);
   const versionText = await readZipText(zip, "version.txt");
   const thumbnail = await readProjectThumbnail(zip);
   const migration = migrateProjectArchiveXml(xmlEntry.text, versionText, manifest);
@@ -58,7 +63,7 @@ export async function readProject(
   zip.file(xmlEntry.name, migration.xmlText);
   zip.file("version.txt", migration.versionInfo.detectedAliceVersion);
 
-  const project = await parseProject(zip);
+  const project = await parseProject(zip, options);
   project.version = migration.versionInfo.detectedAliceVersion;
 
   const storedXmlBytes = encodeOriginalXml({
@@ -108,10 +113,16 @@ export async function writeProject(
   });
 }
 
-async function readXmlEntry(zip: JSZip): Promise<{ name: string; text: string }> {
+async function readXmlEntry(
+  zip: JSZip,
+  options: ReadProjectOptions,
+): Promise<{ name: string; text: string }> {
   try {
-    return await readA3PXmlEntry(zip);
+    return await readA3PXmlEntry(zip, options);
   } catch (error) {
+    if (error instanceof A3PArchiveLimitError) {
+      throw error;
+    }
     if (error instanceof Error && error.message.includes(DEFAULT_A3P_XML_ENTRY)) {
       throw new ProjectIoError(
         "missing-program-xml",
@@ -127,10 +138,13 @@ async function readXmlEntry(zip: JSZip): Promise<{ name: string; text: string }>
   }
 }
 
-async function parseProject(zip: JSZip): Promise<AliceProject> {
+async function parseProject(zip: JSZip, options: ReadProjectOptions): Promise<AliceProject> {
   try {
-    return await parseA3PFromZip(zip);
+    return await parseA3PFromZip(zip, options);
   } catch (error) {
+    if (error instanceof A3PArchiveLimitError) {
+      throw error;
+    }
     if (error instanceof ProjectIoError) {
       throw error;
     }
