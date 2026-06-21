@@ -165,6 +165,28 @@ function buildFactoryCases() {
     ["TypeBrowser.createDefaultClassDeclaration", () => PublicApi.TypeBrowser.createDefaultClassDeclaration("Actor")],
     ["TypeSystem.createTweedleTypeAuthority", () => PublicApi.TypeSystem.createTweedleTypeAuthority([])],
     ["Server.createServer", () => PublicApi.Server.createServer({ port: 0, evidenceDir: SERVER_EVIDENCE_DIR })],
+    ["WebXRCapabilities.createWebXREvidence", () => PublicApi.WebXRCapabilities.createWebXREvidence("webxr-unavailable", "unsupported", "WebXR unavailable")],
+    ["WebXRInput.createWebXRInputTracker", () => PublicApi.WebXRInput.createWebXRInputTracker()],
+    ["WebXRLocomotion.createWebXRLocomotion", () => PublicApi.WebXRLocomotion.createWebXRLocomotion()],
+    ["WebXRSession.createWebXRSessionController", () => PublicApi.WebXRSession.createWebXRSessionController({
+      renderer: { xr: { enabled: false, setSession: () => undefined } },
+      scene: { add: () => undefined, remove: () => undefined },
+      camera: {},
+      userRig: { add: () => undefined, remove: () => undefined },
+      orbitControls: { enabled: true },
+      navigator: {
+        xr: {
+          isSessionSupported: async () => true,
+          requestSession: async () => ({
+            inputSources: [],
+            requestReferenceSpace: async () => ({}),
+            addEventListener: () => undefined,
+            removeEventListener: () => undefined,
+            end: async () => undefined,
+          }),
+        },
+      },
+    })],
     ["ComponentAbstraction.createButton", () => PublicApi.ComponentAbstraction.createButton("b1", "OK")],
     ["ComponentAbstraction.createLabel", () => PublicApi.ComponentAbstraction.createLabel("l1", "Hello")],
     ["ComponentAbstraction.createTextField", () => PublicApi.ComponentAbstraction.createTextField("tf1")],
@@ -385,6 +407,22 @@ function assertFactoryResult(key: string, value: unknown): void {
       return;
     case "Server.createServer":
       expectKeys(value, ["get", "post", "listen"]);
+      return;
+    case "WebXRCapabilities.createWebXREvidence":
+      expect(value).toEqual({
+        code: "webxr-unavailable",
+        severity: "unsupported",
+        message: "WebXR unavailable",
+      });
+      return;
+    case "WebXRInput.createWebXRInputTracker":
+      expectKeys(value, ["handleSelectStart", "handleSelectEnd", "handleSqueezeStart", "handleSqueezeEnd", "snapshot", "clear"]);
+      return;
+    case "WebXRLocomotion.createWebXRLocomotion":
+      expectKeys(value, ["mode", "config", "update"]);
+      return;
+    case "WebXRSession.createWebXRSessionController":
+      expectKeys(value, ["state", "input", "session", "referenceSpace", "start", "end", "updateInput", "onStateChange"]);
       return;
     case "ComponentAbstraction.createButton":
     case "ComponentAbstraction.createLabel":
