@@ -423,6 +423,9 @@ function createGround(obj: AliceObject): THREE.Mesh {
   mesh.rotation.x = -Math.PI / 2;
   mesh.receiveShadow = true;
   mesh.name = obj.name;
+  mesh.userData.aliceObjectName = obj.name;
+  mesh.userData.aliceWebXRMovementSurface = true;
+  mesh.userData.aliceWebXRSurfaceName = obj.name || "ground";
   return mesh;
 }
 
@@ -439,6 +442,8 @@ function createPropPlaceholder(obj: AliceObject): THREE.Mesh {
 
   applyTransform(mesh, obj);
   mesh.name = obj.name;
+  mesh.userData.aliceObjectName = obj.name;
+  mesh.userData.aliceWebXRPickable = true;
   return mesh;
 }
 
@@ -448,6 +453,8 @@ function createGenericPlaceholder(obj: AliceObject): THREE.Mesh {
 
   applyTransform(mesh, obj);
   mesh.name = obj.name;
+  mesh.userData.aliceObjectName = obj.name;
+  mesh.userData.aliceWebXRPickable = true;
   return mesh;
 }
 

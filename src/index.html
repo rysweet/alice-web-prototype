@@ -17,6 +17,9 @@
     #sidebar h1 { font-size: 1.1rem; color: #e94560; }
     #sidebar label { font-size: 0.85rem; color: #aaa; }
     #status { font-size: 0.8rem; color: #0f3460; background: #e2e2e2; padding: 6px 8px; border-radius: 4px; }
+    #webxr-status { font-size: 0.78rem; color: #0f3460; background: #d8eef8; padding: 6px 8px; border-radius: 4px; }
+    #webxr-status button { width: 100%; margin-bottom: 6px; padding: 4px 6px; }
+    #webxr-status ul { margin-top: 4px; padding-left: 16px; }
     #object-list { list-style: none; font-size: 0.82rem; line-height: 1.6; }
     #object-list li { padding: 2px 0; border-bottom: 1px solid #1a1a3e; }
     #object-list small { color: #888; }
@@ -48,6 +51,11 @@
       <input id="file-input" type="file" accept=".a3p" />
     </label>
     <div id="status">No project loaded</div>
+    <div id="webxr-status">
+      <button type="button" data-alice-webxr-vr-button="disabled" disabled>VR unavailable</button>
+      <div data-alice-webxr-status="idle">Load an Alice scene to check VR support.</div>
+      <ul data-alice-webxr-evidence="true"></ul>
+    </div>
     <section id="camera-panel" data-testid="camera-panel" aria-label="Alice camera workflow">
       <h2>Camera</h2>
       <div id="camera-status" data-testid="camera-status">Camera ready</div>
