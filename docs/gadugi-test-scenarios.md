@@ -215,17 +215,6 @@ uses.
 | `/api/events/fire` | `POST` | 04 |
 | `/api/code/edit-procedure` | `POST` | 05 |
 | `/api/project/save` | `POST` | 05 |
-| `/api/camera/state` | `GET` | planned camera Gadugi scenario |
-| `/api/camera/move` | `POST` | planned camera Gadugi scenario |
-| `/api/camera/pan` | `POST` | planned camera Gadugi scenario |
-| `/api/camera/zoom` | `POST` | planned camera Gadugi scenario |
-| `/api/camera/focus` | `POST` | planned camera Gadugi scenario |
-| `/api/camera/orbit` | `POST` | planned camera Gadugi scenario |
-| `/api/camera/preset` | `POST` | planned camera Gadugi scenario |
-| `/api/camera/mode` | `POST` | planned camera Gadugi scenario |
-| `/api/camera/markers` | `GET`, `POST` | planned camera Gadugi scenario |
-| `/api/camera/markers/:id/restore` | `POST` | planned camera Gadugi scenario |
-| `/api/camera/markers/:id` | `DELETE` | planned camera Gadugi scenario |
 
 `GET /api/projects/current/export/typescript` is covered by
 `gadugi/06-typescript-source-export.yaml`.
@@ -234,6 +223,9 @@ The web-package feature contract adds outside-in coverage for
 `/api/project/export/web-package`, `/api/project/share`, and
 `/api/project/validate-web-package` when the matching scenario file lands with
 the route implementation.
+
+Dedicated Gadugi scenarios for camera workflow routes and audio workflow routes
+must be added before this coverage table claims those endpoints.
 
 ## Scenario details
 

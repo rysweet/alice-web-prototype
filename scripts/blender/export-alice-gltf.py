@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LookingGlass — Blender glTF Export Pipeline
+Alice web — Blender glTF Export Pipeline
 
 Exports Blender models to glTF/GLB format with Alice-compatible joint naming.
 Run from command line:

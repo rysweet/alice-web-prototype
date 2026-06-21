@@ -517,8 +517,8 @@ describe("project-io", () => {
       zip.file("programType.xml", SYNTHETIC_XML);
 
       // Create a compressible entry that decompresses to a known size
-      // We can't easily create a 256MB+ entry in a unit test, so this is a
-      // Regression check that the function accepts normal-sized archives
+      // We can't easily create a 256MB+ entry in a unit test, so this checks
+      // that the function accepts normal-sized archives.
       const normalData = new Uint8Array(1024);
       zip.file("resources/normal.bin", normalData);
       const data = await zip.generateAsync({ type: "uint8array" });

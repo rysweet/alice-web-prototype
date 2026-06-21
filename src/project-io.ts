@@ -22,6 +22,13 @@ import {
   selectOriginalXmlForWrite,
 } from "./project-io/xml-pass-through.js";
 import {
+  AUDIO_MANIFEST_KEY,
+  ProjectAudioError,
+  applyProjectAudioWorkflowManifest,
+  serializeProjectAudioWorkflowManifest,
+  type ProjectAudioWorkflowState,
+} from "./project-audio.js";
+import {
   ORIGINAL_XML_RESOURCE_PATH,
   ProjectIoError,
   type AliceProjectArchive,
@@ -77,6 +84,7 @@ export async function readProject(
   for (const record of resourceRecords) {
     resources.set(record.path, record.bytes);
   }
+  const aliceAudio = readAliceAudioState(nextManifest, resources);
 
   return {
     project,
@@ -89,6 +97,7 @@ export async function readProject(
     })),
     thumbnail,
     versionInfo: migration.versionInfo,
+    ...(aliceAudio ? { aliceAudio } : {}),
   };
 }
 
@@ -102,15 +111,42 @@ export async function writeProject(
 ): Promise<Uint8Array> {
   const originalXml = selectOriginalXmlForWrite(archive.resources);
   const thumbnail = await resolveThumbnailForWrite(archive, options);
+  const manifest = archive.aliceAudio
+    ? {
+      ...(archive.manifest ?? {}),
+      [AUDIO_MANIFEST_KEY]: serializeProjectAudioWorkflowManifest(archive.aliceAudio),
+    }
+    : archive.manifest;
 
   return writeA3P(archive.project, {
     xmlEntryName: originalXml?.entryName ?? DEFAULT_A3P_XML_ENTRY,
     baseXmlText: originalXml?.xmlText ?? null,
-    manifest: archive.manifest,
+    manifest,
     thumbnail,
     resources: archive.resources,
     preserveSourceEntries: false,
   });
+}
+
+function readAliceAudioState(
+  manifest: Record<string, unknown> | null,
+  resources: Map<string, Uint8Array>,
+): ProjectAudioWorkflowState | null {
+  const audioManifest = manifest?.[AUDIO_MANIFEST_KEY];
+  if (!audioManifest || typeof audioManifest !== "object" || Array.isArray(audioManifest)) {
+    return null;
+  }
+  if (!("schemaVersion" in audioManifest)) {
+    return null;
+  }
+  try {
+    return applyProjectAudioWorkflowManifest(audioManifest, resources);
+  } catch (error) {
+    if (error instanceof ProjectAudioError && error.message.includes("missing audio resource bytes")) {
+      throw new ProjectIoError("missing-audio-resource", error.message, error);
+    }
+    throw new ProjectIoError("invalid-manifest", "Invalid aliceAudio manifest.", error);
+  }
 }
 
 async function readXmlEntry(

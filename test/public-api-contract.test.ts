@@ -113,6 +113,17 @@ function buildFactoryCases() {
     ["ModelTextureCameraJointExportWorkflow.createWorkflowState", () => PublicApi.ModelTextureCameraJointExportWorkflow.createWorkflowState({ project: contractProject })],
     ["NetworkLayer.createHttpServiceAdapter", () => PublicApi.NetworkLayer.createHttpServiceAdapter({ serviceName: "contract-api" })],
     ["PrintSystem.createPrintableDocument", () => PublicApi.PrintSystem.createPrintableDocument(parsedScript)],
+    ["ProjectAudio.createEmptyProjectAudioState", () => PublicApi.ProjectAudio.createEmptyProjectAudioState()],
+    ["ProjectAudio.createDefaultProjectAudioState", () => PublicApi.ProjectAudio.createDefaultProjectAudioState()],
+    ["ProjectAudio.createProjectAudioPlaybackBridge", () => PublicApi.ProjectAudio.createProjectAudioPlaybackBridge(
+      PublicApi.ProjectAudio.createEmptyProjectAudioState(),
+      {
+        createOutput: () => ({
+          play: () => undefined,
+          stop: () => undefined,
+        }),
+      },
+    )],
     ["ProjectTemplate.createEmptyWorldProject", () => PublicApi.ProjectTemplate.createEmptyWorldProject({ projectName: "FactoryWorld" })],
     ["ProjectTemplate.createProjectFromTemplate", () => contractArchive],
     ["RenderAnimation.createAnimationTransform", () => PublicApi.RenderAnimation.createAnimationTransform()],
@@ -275,6 +286,38 @@ function assertFactoryResult(key: string, value: unknown): void {
       return;
     case "PrintSystem.createPrintableDocument":
       expectKeys(value, ["title", "text", "html", "standalonePage"]);
+      return;
+    case "ProjectAudio.createEmptyProjectAudioState":
+      expect(value).toEqual({
+        assets: [],
+        backgroundMusic: null,
+        cues: [],
+        nextAssetNumber: 1,
+      });
+      return;
+    case "ProjectAudio.createDefaultProjectAudioState":
+      expect(value).toEqual({
+        manifestVersion: "alice-web.audio-manifest/v1",
+        resources: [],
+        background: {
+          resourceId: null,
+          enabled: false,
+          loop: false,
+          volume: 1,
+          pan: 0,
+        },
+        cues: [],
+        activeCueIds: [],
+      });
+      return;
+    case "ProjectAudio.createProjectAudioPlaybackBridge":
+      expectKeys(value, [
+        "startBackgroundMusic",
+        "updateAnimationPlayback",
+        "resetAnimationPlayback",
+        "stopAll",
+        "getTriggeredCueIds",
+      ]);
       return;
     case "ProjectTemplate.createEmptyWorldProject":
       expectKeys(value, ["projectName", "sceneObjects", "methods", "types"]);

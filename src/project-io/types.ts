@@ -1,9 +1,11 @@
 import type { AliceProject } from "../a3p-parser.js";
+import type { ProjectAudioWorkflowState } from "../project-audio.js";
 import type { ProjectResourceKind, ProjectVersionInfo } from "../project-migration.js";
 
 export type ProjectIoErrorCode =
   | "corrupted-archive"
   | "invalid-manifest"
+  | "missing-audio-resource"
   | "missing-program-xml"
   | "unsafe-path"
   | "xml-parse"
@@ -52,6 +54,7 @@ export interface AliceProjectArchive {
   resourceEntries: ProjectResourceDescriptor[];
   thumbnail: Uint8Array | null;
   versionInfo: ProjectVersionInfo;
+  aliceAudio?: ProjectAudioWorkflowState;
 }
 
 export interface WriteProjectOptions {

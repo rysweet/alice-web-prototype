@@ -92,6 +92,8 @@ Serializes an `AliceProjectArchive` to `.a3p` ZIP bytes.
 3. Preserves the XML entry name stored by `readProject()`.
 4. Writes `version.txt` from `archive.project.version`.
 5. Writes `manifest.json` when `archive.manifest` is not `null`.
+   Manifest fields, including `aliceAudio` when present, are serialized as
+   provided by the caller.
 6. Writes `thumbnail.png` when `archive.thumbnail` exists, or when thumbnail
    generation is enabled and a scene thumbnail can be rendered.
 7. Writes non-special entries from `archive.resources`.
@@ -149,7 +151,7 @@ interface AliceProjectArchive {
 | Field | Meaning |
 | --- | --- |
 | `project` | Parsed Alice project model |
-| `manifest` | Parsed root `manifest.json`, or `null` when absent |
+| `manifest` | Parsed root `manifest.json`, or `null` when absent; Alice project audio metadata lives under `manifest.aliceAudio` |
 | `resources` | Archive resources keyed by archive-relative path, plus the internal non-ZIP `__original_xml__` marker when XML pass-through is available |
 | `resourceEntries` | Resource descriptors for extracted non-special resources |
 | `thumbnail` | Raw `thumbnail.png` bytes, or `null` when absent |
@@ -250,6 +252,11 @@ try {
 Special ZIP entries are not exposed as `resourceEntries`. Project resources
 exclude `programType.xml`, `program.xml`, `manifest.json`, `version.txt`, and
 `thumbnail.png`.
+
+Audio files are normal project resources, usually under `resources/audio/...`.
+If `archive.manifest.aliceAudio` exists, Project IO round-trips it as manifest
+data. The audio workflow layer validates resource references and owns
+audio-specific state changes.
 
 `__original_xml__` is not a ZIP entry. It is an internal `archive.resources`
 marker used to carry migrated XML text and the original XML entry name between

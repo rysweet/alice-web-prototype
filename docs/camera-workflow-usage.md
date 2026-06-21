@@ -194,7 +194,7 @@ value without retaining mutable references to marker snapshots.
 ## Browser test scenarios
 
 Browser-level tests should use stable labels and status text instead of pixel
-assertions. A complete camera workflow scenario covers:
+assertions. A complete browser workflow test covers:
 
 1. Open Alice and verify the Camera panel is visible.
 2. Move the camera forward and assert the position/status changes.

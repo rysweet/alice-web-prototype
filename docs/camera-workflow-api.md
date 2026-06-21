@@ -122,7 +122,7 @@ The workflow rejects invalid input before changing state.
 
 Routes return `400` with a structured JSON error when validation fails.
 
-The planned workflow clamps `pitchDegrees` to `-89` through `89` degrees to
+The workflow clamps `pitchDegrees` to `-89` through `89` degrees to
 avoid inverted views. Orbit and orbit zoom keep the distance from `position` to
 `target` at or above `0.1` Alice scene units.
 
@@ -484,7 +484,7 @@ import {
 } from "alice-web";
 ```
 
-### Planned signatures
+### TypeScript signatures
 
 ```typescript
 declare const CAMERA_WORKFLOW_SCHEMA_VERSION = "eatme.alice-camera-workflow-state/v1";

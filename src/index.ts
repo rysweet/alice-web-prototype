@@ -20,6 +20,7 @@ export * as AstEditor from "./ast-editor";
 export * as AstEditingOperations from "./ast-editing-operations";
 export * as BlockEditor from "./block-editor";
 export * as Audio from "./audio";
+export * as ProjectAudio from "./project-audio";
 export * as Multimedia from "./multimedia";
 export * as CascadeMenus from "./cascade-menus";
 export * as Clipboard from "./clipboard";

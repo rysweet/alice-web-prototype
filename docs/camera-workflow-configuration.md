@@ -177,10 +177,9 @@ Camera panel. They do not assert WebGL pixels.
 
 ## Module boundary
 
-The workflow implementation belongs in a planned `camera-workflow.ts` module.
-That module owns serializable camera state, validation, movement math, presets,
-marker IDs, marker snapshots, first-person mode semantics, and REST response
-contracts.
+The workflow implementation belongs in `camera-workflow.ts`. That module owns
+serializable camera state, validation, movement math, presets, marker IDs,
+marker snapshots, first-person mode semantics, and REST response contracts.
 
 The existing `camera-system.ts` module remains the story camera abstraction for
 `SCamera`, point of view capture, interpolation, projection mode, and

@@ -9,7 +9,7 @@ This layer maps the running browser app, the Node/Express API process, and the b
 ## Server shape
 
 - `src/cli.ts` is the process entry for the local server CLI. A checkout runs it through `npm run serve --`; the installed binary is `alice-web serve`. It binds the API to `127.0.0.1:3000` by default and passes `evidenceDir`, `project`, and `apiToken` options into `createServer()`.
-- `src/server.ts` exposes REST endpoints for launch, health, scene mutation, code edit, save, web package export, share metadata, package validation, run, screenshot, event register, and event fire.
+- `src/server.ts` exposes REST endpoints for launch, health, scene mutation, code edit, save, audio workflow state, web package export, share metadata, package validation, run, screenshot, event register, and event fire.
 - The server collaborates with `a3p-parser.ts`, `scene-renderer.ts`, `tweedle-vm.ts`, `events.ts`, and `evidence-writer.ts` plus filesystem-backed `.a3p`, JSON, and PNG artifacts.
 
 ## Client shape

@@ -201,6 +201,67 @@ export function saveProjectResultJson(
   });
 }
 
+// ── Audio Workflow Proof ───────────────────────────────────────────────
+
+export interface AudioWorkflowEvidence {
+  supportedFormats: readonly string[];
+  assetCount: number;
+  assetNames: readonly string[];
+  backgroundMusicConfigured: boolean;
+  cueCount: number;
+  cueIds: readonly string[];
+  savedProjectArtifact?: string;
+  reloaded: boolean;
+  playback?: AudioWorkflowPlaybackEvidence;
+}
+
+export interface AudioWorkflowPlaybackEvidence {
+  backgroundMusicStarted: boolean;
+  triggeredCueIds: readonly string[];
+  synchronizedAnimationIds: readonly string[];
+}
+
+const AUDIO_WORKFLOW_ARTIFACT = "audio-workflow.json";
+const AUDIO_WORKFLOW_SCHEMA = "alice.audio-workflow/v1";
+
+export function writeAudioWorkflowEvidence(
+  evidenceDir: string,
+  evidence: AudioWorkflowEvidence,
+): string {
+  validateEvidenceDir(evidenceDir);
+  const content = JSON.stringify(
+    {
+      schema_version: AUDIO_WORKFLOW_SCHEMA,
+      timestamp: Date.now(),
+      source: "alice-web",
+      status: "proved",
+      supported_formats: evidence.supportedFormats,
+      asset_count: evidence.assetCount,
+      asset_names: evidence.assetNames,
+      background_music_configured: evidence.backgroundMusicConfigured,
+      cue_count: evidence.cueCount,
+      cue_ids: evidence.cueIds,
+      saved_project_artifact: evidence.savedProjectArtifact ?? null,
+      reloaded: evidence.reloaded,
+      playback: evidence.playback ? {
+        background_music_started: evidence.playback.backgroundMusicStarted,
+        triggered_cue_ids: evidence.playback.triggeredCueIds,
+        synchronized_animation_ids: evidence.playback.synchronizedAnimationIds,
+      } : null,
+      doesNotClaim: [
+        "audible speaker output in the test environment",
+        "native desktop audio stack coverage",
+        "visible rendering correctness",
+      ],
+    },
+    null,
+    2,
+  ) + "\n";
+  const artifact = path.join(evidenceDir, AUDIO_WORKFLOW_ARTIFACT);
+  writeAtomically(artifact, content);
+  return artifact;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────
 
 function validateEvidenceDir(dir: string): void {
@@ -310,4 +371,5 @@ export const ARTIFACT_NAMES = {
   saveResult: SAVE_RESULT_ARTIFACT,
   eventRegister: EVENT_REGISTER_ARTIFACT,
   eventFire: EVENT_FIRE_ARTIFACT,
+  audioWorkflow: AUDIO_WORKFLOW_ARTIFACT,
 } as const;

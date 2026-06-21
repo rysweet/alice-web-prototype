@@ -21,13 +21,17 @@ send `Content-Type: application/json`. When using the CLI server, set
 `ALICE_LOCAL_API_TOKEN` before startup, pass it with `--api-token`, and send the
 same value as `X-Alice-Local-Api-Token`.
 
+Read-only `GET /api/audio/formats` does not require launch or the local API
+token. `GET /api/audio/state` uses the same local API token as the camera state
+routes when the server is started with `--api-token`.
+
 ## Endpoint summary
 
 Rows under `/api/camera/*` are implemented camera workflow routes. See
 [Camera workflow endpoints](#camera-workflow-endpoints) for the shared REST and
 TypeScript contract. Rows labeled web-package feature contract define the
-implemented export/share routes; the other rows describe the current REST API
-surface.
+implemented export/share routes. `/api/audio/*` exposes the audio workflow; see
+[Audio workflow endpoints](#audio-workflow-endpoints).
 
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
@@ -47,6 +51,12 @@ surface.
 | `/api/project/export/web-package` | `POST` | Web-package feature contract: export the active project as a runnable `alice-web` ZIP package |
 | `/api/project/share` | `POST` | Web-package feature contract: generate share artifacts linked to a validated exported package |
 | `/api/project/validate-web-package` | `POST` | Web-package feature contract: validate an exported `alice-web` ZIP package |
+| `/api/audio/formats` | `GET` | List supported project audio file extensions |
+| `/api/audio/state` | `GET` | Return the active project's audio assets, background music, and cues |
+| `/api/audio/assets` | `POST` | Register a base64-encoded audio asset |
+| `/api/audio/background` | `POST` | Select a registered asset as background music |
+| `/api/audio/cues` | `POST` | Add an animation-timed audio cue |
+| `/api/audio/evidence` | `POST` | Write audio workflow proof evidence |
 | `/api/world/run` | `POST` | Run the cached project through the Tweedle VM |
 | `/api/screenshot` | `POST` | Render the current scene to a PNG file |
 | `/api/camera/state` | `GET` | Read the active camera workflow state |
@@ -796,6 +806,244 @@ Error response when nothing has been launched yet:
 See [TypeScript source export](./typescript-source-export.md) for the
 archive layout, generated source conventions, and implementation contract.
 
+## `GET /api/audio/formats`
+
+List audio file extensions accepted by Alice project audio workflows.
+
+```bash
+curl http://127.0.0.1:3000/api/audio/formats
+```
+
+Example response:
+
+```json
+{
+  "formats": [".mp3", ".wav", ".ogg", ".m4a"]
+}
+```
+
+Extensions are matched case-insensitively during asset registration and stored
+as lowercase formats in project metadata.
+
+## `GET /api/audio/state`
+
+Return the active project's audio state.
+
+```bash
+curl http://127.0.0.1:3000/api/audio/state
+```
+
+Example response:
+
+```json
+{
+  "supportedFormats": [".mp3", ".wav", ".ogg", ".m4a"],
+  "assets": [
+    {
+      "id": "audio-1",
+      "name": "intro.wav",
+      "format": "wav",
+      "resourcePath": "resources/audio/audio-1.wav",
+      "sizeBytes": 16044,
+      "durationSeconds": 1
+    }
+  ],
+  "backgroundMusic": {
+    "assetId": "audio-1",
+    "volume": 0.75,
+    "loop": true
+  },
+  "cues": [
+    {
+      "id": "intro-cue",
+      "assetId": "audio-1",
+      "animationId": "scene.myFirstMethod.spin",
+      "timelineTimeSeconds": 1.25,
+      "volume": 0.5
+    }
+  ]
+}
+```
+
+When no audio has been configured, `assets` and `cues` are empty arrays and
+`backgroundMusic` is `null`.
+
+This route is readable before launch and returns the empty default audio state.
+
+## `POST /api/audio/assets`
+
+Register a base64-encoded audio asset in the launched project.
+
+```bash
+export AUDIO_BASE64="$(node -e 'process.stdout.write(require("fs").readFileSync("tmp/audio/intro.wav").toString("base64"))')"
+
+curl -X POST http://127.0.0.1:3000/api/audio/assets \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"fileName\":\"intro.wav\",\"dataBase64\":\"$AUDIO_BASE64\",\"durationSeconds\":1}"
+```
+
+Request body:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `fileName` | `string` | yes | Original file name; extension must be `.mp3`, `.wav`, `.ogg`, or `.m4a` |
+| `dataBase64` | `string` | yes | Base64-encoded audio bytes, up to `1048576` characters |
+| `durationSeconds` | `number` | no | Non-negative duration when known |
+
+Example response:
+
+```json
+{
+  "status": "registered",
+  "asset": {
+    "id": "audio-1",
+    "name": "intro.wav",
+    "format": "wav",
+    "resourcePath": "resources/audio/audio-1.wav",
+    "sizeBytes": 16044,
+    "durationSeconds": 1
+  }
+}
+```
+
+The route stores bytes in the active project resource map at
+`resources/audio/<asset-id>.<format>`. The asset is persisted when
+`POST /api/project/save` writes the project archive.
+
+Error response for unsupported audio:
+
+```json
+{
+  "error": "unsupported audio format: flac. Supported formats: .mp3, .wav, .ogg, .m4a"
+}
+```
+
+## `POST /api/audio/background`
+
+Configure a registered asset as project background music.
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/audio/background \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"assetId":"audio-1","volume":0.75,"loop":true}'
+```
+
+Request body:
+
+| Field | Type | Required | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `assetId` | `string` | yes | none | Existing audio asset id |
+| `volume` | `number` | no | `1` | Playback volume from `0` to `1` |
+| `loop` | `boolean` | no | `true` | Stored intent for whether background music repeats |
+
+Example response:
+
+```json
+{
+  "status": "configured",
+  "backgroundMusic": {
+    "assetId": "audio-1",
+    "volume": 0.75,
+    "loop": true
+  }
+}
+```
+
+## `POST /api/audio/cues`
+
+Add an audio cue synchronized to an animation timeline.
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/audio/cues \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"id":"intro-cue","assetId":"audio-1","animationId":"scene.myFirstMethod.spin","timelineTimeSeconds":1.25,"volume":0.5}'
+```
+
+Request body:
+
+| Field | Type | Required | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | `string` | yes | none | Unique cue id |
+| `assetId` | `string` | yes | none | Existing audio asset id |
+| `animationId` | `string` | yes | none | Animation or procedure timeline id |
+| `timelineTimeSeconds` | `number` | yes | none | Non-negative cue trigger time from the start of the animation |
+| `volume` | `number` | no | `1` | Cue playback volume from `0` to `1` |
+
+Example response:
+
+```json
+{
+  "status": "configured",
+  "cue": {
+    "id": "intro-cue",
+    "assetId": "audio-1",
+    "animationId": "scene.myFirstMethod.spin",
+    "timelineTimeSeconds": 1.25,
+    "volume": 0.5
+  }
+}
+```
+
+The route stores cue intent. The runtime playback bridge must trigger the cue
+once when the named animation timeline reaches or crosses the configured time.
+
+## `POST /api/audio/evidence`
+
+Write the audio workflow proof artifact.
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/audio/evidence \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"savedProjectArtifact":"saved-project.a3p","reloaded":true}'
+```
+
+Request body:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `savedProjectArtifact` | `string` | no | Saved project artifact name to record in evidence |
+| `reloaded` | `boolean` | no | Whether the proof was collected after reloading a saved project |
+
+Example response:
+
+```json
+{
+  "schema_version": "alice.audio-workflow-result/v1",
+  "status": "proved",
+  "evidenceArtifact": "evidence/audio-workflow.json"
+}
+```
+
+Evidence artifact shape:
+
+```json
+{
+  "schema_version": "alice.audio-workflow/v1",
+  "timestamp": 1710000000000,
+  "source": "alice-web",
+  "status": "proved",
+  "supported_formats": [".mp3", ".wav", ".ogg", ".m4a"],
+  "asset_count": 1,
+  "asset_names": ["intro.wav"],
+  "background_music_configured": true,
+  "cue_count": 1,
+  "cue_ids": ["intro-cue"],
+  "saved_project_artifact": "saved-project.a3p",
+  "reloaded": true,
+  "doesNotClaim": [
+    "audible speaker output in the test environment",
+    "native desktop audio stack coverage",
+    "visible rendering correctness"
+  ]
+}
+```
+
+`timestamp` is a dynamic runtime value.
+
 ## `POST /api/world/run`
 
 Run the current project through the Tweedle VM.
@@ -857,6 +1105,78 @@ Example response:
 
 If rendering fails, the server writes a placeholder PNG and returns a JSON
 response that explains that fallback.
+
+## Audio workflow endpoints
+
+The audio workflow endpoints manage Alice project audio resources, background
+audio, cue definitions, and cue activity. `GET /api/audio/state` and all
+mutating `/api/audio/*` routes require `X-Alice-Local-Api-Token` when the server
+is started with `--api-token`.
+
+Endpoint summary:
+
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/audio/state` | `GET` | Read current project audio state |
+| `/api/audio/resources` | `POST` | Add or replace an audio resource |
+| `/api/audio/background` | `POST` | Configure background audio |
+| `/api/audio/cues` | `POST` | Add or replace an audio cue |
+| `/api/audio/cues/:id/play` | `POST` | Mark an audio cue as playing |
+| `/api/audio/cues/:id/stop` | `POST` | Mark an audio cue as stopped |
+| `/api/audio/cues/:id` | `DELETE` | Remove an audio cue |
+
+Request to read audio state:
+
+```bash
+curl http://127.0.0.1:3000/api/audio/state \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN"
+```
+
+Request to set background audio:
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/audio/background \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"resourceId":"theme","enabled":true,"loop":true,"volume":0.35,"pan":0}'
+```
+
+Response shape:
+
+```json
+{
+  "schema_version": "eatme.alice-audio-workflow-state/v1",
+  "status": "ok",
+  "operation": "set-background",
+  "audio": {
+    "manifestVersion": "alice-web.audio-manifest/v1",
+    "resources": [
+      {
+        "id": "theme",
+        "name": "theme.wav",
+        "path": "resources/audio/theme.wav",
+        "format": "wav",
+        "sizeBytes": 44,
+        "duration": 0,
+        "decodeStatus": "decode-unavailable"
+      }
+    ],
+    "background": {
+      "resourceId": "theme",
+      "enabled": true,
+      "loop": true,
+      "volume": 0.35,
+      "pan": 0
+    },
+    "cues": [],
+    "activeCueIds": []
+  }
+}
+```
+
+See [Audio](./audio.md) for the full state schema, resource upload request,
+background and cue request bodies, TypeScript exports, evidence artifacts, and
+validation rules.
 
 ## Camera workflow endpoints
 

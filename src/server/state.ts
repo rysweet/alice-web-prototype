@@ -7,6 +7,12 @@ import {
   type CameraWorkflowState,
 } from "../camera-workflow.js";
 import type { AliceProjectArchive } from "../project-io.js";
+import {
+  createDefaultProjectAudioState,
+  createEmptyProjectAudioState,
+  type ProjectAudioState,
+  type ProjectAudioWorkflowState,
+} from "../project-audio.js";
 
 export interface Position {
   x: number;
@@ -36,6 +42,8 @@ export interface ServerState {
   cameraWorkflow: CameraWorkflowState;
   projectArchive: AliceProjectArchive | null;
   resources: Map<string, Uint8Array>;
+  projectAudio: ProjectAudioState;
+  aliceAudio: ProjectAudioWorkflowState;
   eventSystem: EventSystem;
   templateLibrary: TemplateLibrary;
   jointState: JointStateStore;
@@ -56,6 +64,8 @@ export function createInitialServerState(): ServerState {
     cameraWorkflow: createDefaultCameraWorkflowState(),
     projectArchive: null,
     resources: new Map(),
+    projectAudio: createEmptyProjectAudioState(),
+    aliceAudio: createDefaultProjectAudioState(),
     eventSystem: new EventSystem({
       hasObject: (name) => sceneObjects.has(name),
       getObjectPosition: (name) => sceneObjects.get(name)?.position ?? null,

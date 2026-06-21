@@ -3,6 +3,8 @@ import { parseA3P } from "../src/a3p-parser";
 import { createServer } from "../src/server";
 import { createEmptyWorldProject } from "../src/project-template";
 import { writeA3P } from "../src/a3p-writer/archive";
+import { readProject } from "../src/project-io";
+import { AUDIO_MANIFEST_KEY } from "../src/project-audio";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -33,6 +35,12 @@ function createTestServer(options: Parameters<typeof createServer>[0]) {
 function localPost(app: ReturnType<typeof createServer>, apiPath: string) {
   return request(app)
     .post(apiPath)
+    .set(LOCAL_API_TOKEN_HEADER, TEST_LOCAL_API_TOKEN);
+}
+
+function localGet(app: ReturnType<typeof createServer>, apiPath: string) {
+  return request(app)
+    .get(apiPath)
     .set(LOCAL_API_TOKEN_HEADER, TEST_LOCAL_API_TOKEN);
 }
 
@@ -210,6 +218,7 @@ describe("server API response contracts", () => {
       className: "org.lgna.story.SBiped",
       sceneFieldCountAfter: 3,
     });
+
     expect(scene.body.evidenceArtifact).toBe(path.join(evidenceDir, "scene-object-added.json"));
     const sceneArtifact = readJson(scene.body.evidenceArtifact);
     expectOnlyKeys(sceneArtifact, [
@@ -318,6 +327,159 @@ describe("server API response contracts", () => {
       status: "completed",
       scene_object_count: 3,
     });
+  });
+
+  it("proves Alice audio asset, background music, cue, save, reload, and evidence workflow", async () => {
+    const evidenceDir = trackTempDir(makeTempDir("alice-api-contract-"));
+    const app = createTestServer({
+      port: 0,
+      evidenceDir,
+      allowedProjectDirs: [evidenceDir],
+    });
+    await localPost(app, "/api/launch").send({}).expect(200);
+
+    const formats = await request(app).get("/api/audio/formats").expect(200);
+    expect(formats.body).toEqual({ formats: [".mp3", ".wav", ".ogg", ".m4a"] });
+
+    await localPost(app, "/api/audio/assets")
+      .send({
+        fileName: "theme.flac",
+        dataBase64: Buffer.from([1, 2, 3]).toString("base64"),
+      })
+      .expect(400);
+
+    const themeBytes = Buffer.alloc(2048, 7);
+    const assetResponse = await localPost(app, "/api/audio/assets")
+      .send({
+        fileName: "theme.mp3",
+        dataBase64: themeBytes.toString("base64"),
+        durationSeconds: 12.5,
+      })
+      .expect(200);
+    expectOnlyKeys(assetResponse.body, ["status", "asset"]);
+    expect(assetResponse.body.status).toBe("registered");
+    expect(assetResponse.body.asset).toMatchObject({
+      id: "audio-1",
+      name: "theme.mp3",
+      format: "mp3",
+      resourcePath: "resources/audio/audio-1.mp3",
+      sizeBytes: themeBytes.length,
+      durationSeconds: 12.5,
+    });
+
+    const background = await localPost(app, "/api/audio/background")
+      .send({
+        assetId: "audio-1",
+        volume: 0.75,
+        loop: true,
+      })
+      .expect(200);
+    expect(background.body).toEqual({
+      status: "configured",
+      backgroundMusic: {
+        assetId: "audio-1",
+        volume: 0.75,
+        loop: true,
+      },
+    });
+
+    const cue = await localPost(app, "/api/audio/cues")
+      .send({
+        id: "intro-cue",
+        assetId: "audio-1",
+        animationId: "scene.myFirstMethod.spin",
+        timelineTimeSeconds: 1.25,
+        volume: 0.5,
+      })
+      .expect(200);
+    expect(cue.body).toEqual({
+      status: "configured",
+      cue: {
+        id: "intro-cue",
+        assetId: "audio-1",
+        animationId: "scene.myFirstMethod.spin",
+        timelineTimeSeconds: 1.25,
+        volume: 0.5,
+      },
+    });
+
+    const save = await localPost(app, "/api/project/save")
+      .send({ saveSelector: "audio.workflow" })
+      .expect(200);
+    const savedProjectPath = path.join(evidenceDir, "project-save", "saved-project.a3p");
+    const archive = await readProject(fs.readFileSync(savedProjectPath));
+    expect(archive.resources.get("resources/audio/audio-1.mp3")).toEqual(new Uint8Array(themeBytes));
+    expect(archive.manifest?.[AUDIO_MANIFEST_KEY]).toMatchObject({
+      version: 1,
+      assets: [
+        {
+          id: "audio-1",
+          name: "theme.mp3",
+          format: "mp3",
+          resourcePath: "resources/audio/audio-1.mp3",
+          sizeBytes: themeBytes.length,
+          durationSeconds: 12.5,
+        },
+      ],
+      backgroundMusic: {
+        assetId: "audio-1",
+        volume: 0.75,
+        loop: true,
+      },
+      cues: [
+        {
+          id: "intro-cue",
+          assetId: "audio-1",
+          animationId: "scene.myFirstMethod.spin",
+          timelineTimeSeconds: 1.25,
+          volume: 0.5,
+        },
+      ],
+    });
+
+    const reloadApp = createTestServer({
+      port: 0,
+      evidenceDir,
+      allowedProjectDirs: [path.dirname(savedProjectPath)],
+    });
+    await localPost(reloadApp, "/api/launch")
+      .send({ project: savedProjectPath })
+      .expect(200);
+    const reloadedState = await localGet(reloadApp, "/api/audio/state").expect(200);
+    expect(reloadedState.body).toMatchObject({
+      supportedFormats: [".mp3", ".wav", ".ogg", ".m4a"],
+      assets: [assetResponse.body.asset],
+      backgroundMusic: background.body.backgroundMusic,
+      cues: [cue.body.cue],
+    });
+
+    const evidence = await localPost(reloadApp, "/api/audio/evidence")
+      .send({
+        savedProjectArtifact: save.body.saved_project_artifact,
+        reloaded: true,
+      })
+      .expect(200);
+    expect(evidence.body).toMatchObject({
+      schema_version: "alice.audio-workflow-result/v1",
+      status: "proved",
+      evidenceArtifact: path.join(evidenceDir, "audio-workflow.json"),
+    });
+    const audioEvidence = readJson(evidence.body.evidenceArtifact);
+    expect(audioEvidence).toMatchObject({
+      schema_version: "alice.audio-workflow/v1",
+      source: "alice-web",
+      status: "proved",
+      supported_formats: [".mp3", ".wav", ".ogg", ".m4a"],
+      asset_count: 1,
+      asset_names: ["theme.mp3"],
+      background_music_configured: true,
+      cue_count: 1,
+      cue_ids: ["intro-cue"],
+      saved_project_artifact: "saved-project.a3p",
+      reloaded: true,
+    });
+    expect(JSON.stringify(audioEvidence)).not.toContain("LookingGlass");
+    expect(JSON.stringify(audioEvidence)).not.toContain("lookingglass");
   });
 
   it("characterizes error response contracts without mutating launch state", async () => {
