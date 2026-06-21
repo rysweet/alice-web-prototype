@@ -2,6 +2,11 @@
 
 Use this guide for common `.a3p` project IO tasks.
 
+For runnable browser exports, use the project export API. Project IO owns `.a3p`
+archive read/write; project export owns `alice-web` ZIP packages, standalone
+player HTML, share metadata, preview images, validation evidence, and package
+hashing.
+
 ## Read a project in the browser
 
 ```typescript
@@ -202,4 +207,107 @@ this precedence: `aliceVersion`, `projectVersion`, version-like `version`, then
 `createdWith.version`. If a higher-priority field is updated, lower-priority
 version fields are left unchanged.
 
-Last updated for the refactored Project IO facade and internal module split.
+## Export, play, share, and validate a web package
+
+Use the REST API when a project needs to become a runnable browser package. This
+flow starts with the active server project and ends with a ZIP that can be
+extracted and opened locally.
+
+Start the server:
+
+```bash
+npm run build:server
+export ALICE_LOCAL_API_TOKEN="$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64url"))')"
+npm run serve -- --port 3000 --evidence-dir ./evidence --api-token "$ALICE_LOCAL_API_TOKEN"
+```
+
+Create an Alice project:
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/project/new \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"templateId":"snow","projectName":"WinterStory"}'
+```
+
+The web-package feature contract exports the runnable package:
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/project/export/web-package \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Winter Story","description":"A snow scene with a bunny."}' \
+  > export.json
+```
+
+Write and open the ZIP:
+
+```bash
+node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync("export.json", "utf8")); fs.writeFileSync(d.package.filename, Buffer.from(d.package.base64, "base64"));'
+PACKAGE_FILE="$(node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync("export.json", "utf8")); process.stdout.write(d.package.filename);')"
+PACKAGE_DIR="${PACKAGE_FILE%.zip}"
+rm -rf "$PACKAGE_DIR"
+unzip "$PACKAGE_FILE" -d "$PACKAGE_DIR"
+xdg-open "$PACKAGE_DIR/index.html"
+```
+
+The extracted package has this structure:
+
+```text
+WinterStory.alice-web/
+|-- index.html
+|-- manifest.json
+|-- share.json
+|-- preview.png
+|-- project/
+|   `-- project.json
+`-- validation.json
+```
+
+`index.html` is self-contained. It exposes `window.AlicePlayer`, embeds project
+data safely, includes player controls, and uses public runtime identity
+`alice-web-player`.
+
+Generate share metadata from the exported package:
+
+```bash
+node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync("export.json", "utf8")); fs.writeFileSync("share-request.json", JSON.stringify({ packageBase64: d.package.base64, title: "Winter Story" })); fs.writeFileSync("validate-request.json", JSON.stringify({ packageBase64: d.package.base64 }));'
+
+curl -X POST http://127.0.0.1:3000/api/project/share \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data @share-request.json \
+  > share.json
+```
+
+Validate the package:
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/project/validate-web-package \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data @validate-request.json
+```
+
+Successful validation reports:
+
+```json
+{
+  "schema_version": "alice-web.validate-web-package-result/v1",
+  "status": "valid",
+  "valid": true,
+  "runtime": "alice-web",
+  "manifest": {
+    "schemaVersion": "alice-web.package/v1",
+    "runtimeIdentity": "alice-web-player",
+    "entrypoint": "index.html"
+  },
+  "errors": []
+}
+```
+
+Use the package SHA-256 digest from the export or validation response as the
+integrity value when storing or publishing the ZIP.
+
+Last updated for the refactored Project IO facade, internal module split, and
+runnable `alice-web` export/share workflow.

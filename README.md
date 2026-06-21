@@ -166,7 +166,7 @@ standard library, and debugger.
 | `a3p-parser` / `a3p-writer` | Read/write Alice .a3p project files |
 | `project-system` | Create, save, restore, diff, auto-save projects |
 | `project-templates` | Blank, Snow, SeaFloor, Moon, custom templates |
-| `project-export` | Export to .a3p, standalone HTML, video |
+| `project-export` | Export `.a3p` projects, runnable `alice-web` packages, standalone player HTML, share metadata, preview images, and validation evidence |
 | `project-runner` | Load and run Alice projects end-to-end |
 | `persistence` | Save/load state |
 | `collaboration` | Real-time collaborative editing |
@@ -182,10 +182,56 @@ standard library, and debugger.
 | `documentation-generator` | Generate API docs from type system |
 | `resource-system` | Model, audio, image resource loading and caching |
 
+## Web player export, playback, and sharing feature contract
+
+The web-package feature exports a complete `alice-web` ZIP package that can be
+downloaded, shared, validated, and opened locally without patching. The package
+contains the self-contained player document, Alice project payload, manifest,
+share metadata, preview image, and validation evidence.
+
+```text
+WinterStory.alice-web.zip
+|-- index.html
+|-- manifest.json
+|-- share.json
+|-- preview.png
+|-- project/
+|   `-- project.json
+`-- validation.json
+```
+
+Open `index.html` from the extracted ZIP to play the project. The document
+exposes `window.AlicePlayer`, embeds the project data safely, uses the public
+runtime identity `alice-web-player`, and does not require repository files or
+manual edits.
+
+Use the REST API to generate and validate shareable artifacts:
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/project/export/web-package \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Winter Story","description":"A snow scene with a bunny."}'
+```
+
+The export response includes a base64 ZIP, filename, byte size, SHA-256 digest,
+manifest summary, preview reference, and validation evidence. Send the returned
+`package.base64` value as request field `packageBase64` to `/api/project/share`
+to produce the share contract, and to `/api/project/validate-web-package` to
+verify package safety and identity.
+
+API response envelopes use snake_case `schema_version`. JSON files inside the
+exported ZIP use camelCase `schemaVersion`.
+
+See [API reference](./docs/api-reference.md) for request and response schemas and
+[Project IO usage guide](./docs/project-io-usage.md) for an end-to-end export,
+playback, share, and validate example.
+
 ## REST API
 
 The server exposes endpoints used by the [eatme](https://github.com/rysweet/eatme)
-test suite for automated end-to-end testing. See the
+test suite for automated end-to-end testing, including the implemented
+web-package export/share/validation routes. See the
 [API reference](./docs/api-reference.md) for request and response details.
 
 The Alice identity boundary is documented in
@@ -206,6 +252,9 @@ LookingGlass repository nickname is appropriate.
 | `/api/code/create-function` | POST | Create a function |
 | `/api/world/run` | POST | Run the world |
 | `/api/project/save` | POST | Save the project |
+| `/api/project/export/web-package` | POST | Web-package feature contract: export a runnable `alice-web` ZIP package |
+| `/api/project/share` | POST | Web-package feature contract: generate share metadata and package linkage from an exported ZIP |
+| `/api/project/validate-web-package` | POST | Web-package feature contract: validate a runnable `alice-web` ZIP package |
 | `/api/screenshot` | POST | Capture current render |
 | `/api/events/register` | POST | Register event handler |
 | `/api/events/fire` | POST | Fire an event |

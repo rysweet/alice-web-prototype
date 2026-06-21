@@ -5,6 +5,7 @@ import {
   DEFAULT_PREVIEW_VIEWPORT,
   DEFAULT_STANDALONE_VIEWPORT,
   type HtmlExportDocument,
+  type HtmlExportMetadata,
   type HtmlExportOptions,
 } from "./types.js";
 
@@ -20,10 +21,30 @@ export function createHtmlExportDocument(
   const viewport = normalizeViewport(options.viewport, previewMode ? DEFAULT_PREVIEW_VIEWPORT : DEFAULT_STANDALONE_VIEWPORT);
   const title = options.title?.trim() || `${project.projectName || "Alice Project"} — Alice HTML Export`;
   const tweedleSource = options.tweedleSource?.trim() || buildEmbeddedTweedleSource(project);
+  const packageName = options.packageName?.trim() || "alice-web";
+  const runtimeIdentity = options.runtimeIdentity?.trim() || "alice-web-player";
+  const metadata = normalizeMetadata(options.metadata);
   return {
+    schemaVersion: "alice-web.player-document/v1",
     title,
     previewMode,
     tweedleSource,
-    html: createHtmlMarkup(project, title, previewMode, viewport, tweedleSource),
+    packageName,
+    runtimeIdentity,
+    entrypoint: "index.html",
+    metadata,
+    html: createHtmlMarkup(project, title, previewMode, viewport, tweedleSource, {
+      packageName,
+      runtimeIdentity,
+      metadata,
+    }),
+  };
+}
+
+function normalizeMetadata(metadata: HtmlExportOptions["metadata"] = {}): HtmlExportMetadata {
+  return {
+    ...(metadata.description?.trim() ? { description: metadata.description.trim() } : {}),
+    ...(metadata.canonicalUrl?.trim() ? { canonicalUrl: metadata.canonicalUrl.trim() } : {}),
+    ...(metadata.preview?.trim() ? { preview: metadata.preview.trim() } : {}),
   };
 }

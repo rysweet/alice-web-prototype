@@ -90,3 +90,32 @@ The `runtime` value is the Alice web runtime identity.
 | Start browser dev server | `npm run dev` |
 | Start API server | `npm run serve -- --api-token "$ALICE_LOCAL_API_TOKEN"` |
 | Start API server on eatme's default port | `npm run serve -- --port 3099 --evidence-dir ./evidence --api-token "$ALICE_LOCAL_API_TOKEN"` |
+
+## Export a runnable web package feature contract
+
+The web-package feature flow starts after the REST API server has an active
+project. It exports that project as a shareable `alice-web` ZIP:
+
+```bash
+curl -X POST http://127.0.0.1:3099/api/project/export/web-package \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Winter Story"}' \
+  > export.json
+```
+
+Write and open the package:
+
+```bash
+node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync("export.json", "utf8")); fs.writeFileSync(d.package.filename, Buffer.from(d.package.base64, "base64"));'
+PACKAGE_FILE="$(node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync("export.json", "utf8")); process.stdout.write(d.package.filename);')"
+PACKAGE_DIR="${PACKAGE_FILE%.zip}"
+rm -rf "$PACKAGE_DIR"
+unzip "$PACKAGE_FILE" -d "$PACKAGE_DIR"
+xdg-open "$PACKAGE_DIR/index.html"
+```
+
+The extracted `index.html` is the Alice web player. It is self-contained,
+exposes `window.AlicePlayer`, and uses runtime identity `alice-web-player`.
+
+See [Project IO usage guide](./project-io-usage.md#export-play-share-and-validate-a-web-package) for the full export, share, and validation flow.

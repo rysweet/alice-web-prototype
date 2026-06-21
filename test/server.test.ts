@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { createHash } from "node:crypto";
+import JSZip from "jszip";
 import { parseA3P } from "../src/a3p-parser";
 import { createServer } from "../src/server";
 import * as fs from "fs";
@@ -23,6 +25,14 @@ function localPost(app: Express, apiPath: string) {
   return request(app)
     .post(apiPath)
     .set(LOCAL_API_TOKEN_HEADER, TEST_LOCAL_API_TOKEN);
+}
+
+function decodeBase64Package(base64: string): Buffer {
+  return Buffer.from(base64, "base64");
+}
+
+function sha256Base64(base64: string): string {
+  return createHash("sha256").update(decodeBase64Package(base64)).digest("hex");
 }
 
 describe("server API", () => {
@@ -402,6 +412,162 @@ describe("server API", () => {
       await localPost(app, "/api/project/save")
         .send({ targetPath: EXCESSIVE_ROUTE_STRING })
         .expect(400);
+    });
+  });
+
+  describe("web package export/share/validate API parity", () => {
+    it("exports, validates, and shares one runnable alice-web package with linked artifacts", async () => {
+      await localPost(app, "/api/project/new")
+        .send({ templateId: "blank", projectName: "WinterStory" })
+        .expect(200);
+
+      const exportRes = await localPost(app, "/api/project/export/web-package")
+        .send({
+          title: "Winter Story",
+          description: "A snow scene with a bunny.",
+          canonicalUrl: "https://example.edu/alice/winter-story",
+        })
+        .expect(200);
+
+      expect(exportRes.body).toMatchObject({
+        schema_version: "alice-web.export-web-package-result/v1",
+        status: "exported",
+        runtime: "alice-web",
+        package: {
+          mimeType: "application/zip",
+        },
+        manifest: {
+          schemaVersion: "alice-web.package/v1",
+          product: "Alice",
+          packageName: "alice-web",
+          runtimeIdentity: "alice-web-player",
+          entrypoint: "index.html",
+        },
+        artifacts: {
+          entrypoint: "index.html",
+          manifest: "manifest.json",
+          share: "share.json",
+          preview: "preview.png",
+          project: "project/project.json",
+          validation: "validation.json",
+        },
+        validation: {
+          valid: true,
+          errors: [],
+        },
+      });
+      expect(exportRes.body.package.filename).toMatch(/\.alice-web\.zip$/);
+      expect(exportRes.body.package.base64).toEqual(expect.any(String));
+      expect(exportRes.body.package.sizeBytes).toBeGreaterThan(0);
+      expect(exportRes.body.package.sha256).toBe(sha256Base64(exportRes.body.package.base64));
+
+      const zip = await JSZip.loadAsync(decodeBase64Package(exportRes.body.package.base64));
+      expect(Object.keys(zip.files)).toEqual(expect.arrayContaining([
+        "index.html",
+        "manifest.json",
+        "share.json",
+        "preview.png",
+        "project/project.json",
+        "validation.json",
+      ]));
+      const html = await zip.file("index.html")?.async("string");
+      expect(html).toContain("window.AlicePlayer");
+      expect(html).toContain("alice-web-player");
+      expect(html).not.toMatch(/LookingGlass|lookingglass|alice-standalone-player/);
+
+      const validationRes = await localPost(app, "/api/project/validate-web-package")
+        .send({ packageBase64: exportRes.body.package.base64 })
+        .expect(200);
+      expect(validationRes.body).toMatchObject({
+        schema_version: "alice-web.validate-web-package-result/v1",
+        status: "valid",
+        valid: true,
+        runtime: "alice-web",
+        package: {
+          filename: exportRes.body.package.filename,
+          mimeType: "application/zip",
+          sizeBytes: exportRes.body.package.sizeBytes,
+          sha256: exportRes.body.package.sha256,
+        },
+        manifest: {
+          schemaVersion: "alice-web.package/v1",
+          runtimeIdentity: "alice-web-player",
+          entrypoint: "index.html",
+        },
+        errors: [],
+      });
+      expect(validationRes.body.evidence).toEqual(expect.arrayContaining([
+        "base64-decodes",
+        "zip-readable",
+        "required-files-present",
+        "safe-zip-paths",
+        "alice-web-identity",
+        "entrypoint-playable",
+      ]));
+
+      const shareRes = await localPost(app, "/api/project/share")
+        .send({
+          packageBase64: exportRes.body.package.base64,
+          title: "Shared Winter Story",
+          description: "Shared package description.",
+          canonicalUrl: "https://example.edu/alice/shared-winter-story",
+        })
+        .expect(200);
+      expect(shareRes.body).toMatchObject({
+        schema_version: "alice-web.share-artifacts-result/v1",
+        status: "shared",
+        runtime: "alice-web",
+        share: {
+          schemaVersion: "alice-web.share/v1",
+          product: "Alice",
+          runtimeIdentity: "alice-web-player",
+          title: "Shared Winter Story",
+          description: "Shared package description.",
+          canonicalUrl: "https://example.edu/alice/shared-winter-story",
+          package: {
+            filename: exportRes.body.package.filename,
+            mimeType: "application/zip",
+            sizeBytes: exportRes.body.package.sizeBytes,
+            sha256: exportRes.body.package.sha256,
+          },
+          links: {
+            html: "index.html",
+            package: exportRes.body.package.filename,
+            preview: "preview.png",
+          },
+        },
+        artifacts: {
+          share: "share.json",
+          preview: "preview.png",
+          entrypoint: "index.html",
+          package: exportRes.body.package.filename,
+        },
+        validation: {
+          valid: true,
+          errors: [],
+        },
+      });
+    });
+
+    it("returns explicit API errors for malformed web-package requests", async () => {
+      await localPost(app, "/api/project/export/web-package")
+        .send({ canonicalUrl: "javascript:alert(1)" })
+        .expect(400);
+
+      const invalidValidation = await localPost(app, "/api/project/validate-web-package")
+        .send({ packageBase64: "not base64!!" })
+        .expect(400);
+      expect(invalidValidation.body).toMatchObject({
+        schema_version: "alice-web.validate-web-package-result/v1",
+        status: "invalid",
+        valid: false,
+        errors: [expect.objectContaining({ code: "invalid-base64" })],
+      });
+
+      const missingPackage = await localPost(app, "/api/project/share")
+        .send({ title: "Missing package" })
+        .expect(400);
+      expect(missingPackage.body.error).toMatch(/packageBase64/i);
     });
   });
 

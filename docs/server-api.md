@@ -17,6 +17,7 @@ Contract source: server API tests, `EATME.md`, and observed HTTP behavior.
 - [Server state model](#server-state-model)
 - [Route responsibility map](#route-responsibility-map)
 - [Tutorial: create and run a project](#tutorial-create-and-run-a-project)
+- [Tutorial: export, play, share, and validate a web package](#tutorial-export-play-share-and-validate-a-web-package)
 
 ## Quick start
 
@@ -145,7 +146,8 @@ The public API contract is defined by the existing tests, `EATME.md`, and observ
 See [API reference](./api-reference.md) and
 [Alice identity boundary](./alice-identity-boundary.md) for endpoint-by-endpoint
 request, response, API header, and runtime identity details. The table includes
-implemented routes, including `/api/camera/*`:
+implemented routes, including `/api/camera/*` and the web-package
+export/share/validation routes:
 
 | Method | Route | Success response | Main side effect |
 | --- | --- | --- | --- |
@@ -158,6 +160,9 @@ implemented routes, including `/api/camera/*`:
 | `POST` | `/api/code/create-function` | function creation summary | adds a function to current state |
 | `POST` | `/api/code/edit-procedure` | `eatme.alice-first-lesson-code-editor-action-proof-result/v1` | writes edit proof and `edited-project.a3p` |
 | `POST` | `/api/project/save` | `eatme.alice-project-save-result/v1` | writes save proof and `project-save/saved-project.a3p` |
+| `POST` | `/api/project/export/web-package` | `alice-web.export-web-package-result/v1` | web-package feature contract: returns a runnable `alice-web` ZIP package |
+| `POST` | `/api/project/share` | `alice-web.share-artifacts-result/v1` | web-package feature contract: returns share metadata linked to a validated package |
+| `POST` | `/api/project/validate-web-package` | `alice-web.validate-web-package-result/v1` | web-package feature contract: validates package safety, playability, and identity |
 | `POST` | `/api/world/run` | `eatme.alice-run-world-result/v1` | writes `run-world-result.json` |
 | `POST` | `/api/screenshot` | screenshot capture summary | writes `screenshot.png` |
 | `GET` | `/api/camera/state` | `eatme.alice-camera-workflow-state/v1` | reads camera workflow state |
@@ -218,6 +223,8 @@ Evidence output is rooted at `--evidence-dir`. The server writes these stable ar
 | Register event | `event-register.json` |
 | Fire event | `event-fire.json` |
 | Create project from template | `project-new/<SanitizedProjectName>.a3p` |
+| Export web package feature contract | `<ProjectName>.alice-web.zip` with `index.html`, `manifest.json`, `share.json`, `preview.png`, `project/project.json`, and `validation.json` |
+| Share package feature contract | `share.json`, preview reference, playable HTML reference, package filename, package byte size, and package SHA-256 digest |
 
 JSON artifacts are written with stable schema versions consumed by `eatme`. Dynamic values such as timestamps, file sizes, paths, run durations, process IDs, and uptime should be treated as runtime values.
 
@@ -347,6 +354,7 @@ project state, resets camera workflow state, and marks the server launched.
 | State | `src/server/state.ts` | Create and mutate per-server project state |
 | Validation | `src/server/validation.ts` | Validate project paths and sanitize generated filenames |
 | Project orchestration | `src/server/project-service.ts` | Launch, edit, save, and run projects |
+| Export orchestration | `src/project-export.ts` | Build runnable `alice-web` packages, share metadata, previews, validation evidence, and package hashes |
 | Evidence orchestration | `src/server/evidence-service.ts` | Coordinate proof artifact and project artifact writing |
 | Screenshot orchestration | `src/server/screenshot-service.ts` | Render screenshots and provide placeholder fallback |
 | Templates | `src/server/template-service.ts` | List registered templates and create new `.a3p` projects |
@@ -429,3 +437,57 @@ curl -X POST http://127.0.0.1:3000/api/screenshot \
 ```
 
 After the workflow, `./evidence` contains the proof JSON, project archives, and screenshot files used by `eatme` and outside-in tests.
+
+## Tutorial: export, play, share, and validate a web package feature contract
+
+Start the API server and create or launch a project as shown above. The
+web-package feature contract exports the active project as a runnable web
+package:
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/project/export/web-package \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Winter Story","description":"A snow scene with a bunny."}' \
+  > export.json
+```
+
+Save and open the ZIP returned by the API:
+
+```bash
+node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync("export.json", "utf8")); fs.writeFileSync(d.package.filename, Buffer.from(d.package.base64, "base64"));'
+PACKAGE_FILE="$(node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync("export.json", "utf8")); process.stdout.write(d.package.filename);')"
+PACKAGE_DIR="${PACKAGE_FILE%.zip}"
+rm -rf "$PACKAGE_DIR"
+unzip "$PACKAGE_FILE" -d "$PACKAGE_DIR"
+xdg-open "$PACKAGE_DIR/index.html"
+```
+
+The extracted `index.html` is the playable Alice web player. It exposes
+`window.AlicePlayer`, uses runtime identity `alice-web-player`, and loads the
+embedded project payload without repository files.
+
+Generate share metadata from the same package:
+
+```bash
+node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync("export.json", "utf8")); fs.writeFileSync("share-request.json", JSON.stringify({ packageBase64: d.package.base64, title: "Winter Story" })); fs.writeFileSync("validate-request.json", JSON.stringify({ packageBase64: d.package.base64 }));'
+
+curl -X POST http://127.0.0.1:3000/api/project/share \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data @share-request.json \
+  > share.json
+```
+
+Validate the package before publishing or attaching it to a share page:
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/project/validate-web-package \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data @validate-request.json
+```
+
+The validation response must report `valid: true`, schema
+`alice-web.validate-web-package-result/v1`, runtime `alice-web`, and package
+manifest runtime identity `alice-web-player`.
