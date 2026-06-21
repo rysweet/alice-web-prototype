@@ -17,6 +17,7 @@ Contract source: server API tests, `EATME.md`, and observed HTTP behavior.
 - [Server state model](#server-state-model)
 - [Route responsibility map](#route-responsibility-map)
 - [Tutorial: create and run a project](#tutorial-create-and-run-a-project)
+- [Tutorial: export, play, share, and validate a web package](#tutorial-export-play-share-and-validate-a-web-package)
 
 ## Quick start
 
@@ -145,10 +146,10 @@ The public API contract is defined by the existing tests, `EATME.md`, and observ
 See [API reference](./api-reference.md) and
 [Alice identity boundary](./alice-identity-boundary.md) for endpoint-by-endpoint
 request, response, API header, and runtime identity details. The table includes
-implemented routes, including `/api/camera/*`. Imported model and texture asset
-routes are a target feature contract documented in
-[Imported model and texture assets](./imported-models-and-textures.md), not part
-of this implemented route table until their route implementation lands:
+implemented routes, including `/api/camera/*` and the web-package
+export/share/validation routes. It also includes imported model and texture
+asset routes documented in
+[Imported model and texture assets](./imported-models-and-textures.md):
 
 | Method | Route | Success response | Main side effect |
 | --- | --- | --- | --- |
@@ -161,6 +162,12 @@ of this implemented route table until their route implementation lands:
 | `POST` | `/api/code/create-function` | function creation summary | adds a function to current state |
 | `POST` | `/api/code/edit-procedure` | `eatme.alice-first-lesson-code-editor-action-proof-result/v1` | writes edit proof and `edited-project.a3p` |
 | `POST` | `/api/project/save` | `eatme.alice-project-save-result/v1` | writes save proof and `project-save/saved-project.a3p` |
+| `POST` | `/api/project/export/web-package` | `alice-web.export-web-package-result/v1` | web-package feature contract: returns a runnable `alice-web` ZIP package |
+| `POST` | `/api/project/share` | `alice-web.share-artifacts-result/v1` | web-package feature contract: returns share metadata linked to a validated package |
+| `POST` | `/api/project/validate-web-package` | `alice-web.validate-web-package-result/v1` | web-package feature contract: validates package safety, playability, and identity |
+| `POST` | `/api/assets/import-model` | imported model descriptor | stores model bytes in the active project resource map |
+| `POST` | `/api/assets/import-texture` | imported texture descriptor | stores texture bytes in the active project resource map |
+| `POST` | `/api/scene/apply-texture` | applied material bindings | updates a scene object's surface texture binding |
 | `POST` | `/api/world/run` | `eatme.alice-run-world-result/v1` | writes `run-world-result.json` |
 | `POST` | `/api/screenshot` | screenshot capture summary | writes `screenshot.png` |
 | `GET` | `/api/camera/state` | `eatme.alice-camera-workflow-state/v1` | reads camera workflow state |
@@ -221,6 +228,8 @@ Evidence output is rooted at `--evidence-dir`. The server writes these stable ar
 | Register event | `event-register.json` |
 | Fire event | `event-fire.json` |
 | Create project from template | `project-new/<SanitizedProjectName>.a3p` |
+| Export web package feature contract | `<ProjectName>.alice-web.zip` with `index.html`, `manifest.json`, `share.json`, `preview.png`, `project/project.json`, and `validation.json` |
+| Share package feature contract | `share.json`, preview reference, playable HTML reference, package filename, package byte size, and package SHA-256 digest |
 
 JSON artifacts are written with stable schema versions consumed by `eatme`. Dynamic values such as timestamps, file sizes, paths, run durations, process IDs, and uptime should be treated as runtime values.
 
@@ -330,6 +339,7 @@ The active state tracks:
 - scene objects and positions
 - procedure/function names and statements
 - the parsed `.a3p` project, when available
+- imported project resource bytes used by model and texture imports
 - event registrations
 - the template library used by project creation
 - the active camera workflow state and in-memory camera markers
@@ -339,11 +349,10 @@ project has no loaded scene objects and resets camera workflow state to the
 default Alice home view. Creating a project from a template replaces the active
 project state, resets camera workflow state, and marks the server launched.
 
-The imported asset feature will extend this state with imported model and
-texture descriptors, scene object model resource IDs, surface material bindings,
-and one active archive resource map for parsed and imported bytes. The target
-design uses the same resource map seeded from `readProject()` and passed to
-`writeProject()` so imported bytes cannot drift from loaded archive resources.
+Imported model and texture descriptors live in the parsed project. Imported
+bytes live in one active archive resource map seeded from `readProject()` and
+passed to `writeProject()` so imported bytes cannot drift from loaded archive
+resources.
 
 ## Route responsibility map
 
@@ -356,6 +365,7 @@ design uses the same resource map seeded from `readProject()` and passed to
 | State | `src/server/state.ts` | Create and mutate per-server project state |
 | Validation | `src/server/validation.ts` | Validate project paths and sanitize generated filenames |
 | Project orchestration | `src/server/project-service.ts` | Launch, edit, save, and run projects |
+| Export orchestration | `src/project-export.ts` | Build runnable `alice-web` packages, share metadata, previews, validation evidence, and package hashes |
 | Evidence orchestration | `src/server/evidence-service.ts` | Coordinate proof artifact and project artifact writing |
 | Screenshot orchestration | `src/server/screenshot-service.ts` | Render screenshots and provide placeholder fallback |
 | Templates | `src/server/template-service.ts` | List registered templates and create new `.a3p` projects |
@@ -363,10 +373,10 @@ design uses the same resource map seeded from `readProject()` and passed to
 | Camera routes | `src/server/routes/camera-routes.ts` | HTTP translation and route-level token guard for `/api/camera/*` |
 | Routes | `src/server/routes/*.ts` | Translate HTTP requests and responses to service calls |
 
-The imported asset feature will add `src/server/routes/asset-routes.ts` for
-model and texture uploads. Those target routes use the same per-server state and
-Alice API identity as the rest of the local API, with a 25 MiB JSON body limit
-because base64 model and texture uploads can exceed the general API route limit.
+`src/server/routes/asset-routes.ts` handles model and texture uploads. These
+routes use the same per-server state and Alice API identity as the rest of the
+local API, with a larger JSON parser limit because base64 model and texture
+uploads can exceed the general API route size.
 
 Route handlers stay thin: they read request data, call the relevant state or service helper, choose the HTTP status code, and return JSON.
 
@@ -406,10 +416,9 @@ curl -X POST http://127.0.0.1:3000/api/scene/add-object \
   -d '{"className":"org.lgna.story.SBiped","name":"bunny"}'
 ```
 
-The imported asset workflow will extend this tutorial with texture import and
-surface binding steps. See
+For texture import and surface binding steps, see
 [Import a model and apply a custom texture](./tutorial-import-model-and-apply-texture.md)
-for the target workflow.
+for the browser and REST workflow.
 
 Append an edit proof to `scene.myFirstMethod`:
 
@@ -448,3 +457,57 @@ curl -X POST http://127.0.0.1:3000/api/screenshot \
 ```
 
 After the workflow, `./evidence` contains the proof JSON, project archives, and screenshot files used by `eatme` and outside-in tests.
+
+## Tutorial: export, play, share, and validate a web package feature contract
+
+Start the API server and create or launch a project as shown above. The
+web-package feature contract exports the active project as a runnable web
+package:
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/project/export/web-package \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Winter Story","description":"A snow scene with a bunny."}' \
+  > export.json
+```
+
+Save and open the ZIP returned by the API:
+
+```bash
+node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync("export.json", "utf8")); fs.writeFileSync(d.package.filename, Buffer.from(d.package.base64, "base64"));'
+PACKAGE_FILE="$(node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync("export.json", "utf8")); process.stdout.write(d.package.filename);')"
+PACKAGE_DIR="${PACKAGE_FILE%.zip}"
+rm -rf "$PACKAGE_DIR"
+unzip "$PACKAGE_FILE" -d "$PACKAGE_DIR"
+xdg-open "$PACKAGE_DIR/index.html"
+```
+
+The extracted `index.html` is the playable Alice web player. It exposes
+`window.AlicePlayer`, uses runtime identity `alice-web-player`, and loads the
+embedded project payload without repository files.
+
+Generate share metadata from the same package:
+
+```bash
+node -e 'const fs=require("fs"); const d=JSON.parse(fs.readFileSync("export.json", "utf8")); fs.writeFileSync("share-request.json", JSON.stringify({ packageBase64: d.package.base64, title: "Winter Story" })); fs.writeFileSync("validate-request.json", JSON.stringify({ packageBase64: d.package.base64 }));'
+
+curl -X POST http://127.0.0.1:3000/api/project/share \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data @share-request.json \
+  > share.json
+```
+
+Validate the package before publishing or attaching it to a share page:
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/project/validate-web-package \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data @validate-request.json
+```
+
+The validation response must report `valid: true`, schema
+`alice-web.validate-web-package-result/v1`, runtime `alice-web`, and package
+manifest runtime identity `alice-web-player`.

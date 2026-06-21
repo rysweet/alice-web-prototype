@@ -1,14 +1,11 @@
 # Imported model and texture assets
 
-This is the target contract for the imported model and texture asset feature.
-The feature will let Alice import project-owned glTF/GLB models and image
-textures, bind imported textures to scene object surfaces, and preserve the
-assets in `.a3p` archives.
+Alice can import project-owned glTF/GLB models and image textures, bind
+imported textures to scene object surfaces, and preserve the assets in `.a3p`
+archives.
 
-Use this reference while building and validating browser workflows, local API
-clients, Project IO tools, or tests that need the asset, archive, UI, or REST
-contract. Do not treat the REST routes or UI selectors here as available until
-the corresponding feature implementation is present in the worktree.
+Use this reference for browser workflows, local API clients, Project IO tools,
+and tests that need the asset, archive, UI, or REST contract.
 
 ## Contents
 
@@ -29,14 +26,14 @@ the corresponding feature implementation is present in the worktree.
 | Model | `.glb`, `.gltf` | `model/gltf-binary`, `model/gltf+json` | `.glb` is preferred for self-contained binary models. `.gltf` must be self-contained or reference resources already available in the project archive. |
 | Texture | `.png`, `.jpg`, `.jpeg`, `.webp` | `image/png`, `image/jpeg`, `image/webp` | Textures bind to the scene object's `surface` material target. |
 
-The target local REST import routes accept JSON base64 payloads up to 25 MiB.
-Project IO archive limits still apply after decoding and during save/load.
+The local REST import routes accept JSON base64 payloads and enforce a 25 MiB
+decoded asset limit. Project IO archive limits still apply during save/load.
 
 Unsupported extensions must be rejected before project state changes.
 
 ## Browser workflow
 
-The target Alice browser workflow is:
+The Alice browser workflow is:
 
 1. Open or create a project.
 2. Import a model with the model import control.
@@ -46,7 +43,7 @@ The target Alice browser workflow is:
 6. Save the project as an `.a3p` archive.
 7. Reopen the archive and continue editing with the imported assets intact.
 
-Target stable selectors for browser tests:
+Stable selectors for browser tests:
 
 | Selector | Purpose |
 | --- | --- |
@@ -63,7 +60,7 @@ prefixed with `alice-`.
 
 ## Resource identity
 
-Imported assets will have separate project IDs and archive paths.
+Imported assets have separate project IDs and archive paths.
 
 | Identifier | Example | Purpose |
 | --- | --- | --- |
@@ -94,8 +91,7 @@ Examples:
 
 ## Project state
 
-The feature extends `AliceProject` to store imported asset descriptors
-separately from binary bytes:
+`AliceProject` stores imported asset descriptors separately from binary bytes:
 
 ```typescript
 interface AliceProject {
@@ -120,8 +116,7 @@ interface ImportedProjectAsset {
 `importedAssets` must default to an empty array when absent, so older projects
 still load.
 
-Scene objects will reference imported models and textures by project resource
-ID:
+Scene objects reference imported models and textures by project resource ID:
 
 ```typescript
 interface AliceObject {
@@ -143,14 +138,14 @@ selected object. Unsupported material targets return a validation error.
 
 ## Archive and XML persistence
 
-Project IO will store imported bytes in the archive resource map:
+Project IO stores imported bytes in the archive resource map:
 
 ```typescript
 archive.resources.set("resources/models/moon-rover.glb", modelBytes);
 archive.resources.set("resources/textures/checker.png", textureBytes);
 ```
 
-`programType.xml` will store imported asset metadata and scene bindings:
+`programType.xml` stores imported asset metadata and scene bindings:
 
 ```xml
 <alice-project version="0.0.1" projectName="AssetWorkflow">
@@ -161,27 +156,27 @@ archive.resources.set("resources/textures/checker.png", textureBytes);
                   modelResourceId="project/models/moon-rover.glb"/>
     <scene-object name="box" typeName="SBox" resourceType="">
       <material-bindings>
-        <binding target="surface"
-                 textureResourceId="project/textures/checker.png"/>
+        <material-binding target="surface"
+                          textureResourceId="project/textures/checker.png"/>
       </material-bindings>
     </scene-object>
   </scene-objects>
   <methods/>
   <imported-assets>
-    <asset id="project/models/moon-rover.glb"
-           kind="model"
-           name="Moon Rover"
-           fileName="moon-rover.glb"
-           resourcePath="resources/models/moon-rover.glb"
-           contentType="model/gltf-binary"
-           byteLength="18422"/>
-    <asset id="project/textures/checker.png"
-           kind="texture"
-           name="Checker"
-           fileName="checker.png"
-           resourcePath="resources/textures/checker.png"
-           contentType="image/png"
-           byteLength="4281"/>
+    <imported-asset id="project/models/moon-rover.glb"
+                    kind="model"
+                    name="Moon Rover"
+                    fileName="moon-rover.glb"
+                    resourcePath="resources/models/moon-rover.glb"
+                    contentType="model/gltf-binary"
+                    byteLength="18422"/>
+    <imported-asset id="project/textures/checker.png"
+                    kind="texture"
+                    name="Checker"
+                    fileName="checker.png"
+                    resourcePath="resources/textures/checker.png"
+                    contentType="image/png"
+                    byteLength="4281"/>
   </imported-assets>
 </alice-project>
 ```
@@ -192,8 +187,8 @@ XML from the current `archive.project` and keep the matching bytes in
 
 ## REST API
 
-The feature adds the REST routes below. Mutating requests use the same local
-authentication boundary as the rest of the Alice API:
+The REST routes below use the same local authentication boundary as the rest of
+the Alice API:
 
 ```bash
 -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN"
@@ -331,7 +326,7 @@ during save/load as documented in
 
 ## Error handling
 
-Target errors return JSON with an `error` field.
+Errors return JSON with an `error` field.
 
 | Status | Condition |
 | --- | --- |

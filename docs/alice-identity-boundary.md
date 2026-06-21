@@ -45,6 +45,7 @@ variables, health response, or generated artifacts.
 | CLI command | `alice-web` |
 | Browser application label | `Alice` |
 | Server runtime string | `alice-web` |
+| Exported player runtime string | `alice-web-player` |
 | Generated metadata product | `Alice` |
 | Generated metadata source/runtime | `alice-web` |
 | Local API auth header | `X-Alice-Local-Api-Token` |
@@ -77,6 +78,7 @@ Do not use LookingGlass in these places:
 | Package name | `alice-web` |
 | CLI command or help examples | `alice-web` |
 | Runtime string | `alice-web` |
+| Exported player runtime string | `alice-web-player` |
 | Local API auth header | `X-Alice-Local-Api-Token` |
 | Local API token environment variable | `ALICE_LOCAL_API_TOKEN` |
 | Web URL environment variable | `ALICE_WEB_URL` |
@@ -227,6 +229,10 @@ environment variables, local paths, or repository names.
 | `runtime` | `alice-web` | `/api/health`, `print-config`, run-world results, runtime metadata |
 | `source` | `alice-web` | Evidence artifacts that identify the implementation source |
 | HTML `generator` meta | `Alice export-html` | Exported HTML documents |
+| Player runtime identity | `alice-web-player` | Exported `index.html`, `manifest.json`, `share.json`, and validation evidence |
+| Web package schema | `alice-web.package/v1` | Exported ZIP `manifest.json` |
+| Share schema | `alice-web.share/v1` | Exported and API-generated share metadata |
+| Validation schema | `alice-web.validation/v1` | Exported package validation evidence |
 | TypeScript source archive filename | `alice-web-typescript-source.zip` | Downloaded TypeScript source handoff |
 | TypeScript source archive root | `alice-web-typescript-source/` | ZIP entry root for generated TypeScript handoff |
 | TypeScript source manifest `schemaVersion` | `alice-web.typescript-source-manifest/v1` | Generated TypeScript source `manifest.json` |
@@ -248,7 +254,8 @@ contract and also matches the product name.
 ## Browser runtime identity
 
 Browser-visible labels, notifications, theme names, plugin system labels, and
-exported HTML titles use `Alice`.
+exported HTML titles use `Alice`. Exported player documents expose
+`window.AlicePlayer` and report public runtime identity `alice-web-player`.
 
 Identity-facing browser storage keys use the `alice-web.` prefix:
 
@@ -289,6 +296,9 @@ asserts that:
 - local API auth uses `X-Alice-Local-Api-Token` and `ALICE_LOCAL_API_TOKEN`;
 - docs and examples use Alice product/runtime branding;
 - generated metadata uses Alice / `alice-web` identity values;
+- exported web packages use `alice-web.package/v1`,
+  `alice-web.share/v1`, `alice-web.validation/v1`, and
+  `alice-web-player`;
 - web-platform harness examples use `ALICE_WEB_URL`;
 - generated logs and transient artifacts are not part of the committed diff;
 - LookingGlass usage is limited to repository/project nickname, wrapper,

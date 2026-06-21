@@ -5,10 +5,10 @@ prototype. They use the installed `gadugi-test` runner to start the local REST
 API server, drive real HTTP user flows with `curl`, assert JSON responses, and
 shut the server down cleanly.
 
-The completed scenario set verifies Java Alice parity from the outside in:
-project open and rendering, Tweedle world execution, scene entity manipulation,
-event handling, and save/export round trips. The TypeScript source handoff
-export scenario is covered by the TypeScript source export handoff scenario.
+The completed scenario set verifies Java Alice parity and Alice web export flows
+from the outside in: project open and rendering, Tweedle world execution, scene
+entity manipulation, event handling, save/export round trips, TypeScript source
+handoff, and web player export/share/validation.
 
 The camera workflow coverage adds browser and REST checks for camera movement,
 presets, markers, and first-person mode.
@@ -62,6 +62,8 @@ NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi
 | `gadugi/03-scene-entity-manipulation.yaml` | `Scene Entity Manipulation` | Launch a blank scene, add entities, reject invalid input, capture a render |
 | `gadugi/04-event-system.yaml` | `Event System` | Register events, fire matching and non-matching events, reject invalid input |
 | `gadugi/05-save-export-roundtrip.yaml` | `Save / Export Round-Trip` | Edit a project, save it, relaunch, and verify the saved project opens |
+| `gadugi/06-typescript-source-export.yaml` | `TypeScript Source Export Handoff` | Create and edit a project, download source, and verify the archive contents |
+| `gadugi/06-web-player-export-share-parity.yaml` | `Web Player Export Share Parity` | Export a web package, validate it, create share metadata, and reject bad package input |
 | `e2e/app-flow.spec.ts` | `Camera Workflow Parity` | Load the browser, move the camera, apply presets, save/restore/delete markers, switch first-person mode |
 
 The `gadugi/*.yaml` files are level 3 integration tests. They exercise the
@@ -72,6 +74,10 @@ pattern.
 `gadugi/06-typescript-source-export.yaml` covers TypeScript source export by
 creating/editing a project, downloading the source ZIP, and verifying
 archive/source contents.
+
+`gadugi/06-web-player-export-share-parity.yaml` covers the web-package routes by
+exporting a package, checking player identity, validating the package, and
+creating share metadata linked to the package bytes.
 
 ## Compatibility gate
 
@@ -123,7 +129,7 @@ Each scenario includes:
 | Variable | Default | Used by | Description |
 | --- | --- | --- | --- |
 | `NODE_OPTIONS` | none | all scenarios | Use `--max-old-space-size=32768` for local and CI parity |
-| `PORT` | scenario-specific `3101`-`3105` | all scenarios | Local REST API port; each scenario has a unique default so full-suite runs can execute in parallel |
+| `PORT` | scenario-specific `3101`-`3106` | all scenarios | Local REST API port; each scenario has a unique default so full-suite runs can execute in parallel |
 | `EVIDENCE_DIR` | scenario-specific path under `./evidence/` with a shell PID suffix | all scenarios | Temporary response, log, and artifact directory |
 | `A3P_FILE` | `.test-roundtrip/modified.a3p` where applicable | scenarios 01 and 02 | Alice project fixture to open and execute |
 
@@ -223,6 +229,11 @@ uses.
 
 `GET /api/projects/current/export/typescript` is covered by
 `gadugi/06-typescript-source-export.yaml`.
+
+The web-package feature contract adds outside-in coverage for
+`/api/project/export/web-package`, `/api/project/share`, and
+`/api/project/validate-web-package` when the matching scenario file lands with
+the route implementation.
 
 ## Scenario details
 
@@ -342,6 +353,51 @@ Flow:
 10. Assert camera `GET` routes require `X-Alice-Local-Api-Token` when
     `--api-token` is configured.
 11. Stop the captured server process.
+
+### Web Player Export Share Parity
+
+The Web Player Export Share Parity acceptance contract verifies the finished
+export-to-playback-to-share flow for Alice web packages.
+
+Flow:
+
+1. Start the server with `node dist-server/cli.js serve --api-token "$API_TOKEN"` without a project.
+2. Launch or create a project so the server has active Alice project state.
+3. `POST /api/project/export/web-package` with title, description, and optional
+   `canonicalUrl`.
+4. Assert response schema `alice-web.export-web-package-result/v1`, status
+   `exported`, runtime `alice-web`, package MIME type `application/zip`,
+   non-empty `package.base64`, positive `sizeBytes`, and a 64-character
+   lowercase hex SHA-256 digest.
+5. Decode the ZIP and assert required entries exist:
+   `index.html`, `manifest.json`, `share.json`, `preview.png`,
+   `project/project.json`, and `validation.json`.
+6. Inspect `manifest.json` and assert schema `alice-web.package/v1`, product
+   `Alice`, package name `alice-web`, runtime identity `alice-web-player`, and
+   entrypoint `index.html`.
+7. Inspect `index.html` and assert it exposes `window.AlicePlayer`, embeds the
+   serialized project payload, includes player controls, escapes script-breaking
+   sequences, and does not require repository files.
+8. Assert generated package files do not use the repository nickname as product,
+   runtime, API, manifest, player, or share identity.
+9. `POST /api/project/validate-web-package` with the exported `packageBase64`.
+10. Assert response schema `alice-web.validate-web-package-result/v1`, status
+    `valid`, `valid: true`, runtime `alice-web`, package SHA-256 matching the
+    export response, manifest runtime identity `alice-web-player`, and evidence
+    entries for base64 decoding, ZIP readability, safe paths, required files,
+    Alice identity, and playable entrypoint.
+11. `POST /api/project/share` with the exported `packageBase64`.
+12. Assert response schema `alice-web.share-artifacts-result/v1`, status
+    `shared`, runtime `alice-web`, share schema `alice-web.share/v1`, package
+    filename/size/hash matching the exported package, and links for
+    `index.html`, the ZIP package, and `preview.png`.
+13. Submit an invalid package to validation and assert HTTP `400` with
+    `valid: false` and explicit error codes.
+14. Stop the captured server process.
+
+This is not a placeholder for static string checks. It validates the real
+package contract that users rely on when they export an Alice project, open it
+in the browser player, and publish share metadata.
 
 ## Writing new scenarios
 

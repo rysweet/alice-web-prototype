@@ -1,0 +1,70 @@
+# Level 3: Web Player Export / Share Parity
+# Tests Alice web package export, local playback metadata, validation, and share artifacts.
+
+scenario:
+  name: "Web Player Export Share Parity"
+  description: |
+    Verifies the end-to-end Alice/alice-web flow: create a project,
+    export a runnable web package, inspect the playable HTML and package
+    artifacts, validate the package, generate share metadata linked to
+    the package, and confirm invalid package input fails explicitly.
+  type: cli
+  level: 3
+
+  tags: [alice, integration, web-player, export, share, validation]
+
+  agents:
+    - name: cli
+      type: cli
+
+  prerequisites:
+    - "npm run build:server has been run"
+
+  steps:
+    - name: "Run web player export, validate, and share flow"
+      agent: cli
+      action: execute
+      target: >-
+        bash -lc 'set -euo pipefail;
+        PORT="${PORT:-3106}";
+        case "$PORT" in (*[!0-9]*|"") echo "PORT must be numeric" >&2; exit 2;; esac;
+        API_TOKEN="gadugi-local-api-token";
+        EVIDENCE_DIR="./evidence/06-web-player-export-share-parity-$$";
+        case "$EVIDENCE_DIR" in (""|"/"|".") echo "unsafe EVIDENCE_DIR: $EVIDENCE_DIR" >&2; exit 2;; esac;
+        HEALTH_JSON="$EVIDENCE_DIR/health.json";
+        NEW_JSON="$EVIDENCE_DIR/new-project.json";
+        EXPORT_JSON="$EVIDENCE_DIR/export-web-package.json";
+        VALIDATE_JSON="$EVIDENCE_DIR/validate-web-package.json";
+        SHARE_JSON="$EVIDENCE_DIR/share-artifacts.json";
+        INVALID_JSON="$EVIDENCE_DIR/invalid-package.json";
+        SERVER_LOG="$EVIDENCE_DIR/server.log";
+        SERVER_PID="";
+        rm -rf "$EVIDENCE_DIR";
+        mkdir -p "$EVIDENCE_DIR";
+        cleanup() { status=$?; if [ -n "${SERVER_PID:-}" ] && kill -0 "$SERVER_PID" 2>/dev/null; then kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true; fi; rm -rf "$EVIDENCE_DIR"; exit "$status"; };
+        trap cleanup EXIT;
+        node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" --api-token "$API_TOKEN" >"$SERVER_LOG" 2>&1 &
+        SERVER_PID=$!;
+        READY=0;
+        for attempt in $(seq 1 50); do if curl -fsS "http://127.0.0.1:$PORT/api/health" >"$HEALTH_JSON" 2>/dev/null; then READY=1; break; fi; sleep 0.2; done;
+        test "$READY" = 1;
+        grep -Eq "\"status\"[[:space:]]*:[[:space:]]*\"listening\"" "$SERVER_LOG";
+        node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"running\") throw new Error(\"health status was not running\"); if (d.runtime !== \"alice-web\") throw new Error(\"unexpected runtime\");" "$HEALTH_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/project/new" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{\"templateId\":\"blank\",\"projectName\":\"WinterStory\"}" >"$NEW_JSON";
+        node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.status !== \"created\") throw new Error(\"project was not created\"); if (d.projectName !== \"WinterStory\") throw new Error(\"unexpected project name\");" "$NEW_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/project/export/web-package" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{\"title\":\"Winter Story\",\"description\":\"A snow scene with a bunny.\",\"canonicalUrl\":\"https://example.edu/alice/winter-story\"}" >"$EXPORT_JSON";
+        node -e "const fs=require(\"fs\"); const JSZip=require(\"jszip\"); (async()=>{ const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.schema_version !== \"alice-web.export-web-package-result/v1\") throw new Error(\"unexpected export schema\"); if (d.status !== \"exported\") throw new Error(\"package was not exported\"); if (d.runtime !== \"alice-web\") throw new Error(\"unexpected export runtime\"); if (!d.package || typeof d.package.base64 !== \"string\") throw new Error(\"packageBase64 missing\"); if (!d.package.filename.endsWith(\".alice-web.zip\")) throw new Error(\"unexpected package filename\"); const zip=await JSZip.loadAsync(Buffer.from(d.package.base64, \"base64\")); for (const entry of [\"index.html\",\"manifest.json\",\"share.json\",\"preview.png\",\"project/project.json\",\"validation.json\"]) { if (!zip.file(entry)) throw new Error(\"missing \" + entry); } const html=await zip.file(\"index.html\").async(\"string\"); if (!html.includes(\"window.AlicePlayer\")) throw new Error(\"window.AlicePlayer missing\"); if (!html.includes(\"alice-web-player\")) throw new Error(\"alice-web-player missing\"); if (/LookingGlass|lookingglass|alice-standalone-player/.test(html)) throw new Error(\"identity drift in player HTML\"); const manifest=JSON.parse(await zip.file(\"manifest.json\").async(\"string\")); if (manifest.schemaVersion !== \"alice-web.package/v1\") throw new Error(\"manifest.json schema mismatch\"); if (manifest.runtimeIdentity !== \"alice-web-player\") throw new Error(\"manifest runtime mismatch\"); fs.writeFileSync(process.argv[2], JSON.stringify({ packageBase64: d.package.base64 })); })().catch((error)=>{ console.error(error); process.exit(1); });" "$EXPORT_JSON" "$EVIDENCE_DIR/package-request.json";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/project/validate-web-package" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d @"$EVIDENCE_DIR/package-request.json" >"$VALIDATE_JSON";
+        node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.schema_version !== \"alice-web.validate-web-package-result/v1\") throw new Error(\"unexpected validation schema\"); if (d.status !== \"valid\" || d.valid !== true) throw new Error(\"package was not valid\"); for (const token of [\"base64-decodes\",\"zip-readable\",\"required-files-present\",\"safe-zip-paths\",\"alice-web-identity\",\"entrypoint-playable\"]) { if (!d.evidence.includes(token)) throw new Error(\"missing validation evidence \" + token); }" "$VALIDATE_JSON";
+        node -e "const fs=require(\"fs\"); const request=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); fs.writeFileSync(process.argv[2], JSON.stringify({ packageBase64: request.packageBase64, title: \"Shared Winter Story\", description: \"Shared package description.\", canonicalUrl: \"https://example.edu/alice/shared-winter-story\" }));" "$EVIDENCE_DIR/package-request.json" "$EVIDENCE_DIR/share-request.json";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/project/share" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d @"$EVIDENCE_DIR/share-request.json" >"$SHARE_JSON";
+        node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.schema_version !== \"alice-web.share-artifacts-result/v1\") throw new Error(\"unexpected share schema\"); if (d.status !== \"shared\") throw new Error(\"share was not generated\"); if (d.share.runtimeIdentity !== \"alice-web-player\") throw new Error(\"share runtime mismatch\"); if (!d.share.package.sha256 || !d.share.package.sizeBytes) throw new Error(\"share package hash linkage missing\"); if (d.artifacts.entrypoint !== \"index.html\" || d.artifacts.preview !== \"preview.png\" || d.artifacts.share !== \"share.json\") throw new Error(\"share artifact links missing\");" "$SHARE_JSON";
+        INVALID_STATUS=$(curl -sS -o "$INVALID_JSON" -w "%{http_code}" -X POST "http://127.0.0.1:$PORT/api/project/validate-web-package" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{\"packageBase64\":\"not base64!!\"}");
+        test "$INVALID_STATUS" = 400;
+        grep -q "invalid-base64" "$INVALID_JSON";
+        kill "$SERVER_PID";
+        wait "$SERVER_PID" 2>/dev/null || true;
+        SERVER_PID="";
+        grep -q "shutting down" "$SERVER_LOG"'
+      timeout: 60000
+      expected: ""

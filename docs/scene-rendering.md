@@ -464,7 +464,7 @@ This enables future UI toggles without changing the builder:
 | `'bbox'` | `BoxHelper` | `showBoundingBoxes` |
 | `'skeleton'` | `LineSegments` | `showJointSkeletons` |
 
-**Future toggle pattern** (not implemented yet — shown for reference):
+**Toggle pattern**:
 
 ```typescript
 // Toggle all bounding boxes

@@ -13,7 +13,7 @@ nav:
     - "Getting started": "getting-started.md"
     - "Verify a local Alice server": "tutorial-alice-server-workflow.md"
     - "Building your first Alice application": "tutorial-building-your-first-alice-app.md"
-    - "Target imported asset workflow": "tutorial-import-model-and-apply-texture.md"
+    - "Imported asset workflow": "tutorial-import-model-and-apply-texture.md"
   - "How-to guides":
     - "Testing": "testing.md"
     - "IDE operations": "ide-operations.md"
@@ -27,7 +27,7 @@ nav:
     - "Grading pipeline": "grading-pipeline.md"
     - "Image editor": "image-editor.md"
     - "Alice identity boundary": "alice-identity-boundary.md"
-    - "Imported model and texture target contract": "imported-models-and-textures.md"
+    - "Imported model and texture contract": "imported-models-and-textures.md"
     - "Model resources": "model-resources.md"
     - "Project IO": "project-io.md"
     - "Resource manager": "resource-manager.md"

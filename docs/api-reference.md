@@ -25,10 +25,9 @@ same value as `X-Alice-Local-Api-Token`.
 
 Rows under `/api/camera/*` are implemented camera workflow routes. See
 [Camera workflow endpoints](#camera-workflow-endpoints) for the shared REST and
-TypeScript contract. The imported model and texture asset workflow is a target
-contract under build; see
-[Imported model and texture assets](./imported-models-and-textures.md) for the
-routes that feature will add.
+TypeScript contract. Rows labeled web-package feature contract define the
+implemented export/share routes. Imported model and texture asset routes are
+implemented for local JSON uploads and project-owned material bindings.
 
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
@@ -41,6 +40,13 @@ routes that feature will add.
 | `/api/code/create-function` | `POST` | Create a function in the current project state |
 | `/api/code/edit-procedure` | `POST` | Append a procedure edit proof |
 | `/api/project/save` | `POST` | Save the current project and proof artifact |
+| `/api/projects/current/export/typescript` | `GET` | Download the current project as an Alice web TypeScript source ZIP |
+| `/api/project/export/web-package` | `POST` | Web-package feature contract: export the active project as a runnable `alice-web` ZIP package |
+| `/api/project/share` | `POST` | Web-package feature contract: generate share artifacts linked to a validated exported package |
+| `/api/project/validate-web-package` | `POST` | Web-package feature contract: validate an exported `alice-web` ZIP package |
+| `/api/assets/import-model` | `POST` | Import a project-owned `.glb` or `.gltf` model |
+| `/api/assets/import-texture` | `POST` | Import a project-owned `.png`, `.jpg`, `.jpeg`, or `.webp` texture |
+| `/api/scene/apply-texture` | `POST` | Bind an imported texture to a scene object's surface |
 | `/api/world/run` | `POST` | Run the cached project through the Tweedle VM |
 | `/api/screenshot` | `POST` | Render the current scene to a PNG file |
 | `/api/camera/state` | `GET` | Read the active camera workflow state |
@@ -234,30 +240,15 @@ Example response:
 }
 ```
 
-The imported asset feature will extend this route with an optional
-`modelResourceId` field for project-owned model assets. The current route uses
-only `className` and `name`.
+## Imported asset REST contract
 
-## Target imported asset REST contract
+Imported asset routes store model and texture bytes inside the active project
+archive and persist descriptors in `programType.xml`.
 
-The imported model and texture workflow will add these routes and extend scene
-object state. They are documented here so clients and tests can be built against
-the intended contract, but they are not part of the current implemented endpoint
-summary until the feature implementation lands.
+### `POST /api/assets/import-model`
 
-The target `POST /api/scene/add-object` extension accepts:
-
-| Field | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `modelResourceId` | `string` | no | Imported model project resource ID, such as `project/models/moon-rover.glb` |
-
-Providing `modelResourceId` will make the object use the imported model asset
-stored in project state. Unknown model resource IDs return `400`.
-
-### Target `POST /api/assets/import-model`
-
-Import a `.gltf` or `.glb` model into the current project. This target route
-uses JSON base64 uploads with a 25 MiB body limit.
+Import a `.gltf` or `.glb` model into the current project. The route accepts
+JSON base64 uploads and enforces a 25 MiB decoded asset limit.
 
 ```bash
 MODEL_BASE64="$(base64 -w0 assets/models/moon-rover.glb)"
@@ -297,10 +288,10 @@ Validation must reject missing fields, invalid base64, empty decoded bytes,
 unsafe filenames, and unsupported extensions. Duplicate asset IDs get `-2`,
 `-3`, and later suffixes before the extension.
 
-### Target `POST /api/assets/import-texture`
+### `POST /api/assets/import-texture`
 
-Import a browser-compatible image texture into the current project. This target
-route uses the same 25 MiB JSON body limit as model imports.
+Import a browser-compatible image texture into the current project. The route
+uses the same 25 MiB decoded asset limit as model imports.
 
 ```bash
 TEXTURE_BASE64="$(base64 -w0 assets/textures/checker.png)"
@@ -340,7 +331,7 @@ Validation must reject missing fields, invalid base64, empty decoded bytes,
 unsafe filenames, and unsupported extensions. Duplicate asset IDs get `-2`,
 `-3`, and later suffixes before the extension.
 
-### Target `POST /api/scene/apply-texture`
+### `POST /api/scene/apply-texture`
 
 Bind an imported texture to a scene object's surface material.
 
@@ -546,6 +537,226 @@ Example response:
   "evidenceArtifact": "evidence/project-save/desktop-save-operation-result.json"
 }
 ```
+
+## `POST /api/project/export/web-package`
+
+Web-package feature contract: export the active project as a runnable
+`alice-web` web package. The returned ZIP contains everything needed to extract
+the package and open `index.html` in a browser.
+
+API response envelopes use snake_case `schema_version`. JSON files inside the
+exported ZIP use camelCase `schemaVersion`.
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/project/export/web-package \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Winter Story","description":"A snow scene with a bunny."}'
+```
+
+Request body:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `title` | `string` | no | Human-readable title for manifest, player metadata, and share metadata |
+| `description` | `string` | no | Human-readable project summary |
+| `canonicalUrl` | `string` | no | Public `http` or `https` URL for the shared project page |
+
+Example response:
+
+```json
+{
+  "schema_version": "alice-web.export-web-package-result/v1",
+  "status": "exported",
+  "runtime": "alice-web",
+  "package": {
+    "filename": "WinterStory.alice-web.zip",
+    "mimeType": "application/zip",
+    "sizeBytes": 24576,
+    "sha256": "8ad0e9b4f5d8f2d3b30f6d3f6f0f4e6d4f3b2a1900e4c4a1f03f7c2cb72f47cc",
+    "base64": "UEsDB..."
+  },
+  "manifest": {
+    "schemaVersion": "alice-web.package/v1",
+    "product": "Alice",
+    "packageName": "alice-web",
+    "runtimeIdentity": "alice-web-player",
+    "entrypoint": "index.html",
+    "preview": "preview.png",
+    "share": "share.json",
+    "validation": "validation.json"
+  },
+  "artifacts": {
+    "entrypoint": "index.html",
+    "manifest": "manifest.json",
+    "share": "share.json",
+    "preview": "preview.png",
+    "project": "project/project.json",
+    "validation": "validation.json"
+  },
+  "validation": {
+    "schemaVersion": "alice-web.validation/v1",
+    "valid": true,
+    "errors": [],
+    "evidence": [
+      "required-files-present",
+      "entrypoint-playable",
+      "alice-web-identity"
+    ]
+  }
+}
+```
+
+Required ZIP entries:
+
+| Entry | Purpose |
+| --- | --- |
+| `index.html` | Self-contained Alice web player document; exposes `window.AlicePlayer` and runtime identity `alice-web-player` |
+| `manifest.json` | Package manifest with schema `alice-web.package/v1` |
+| `share.json` | Share metadata with schema `alice-web.share/v1` |
+| `preview.png` | PNG preview image referenced by manifest and share metadata |
+| `project/project.json` | Serialized Alice project payload used by the player |
+| `validation.json` | Validation evidence with schema `alice-web.validation/v1` |
+
+The generated package must not contain repository nickname identity in product,
+runtime, API, player, manifest, share, or validation metadata.
+
+## `POST /api/project/share`
+
+Web-package feature contract: create share artifacts from an exported package.
+The server validates `packageBase64` before generating the share response, then
+links the package by filename, byte size, and SHA-256 digest.
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/project/share \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"packageBase64":"UEsDB...","title":"Winter Story"}'
+```
+
+Request body:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `packageBase64` | `string` | yes | Base64-encoded ZIP returned by `/api/project/export/web-package` |
+| `title` | `string` | no | Share title override |
+| `description` | `string` | no | Share description override |
+| `canonicalUrl` | `string` | no | Public `http` or `https` URL for the share page |
+
+Example response:
+
+```json
+{
+  "schema_version": "alice-web.share-artifacts-result/v1",
+  "status": "shared",
+  "runtime": "alice-web",
+  "share": {
+    "schemaVersion": "alice-web.share/v1",
+    "product": "Alice",
+    "runtimeIdentity": "alice-web-player",
+    "title": "Winter Story",
+    "description": "A snow scene with a bunny.",
+    "package": {
+      "filename": "WinterStory.alice-web.zip",
+      "mimeType": "application/zip",
+      "sizeBytes": 24576,
+      "sha256": "8ad0e9b4f5d8f2d3b30f6d3f6f0f4e6d4f3b2a1900e4c4a1f03f7c2cb72f47cc"
+    },
+    "links": {
+      "html": "index.html",
+      "package": "WinterStory.alice-web.zip",
+      "preview": "preview.png"
+    }
+  },
+  "artifacts": {
+    "share": "share.json",
+    "preview": "preview.png",
+    "entrypoint": "index.html",
+    "package": "WinterStory.alice-web.zip"
+  },
+  "validation": {
+    "valid": true,
+    "errors": []
+  }
+}
+```
+
+The share route does not trust caller-supplied filenames or hashes. It derives
+package linkage from the decoded ZIP bytes and the validated manifest.
+
+## `POST /api/project/validate-web-package`
+
+Web-package feature contract: validate an exported package before playback,
+storage, or sharing.
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/project/validate-web-package \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"packageBase64":"UEsDB..."}'
+```
+
+Request body:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `packageBase64` | `string` | yes | Base64-encoded `alice-web` ZIP package |
+
+Valid response:
+
+```json
+{
+  "schema_version": "alice-web.validate-web-package-result/v1",
+  "status": "valid",
+  "valid": true,
+  "runtime": "alice-web",
+  "package": {
+    "filename": "WinterStory.alice-web.zip",
+    "mimeType": "application/zip",
+    "sizeBytes": 24576,
+    "sha256": "8ad0e9b4f5d8f2d3b30f6d3f6f0f4e6d4f3b2a1900e4c4a1f03f7c2cb72f47cc"
+  },
+  "manifest": {
+    "schemaVersion": "alice-web.package/v1",
+    "runtimeIdentity": "alice-web-player",
+    "entrypoint": "index.html"
+  },
+  "evidence": [
+    "base64-decodes",
+    "zip-readable",
+    "required-files-present",
+    "safe-zip-paths",
+    "no-duplicate-required-files",
+    "alice-web-identity",
+    "entrypoint-playable"
+  ],
+  "errors": []
+}
+```
+
+Invalid packages return HTTP `400` with explicit validation errors:
+
+```json
+{
+  "schema_version": "alice-web.validate-web-package-result/v1",
+  "status": "invalid",
+  "valid": false,
+  "errors": [
+    {
+      "code": "missing-required-file",
+      "message": "Package is missing index.html.",
+      "path": "index.html"
+    }
+  ],
+  "evidence": ["base64-decodes", "zip-readable"]
+}
+```
+
+Validation rejects malformed base64, empty packages, unreadable ZIP data,
+absolute paths, parent traversal, backslash traversal, duplicate required
+entries, excessive package size, excessive file count, missing required files,
+wrong schema identity, wrong runtime identity, unsafe `canonicalUrl` values, and
+generated metadata that uses repository nickname identity.
 
 ## `GET /api/projects/current/export/typescript`
 
@@ -760,5 +971,8 @@ The server uses `400` responses for bad requests such as:
 
 - launching with a non-`.a3p` path
 - adding an object without `className`
+- exporting, sharing, or validating before a project is available
+- malformed `packageBase64`
+- invalid `alice-web` package structure or identity
 - running or registering events before launch
 - event registration or firing that fails validation inside the event system

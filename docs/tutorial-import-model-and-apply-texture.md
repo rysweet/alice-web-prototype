@@ -1,8 +1,7 @@
 # Import a model and apply a custom texture
 
-This target tutorial defines the acceptance workflow for the imported model and
-texture asset feature. Use it to build and verify the feature after the browser,
-REST, and Project IO implementation is present in the worktree.
+This tutorial shows the imported model and texture asset workflow in the
+browser, REST API, and Project IO.
 
 ## What you will build
 
@@ -36,7 +35,7 @@ self-contained or its referenced data is available from the project archive.
 ## Import the model in the browser
 
 1. Open Alice in the browser.
-2. Use the target model import control to choose `assets/models/moon-rover.glb`.
+2. Use the model import control to choose `assets/models/moon-rover.glb`.
 3. Confirm the imported asset appears as `Moon Rover`.
 
 The project records the asset descriptor:
@@ -99,8 +98,6 @@ After reopening:
   `project/textures/checker.png`.
 
 ## Run the same workflow through the REST API
-
-Run this section after the imported asset REST routes have been implemented.
 
 Start the local API server:
 

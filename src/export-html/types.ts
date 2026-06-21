@@ -8,12 +8,26 @@ export interface HtmlExportOptions {
   previewMode?: boolean;
   tweedleSource?: string;
   viewport?: Partial<HtmlExportViewport>;
+  packageName?: string;
+  runtimeIdentity?: string;
+  metadata?: HtmlExportMetadata;
+}
+
+export interface HtmlExportMetadata {
+  description?: string;
+  canonicalUrl?: string;
+  preview?: string;
 }
 
 export interface HtmlExportDocument {
+  schemaVersion: "alice-web.player-document/v1";
   title: string;
   previewMode: boolean;
   tweedleSource: string;
+  packageName: string;
+  runtimeIdentity: string;
+  entrypoint: "index.html";
+  metadata: HtmlExportMetadata;
   html: string;
 }
 

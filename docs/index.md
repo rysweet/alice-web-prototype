@@ -23,6 +23,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Alice identity boundary](./alice-identity-boundary.md)
 - [Camera workflow usage](./camera-workflow-usage.md)
 - [Server API](./server-api.md)
+- [Export, play, share, and validate a web package](./project-io-usage.md#export-play-share-and-validate-a-web-package)
 - [Testing](./testing.md)
 
 ## Subsystem overview
@@ -31,10 +32,10 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 | --- | --- | --- |
 | Tweedle | Parses, checks, and runs Alice code | [Tweedle parser](./tweedle-parser.md), [Tweedle type system](./tweedle-type-system.md), [Tweedle typechecker](./tweedle-typechecker.md), [VM scoping and functions](./vm-scoping-and-functions.md) |
 | AST and serialization | Stores program structure and converts it to and from files | [Serialization](./serialization.md), [A3P statement round-trip coverage](./a3p-statement-round-trip.md), [Tweedle code generation](./tweedle-codegen.md) |
-| Story API and scene model | Represents scenes, entities, events, joints, and runtime behavior | [Story API](./story-api.md), [Joint manipulation](./joint-manipulation.md), [planned Story API public barrel topology](./story-api-public-barrels.md), [SScene listener methods](./sscene-listener-methods.md), [Event system](./event-system.md), [Collision detection](./collision-detection.md) |
+| Story API and scene model | Represents scenes, entities, joints, events, and runtime behavior | [Story API](./story-api.md), [Joint manipulation](./joint-manipulation.md), [Story API public barrel topology](./story-api-public-barrels.md), [SScene listener methods](./sscene-listener-methods.md), [Event system](./event-system.md), [Collision detection](./collision-detection.md) |
 | Rendering | Builds and draws 3D scenes in the browser | [Scene graph](./scene-graph.md), [Scene rendering](./scene-rendering.md), [Scene manager](./scene-manager.md), [camera workflow usage](./camera-workflow-usage.md), [camera workflow API](./camera-workflow-api.md) |
 | IDE workflows | Supports editing, running, and curriculum tasks | [IDE operations](./ide-operations.md), [Grading pipeline](./grading-pipeline.md) |
-| Assets and resources | Loads models, images, audio, textures, and project files | [Target imported asset workflow](./tutorial-import-model-and-apply-texture.md), [Imported model and texture target contract](./imported-models-and-textures.md), [Creating, using, and testing 3D character assets](./creating-using-testing-3d-character-assets.md), [Model resources](./model-resources.md), [Open-asset pipeline](./open-asset-pipeline.md), [Resource manager](./resource-manager.md), [Project IO](./project-io.md), [Image editor](./image-editor.md), [Audio](./audio.md) |
+| Assets and resources | Loads models, images, textures, audio, project files, and runnable web packages | [Imported asset workflow](./tutorial-import-model-and-apply-texture.md), [Imported model and texture contract](./imported-models-and-textures.md), [Creating, using, and testing 3D character assets](./creating-using-testing-3d-character-assets.md), [Model resources](./model-resources.md), [Open-asset pipeline](./open-asset-pipeline.md), [Resource manager](./resource-manager.md), [Project IO](./project-io.md), [Project IO usage guide](./project-io-usage.md), [Image editor](./image-editor.md), [Audio](./audio.md) |
 | eatme integration | Exposes HTTP endpoints and scenario-friendly workflows | [API reference](./api-reference.md), [Server API](./server-api.md), [camera workflow API](./camera-workflow-api.md), [Gadugi test scenarios](./gadugi-test-scenarios.md) |
 | External service integration | Wraps outbound HTTP and WebSocket calls behind retryable adapters | [External service integration](./external-service-integration.md) |
 
@@ -45,7 +46,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Getting started](./getting-started.md)
 - [Verify a local Alice server](./tutorial-alice-server-workflow.md)
 - [Building your first Alice application](./tutorial-building-your-first-alice-app.md)
-- [Target imported asset workflow](./tutorial-import-model-and-apply-texture.md)
+- [Imported asset workflow](./tutorial-import-model-and-apply-texture.md)
 - [Adding open-source 3D models](./tutorial-adding-3d-models.md)
 - [Creating, using, and testing 3D character assets](./creating-using-testing-3d-character-assets.md)
 - [Round-trip an `.a3p` project with Project IO](./tutorial-project-io-round-trip.md)
@@ -59,6 +60,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Gadugi test scenarios](./gadugi-test-scenarios.md)
 - [Project IO usage guide](./project-io-usage.md)
 - [Camera workflow usage](./camera-workflow-usage.md)
+- [Export, play, share, and validate a web package](./project-io-usage.md#export-play-share-and-validate-a-web-package)
 
 ### Reference
 
@@ -78,7 +80,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Grading pipeline](./grading-pipeline.md)
 - [Image editor](./image-editor.md)
 - [Alice identity boundary](./alice-identity-boundary.md)
-- [Imported model and texture target contract](./imported-models-and-textures.md)
+- [Imported model and texture contract](./imported-models-and-textures.md)
 - [Joint manipulation](./joint-manipulation.md)
 - [Creating, using, and testing 3D character assets](./creating-using-testing-3d-character-assets.md)
 - [Model resources](./model-resources.md)
@@ -86,6 +88,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Project IO](./project-io.md)
 - [Project IO API reference](./project-io-api.md)
 - [Project IO configuration](./project-io-configuration.md)
+- [Web package API routes](./api-reference.md#post-apiprojectexportweb-package)
 - [TypeScript source export](./typescript-source-export.md) - source handoff reference
 - [Resource manager](./resource-manager.md)
 - [Scene graph](./scene-graph.md)
@@ -96,7 +99,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Statement execution](./statement-execution.md)
 - [SScene listener methods](./sscene-listener-methods.md)
 - [Story API](./story-api.md)
-- [Planned Story API public barrel topology](./story-api-public-barrels.md)
+- [Story API public barrel topology](./story-api-public-barrels.md)
 - [Tweedle code generation](./tweedle-codegen.md)
 - [Tweedle parser](./tweedle-parser.md)
 - [Tweedle standard library](./tweedle-stdlib.md)

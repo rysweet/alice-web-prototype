@@ -4,6 +4,10 @@ Project IO is intentionally configuration-light. It reads and writes `.a3p`
 archives from memory and does not require a filesystem path, server setting, or
 browser-specific configuration.
 
+Runnable web package export uses the same local server configuration as the
+other project routes. It does not add a separate config file or repository
+nickname identity.
+
 ## Runtime options
 
 The only public write option is thumbnail generation.
@@ -34,6 +38,44 @@ not render a replacement.
 | `thumbnail.png` | Optional thumbnail PNG bytes at the ZIP root |
 | `resources/...` | Typical location for project resources, though Project IO accepts any safe non-special archive-relative path |
 | `__original_xml__` | Internal resource-map marker used by Project IO, not a ZIP entry and not a normal resource callers should create manually |
+
+## Runnable web package conventions
+
+The `POST /api/project/export/web-package` feature contract writes an
+`alice-web` ZIP package. The package is separate from `.a3p` Project IO
+archives and uses these required entries:
+
+| Entry | Convention |
+| --- | --- |
+| `index.html` | Self-contained player document, playable after extraction |
+| `manifest.json` | Package manifest with `schemaVersion: "alice-web.package/v1"` |
+| `share.json` | Share metadata with `schemaVersion: "alice-web.share/v1"` |
+| `preview.png` | PNG preview image referenced by manifest and share metadata |
+| `project/project.json` | Serialized project payload for the player |
+| `validation.json` | Validation evidence with `schemaVersion: "alice-web.validation/v1"` |
+
+The player runtime identity is `alice-web-player`. The package, manifest, share
+metadata, validation evidence, and player document use Alice / `alice-web`
+identity. Repository nickname identity is not valid in generated packages.
+
+API response envelopes use snake_case `schema_version`. JSON files inside the
+exported ZIP use camelCase `schemaVersion`.
+
+## Share URL policy
+
+`canonicalUrl` is optional for export and share requests. When present, it must
+be a valid `http` or `https` URL without embedded credentials.
+
+Rejected examples:
+
+```text
+javascript:alert(1)
+data:text/html;base64,PHNjcmlwdD4=
+file:///tmp/project/index.html
+https://user:pass@example.edu/alice/project
+```
+
+The server rejects unsafe URLs instead of rewriting them.
 
 ## Path security policy
 
@@ -69,6 +111,11 @@ Project IO enforces a 256 MB extracted-size limit while reading archives. The
 limit protects callers from ZIP bombs and unexpectedly large projects.
 
 Archives that exceed the limit throw `ProjectIoError` with code `zip-bomb`.
+
+Package validation also enforces decoded package size and file-count limits for
+`packageBase64` inputs. Oversized packages, malformed ZIP data, traversal paths,
+duplicate required files, and missing required files are explicit validation
+errors.
 
 ## Manifest version synchronization
 
@@ -137,4 +184,5 @@ NODE_OPTIONS=--max-old-space-size=32768 npm run build:server
 This setting is for local validation. Project IO itself does not read
 `NODE_OPTIONS`.
 
-Last updated for the refactored Project IO facade and internal module split.
+Last updated for the refactored Project IO facade, internal module split, and
+runnable `alice-web` export/share workflow.
