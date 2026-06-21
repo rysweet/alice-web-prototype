@@ -160,6 +160,33 @@ const output = await writeProject(archive);
 See [[Imported model and texture assets](./imported-models-and-textures.md)
 for the full asset descriptor and scene binding contract.
 
+## Preserve project audio
+
+Project audio uses normal Project IO resource persistence. Audio bytes are stored
+under `resources/audio/`, and audio metadata is stored in `manifest.json` under
+the `aliceAudio` key.
+
+```typescript
+import { readProject, writeProject } from "./src/project-io.js";
+import { ProjectAudio } from "./src/index.js";
+
+const archive = await readProject(projectBytes);
+const audioState = ProjectAudio.applyAudioManifest(archive.manifest);
+
+console.log(audioState.assets.map((asset) => asset.resourcePath));
+console.log(audioState.backgroundMusic);
+console.log(audioState.cues);
+
+const output = await writeProject({
+  ...archive,
+  manifest: ProjectAudio.mergeAudioManifest(archive.manifest, audioState),
+});
+```
+
+Use the server audio routes for normal user workflows. Use Project IO directly
+when you are building import/export tools that need to inspect or preserve audio
+state without starting the local Alice server.
+
 ## Replace a thumbnail
 
 `archive.thumbnail` maps to root `thumbnail.png`.

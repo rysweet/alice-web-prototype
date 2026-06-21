@@ -166,6 +166,12 @@ export/share/validation routes:
 | `POST` | `/api/project/export/web-package` | `alice-web.export-web-package-result/v1` | web-package feature contract: returns a runnable `alice-web` ZIP package |
 | `POST` | `/api/project/share` | `alice-web.share-artifacts-result/v1` | web-package feature contract: returns share metadata linked to a validated package |
 | `POST` | `/api/project/validate-web-package` | `alice-web.validate-web-package-result/v1` | web-package feature contract: validates package safety, playability, and identity |
+| `GET` | `/api/audio/formats` | supported audio extensions | none |
+| `GET` | `/api/audio/state` | project audio state | none |
+| `POST` | `/api/audio/assets` | registered audio asset | stores audio bytes in active project resources |
+| `POST` | `/api/audio/background` | background music configuration | updates active project audio state |
+| `POST` | `/api/audio/cues` | synchronized cue configuration | updates active project audio state |
+| `POST` | `/api/audio/evidence` | `alice.audio-workflow-result/v1` | writes `audio-workflow.json` |
 | `POST` | `/api/world/run` | `eatme.alice-run-world-result/v1` | writes `run-world-result.json` |
 | `POST` | `/api/screenshot` | screenshot capture summary | writes `screenshot.png` |
 | `GET` | `/api/camera/state` | `eatme.alice-camera-workflow-state/v1` | reads camera workflow state |
@@ -210,6 +216,10 @@ contents and generated-source conventions.
 Camera routes require `X-Alice-Local-Api-Token` on both read and mutation
 requests when the CLI server is started with `--api-token`.
 
+Read-only audio routes, including `GET /api/audio/formats` and
+`GET /api/audio/state`, are not protected by launch or token checks. Audio state
+returns the empty default state until a project is launched or created.
+
 ## Evidence artifacts
 
 Evidence output is rooted at `--evidence-dir`. The server writes these stable artifact names:
@@ -228,6 +238,7 @@ Evidence output is rooted at `--evidence-dir`. The server writes these stable ar
 | Create project from template | `project-new/<SanitizedProjectName>.a3p` |
 | Export web package feature contract | `<ProjectName>.alice-web.zip` with `index.html`, `manifest.json`, `share.json`, `preview.png`, `project/project.json`, and `validation.json` |
 | Share package feature contract | `share.json`, preview reference, playable HTML reference, package filename, package byte size, and package SHA-256 digest |
+| Audio workflow | `audio-workflow.json` |
 
 JSON artifacts are written with stable schema versions consumed by `eatme`. Dynamic values such as timestamps, file sizes, paths, run durations, process IDs, and uptime should be treated as runtime values.
 

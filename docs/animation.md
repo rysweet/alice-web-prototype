@@ -404,6 +404,11 @@ animation primitives for entity-specific operations:
 | `PlayAudioAnimation` | Trigger audio playback on an entity |
 | `VehicleAnimation` | Attach/detach entity vehicle relationships |
 
+Project audio metadata can describe cues intended for animation timeline
+synchronization. See [Audio](./audio.md#animation-synchronized-cues) for the cue
+schema and [Tutorial: Alice audio workflow](./tutorial-audio-workflow.md) for an
+end-to-end save and reload example.
+
 For `SayOutLoudAnimation` details (TTS parity with Java Alice), see
 [Parity gaps #76–#77](./parity-gaps-76-77.md#sayoutloud-tts-animation).
 

@@ -54,6 +54,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Round-trip an `.a3p` project with Project IO](./tutorial-project-io-round-trip.md)
 - [Tutorial: manipulate and verify joints](./tutorial-joint-manipulation.md)
 - [Camera workflow parity](./tutorial-camera-workflow.md)
+- [Alice audio workflow](./tutorial-audio-workflow.md)
 
 ### How-to guides and workflows
 

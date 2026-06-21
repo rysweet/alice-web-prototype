@@ -113,6 +113,16 @@ function buildFactoryCases() {
     ["ModelTextureCameraJointExportWorkflow.createWorkflowState", () => PublicApi.ModelTextureCameraJointExportWorkflow.createWorkflowState({ project: contractProject })],
     ["NetworkLayer.createHttpServiceAdapter", () => PublicApi.NetworkLayer.createHttpServiceAdapter({ serviceName: "contract-api" })],
     ["PrintSystem.createPrintableDocument", () => PublicApi.PrintSystem.createPrintableDocument(parsedScript)],
+    ["ProjectAudio.createEmptyProjectAudioState", () => PublicApi.ProjectAudio.createEmptyProjectAudioState()],
+    ["ProjectAudio.createProjectAudioPlaybackBridge", () => PublicApi.ProjectAudio.createProjectAudioPlaybackBridge(
+      PublicApi.ProjectAudio.createEmptyProjectAudioState(),
+      {
+        createOutput: () => ({
+          play: () => undefined,
+          stop: () => undefined,
+        }),
+      },
+    )],
     ["ProjectTemplate.createEmptyWorldProject", () => PublicApi.ProjectTemplate.createEmptyWorldProject({ projectName: "FactoryWorld" })],
     ["ProjectTemplate.createProjectFromTemplate", () => contractArchive],
     ["RenderAnimation.createAnimationTransform", () => PublicApi.RenderAnimation.createAnimationTransform()],
@@ -275,6 +285,23 @@ function assertFactoryResult(key: string, value: unknown): void {
       return;
     case "PrintSystem.createPrintableDocument":
       expectKeys(value, ["title", "text", "html", "standalonePage"]);
+      return;
+    case "ProjectAudio.createEmptyProjectAudioState":
+      expect(value).toEqual({
+        assets: [],
+        backgroundMusic: null,
+        cues: [],
+        nextAssetNumber: 1,
+      });
+      return;
+    case "ProjectAudio.createProjectAudioPlaybackBridge":
+      expectKeys(value, [
+        "startBackgroundMusic",
+        "updateAnimationPlayback",
+        "resetAnimationPlayback",
+        "stopAll",
+        "getTriggeredCueIds",
+      ]);
       return;
     case "ProjectTemplate.createEmptyWorldProject":
       expectKeys(value, ["projectName", "sceneObjects", "methods", "types"]);

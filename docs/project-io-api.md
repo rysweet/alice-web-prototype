@@ -149,7 +149,7 @@ interface AliceProjectArchive {
 | Field | Meaning |
 | --- | --- |
 | `project` | Parsed Alice project model |
-| `manifest` | Parsed root `manifest.json`, or `null` when absent |
+| `manifest` | Parsed root `manifest.json`, or `null` when absent; Alice project audio metadata lives under `manifest.aliceAudio` |
 | `resources` | Archive resources keyed by archive-relative path, plus the internal non-ZIP `__original_xml__` marker when XML pass-through is available |
 | `resourceEntries` | Resource descriptors for extracted non-special resources |
 | `thumbnail` | Raw `thumbnail.png` bytes, or `null` when absent |

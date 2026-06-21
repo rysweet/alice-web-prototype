@@ -24,7 +24,7 @@ those modules directly.
 | XML pass-through | Preserving the `programType.xml` or legacy `program.xml` entry name and migrated XML text through the internal `__original_xml__` marker |
 | Manifest and version sync | Reading `manifest.json`, detecting Alice versions, updating the first recognized version field after migration, and serializing manifests |
 | Migration | Applying project-IO migration through `project-migration.ts` without moving migration rule ownership into archive code |
-| Resources | Extracting project resources, classifying resource kinds, preserving safe binary entries, and filtering internal entries during writes |
+| Resources | Extracting project resources, including `resources/audio/...`, classifying resource kinds, preserving safe binary entries, and filtering internal entries during writes |
 | Thumbnails | Reading `thumbnail.png`, writing supplied thumbnails, and optionally generating thumbnails from the scene |
 
 ## Archive flow
@@ -82,6 +82,8 @@ Project IO preserves the existing `.a3p` behavior:
 - `manifest.json`, `version.txt`, `thumbnail.png`, resources, and migrated
   version metadata keep the same archive-level behavior. Manifest version sync
   updates one recognized field by precedence, not every possible version field.
+- Project audio bytes and `manifest.aliceAudio` metadata are preserved through
+  read and write. The Alice server updates `aliceAudio` when audio state changes.
 - Unsafe paths are rejected rather than normalized, skipped, or silently
   rewritten.
 
@@ -96,6 +98,8 @@ Project IO preserves the existing `.a3p` behavior:
 - Use [[PLANNED] Imported model and texture assets](./imported-models-and-textures.md)
   for the issue #221 `project/models/...` and `project/textures/...` identity
   convention.
+- Use [Audio](./audio.md) for the `aliceAudio` manifest shape and audio workflow
+  API.
 - Follow the [round-trip tutorial](./tutorial-project-io-round-trip.md) to load,
   inspect, modify, and save an `.a3p` file.
 - See the [TypeScript source export](./typescript-source-export.md)

@@ -39,6 +39,7 @@ not render a replacement.
 | `resources/...` | Typical location for project resources, though Project IO accepts any safe non-special archive-relative path |
 | `resources/models/<assetId>` | [PLANNED] Imported `.gltf` and `.glb` model bytes for issue #221 |
 | `resources/textures/<assetId>` | [PLANNED] Imported `.png`, `.jpg`, `.jpeg`, and `.webp` texture bytes for issue #221 |
+| `resources/audio/...` | Audio assets registered through Alice project audio workflows |
 | `__original_xml__` | Internal resource-map marker used by Project IO, not a ZIP entry and not a normal resource callers should create manually |
 
 ## Runnable web package conventions
@@ -183,6 +184,51 @@ mapping:
 
 Project IO must preserve both the project state references and the archive
 resource bytes through save/load/export/import when issue #221 lands.
+
+## Audio manifest policy
+
+Project audio metadata is stored in `manifest.json` under the `aliceAudio` key.
+Project IO preserves that manifest data like any other manifest field. The Alice
+server reads `aliceAudio` during project launch and writes the current audio
+state during project save.
+
+```json
+{
+  "aliceAudio": {
+    "version": 1,
+    "assets": [
+      {
+        "id": "audio-1",
+        "name": "intro.wav",
+        "format": "wav",
+        "resourcePath": "resources/audio/audio-1.wav",
+        "sizeBytes": 16044,
+        "durationSeconds": 1
+      }
+    ],
+    "backgroundMusic": {
+      "assetId": "audio-1",
+      "volume": 0.75,
+      "loop": true
+    },
+    "cues": [
+      {
+        "id": "intro-cue",
+        "assetId": "audio-1",
+        "animationId": "scene.myFirstMethod.spin",
+        "timelineTimeSeconds": 1.25,
+        "volume": 0.5
+      }
+    ]
+  }
+}
+```
+
+Every `assetId` referenced by `backgroundMusic` or `cues` must exist in
+`aliceAudio.assets`. Launch validates manifest shape and those in-manifest
+references. It does not check that every `asset.resourcePath` has a matching
+archive resource entry; playback or import tools should report that as a clear
+resource load error.
 
 ## Development memory setting
 
