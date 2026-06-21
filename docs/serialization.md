@@ -38,7 +38,8 @@ console.log(json);
 //   "version": "0.0.1",
 //   "projectName": "MyScene",
 //   "sceneObjects": [...],
-//   "methods": [...]
+//   "methods": [...],
+//   "importedAssets": [...] // issue #221 field
 // }
 
 // Deserialize
@@ -246,6 +247,7 @@ The JSON format is a direct `JSON.stringify` of the `AliceProject` interface:
 | `jointHierarchy` | ❌ | `array` | Defaults to `[]` if absent |
 | `boundingBoxes` | ❌ | `object` | Defaults to `{}` if absent |
 | `textureRefs` | ❌ | `array` | Defaults to `[]` if absent |
+| `importedAssets` | ❌ | `array` | Defaults to `[]` if absent |
 
 ## XML Format
 
@@ -258,6 +260,15 @@ The JSON format is a direct `JSON.stringify` of the `AliceProject` interface:
       <position x="0" y="0" z="0"/>
       <orientation x="0" y="0" z="0" w="1"/>
       <size width="1" height="1" depth="1"/>
+    </scene-object>
+    <scene-object name="box" typeName="SBox" resourceType="">
+      <position x="0" y="0" z="0"/>
+      <orientation x="0" y="0" z="0" w="1"/>
+      <size width="1" height="1" depth="1"/>
+      <!-- issue #221 surface texture binding -->
+      <material-bindings>
+        <material-binding target="surface" textureResourceId="project/textures/checker.png"/>
+      </material-bindings>
     </scene-object>
   </scene-objects>
   <methods>
@@ -288,6 +299,16 @@ The JSON format is a direct `JSON.stringify` of the `AliceProject` interface:
   <texture-refs>
     <texture-ref path="resources/textures/skin.png"/>
   </texture-refs>
+  <!-- issue #221 imported project asset metadata -->
+  <imported-assets>
+    <asset id="project/textures/checker.png"
+           kind="texture"
+           name="Checker"
+           fileName="checker.png"
+           resourcePath="resources/textures/checker.png"
+           contentType="image/png"
+           byteLength="4281"/>
+  </imported-assets>
 </alice-project>
 ```
 
@@ -297,10 +318,12 @@ The JSON format is a direct `JSON.stringify` of the `AliceProject` interface:
 |---------|--------|------------|-------------|
 | `<alice-project>` | root | `version`, `projectName` | Root element |
 | `<scene-objects>` | `<alice-project>` | — | Container for scene objects |
-| `<scene-object>` | `<scene-objects>` | `name`, `typeName`, `resourceType` | One scene entity |
+| `<scene-object>` | `<scene-objects>` | `name`, `typeName`, `resourceType`, optional `modelResourceId` | One scene entity |
 | `<position>` | `<scene-object>` | `x`, `y`, `z` | 3D position |
 | `<orientation>` | `<scene-object>` | `x`, `y`, `z`, `w` | Quaternion rotation |
 | `<size>` | `<scene-object>` | `width`, `height`, `depth` | Axis-aligned size |
+| `<material-bindings>` | `<scene-object>` | — | Container for surface texture bindings |
+| `<material-binding>` | `<material-bindings>` | `target`, `textureResourceId` | Texture binding for a material target |
 | `<methods>` | `<alice-project>` | — | Container for methods |
 | `<method>` | `<methods>` | `name`, `isFunction`, `returnType` | One method |
 | `<parameters>` | `<method>` | — | Container for parameters |
@@ -313,6 +336,8 @@ The JSON format is a direct `JSON.stringify` of the `AliceProject` interface:
 | `<bounding-box>` | `<bounding-boxes>` | `name` | One bounding box |
 | `<texture-refs>` | `<alice-project>` | — | Optional: texture paths |
 | `<texture-ref>` | `<texture-refs>` | `path` | One texture reference |
+| `<imported-assets>` | `<alice-project>` | — | Optional imported model and texture descriptors |
+| `<asset>` | `<imported-assets>` | `id`, `kind`, `name`, `fileName`, `resourcePath`, `contentType`, `byteLength` | One imported project asset descriptor |
 
 ### Statement Serialization
 

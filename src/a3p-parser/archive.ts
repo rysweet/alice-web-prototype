@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import { indexNodes, getProjectName } from "./dom.js";
 import { extractBoundingBoxes, extractJointHierarchy, extractTextureRefs } from "./resources.js";
-import { extractMethods, extractSceneObjects, extractTypes } from "./scene.js";
+import { extractImportedProjectAssets, extractMethods, extractSceneObjects, extractTypes } from "./scene.js";
 import {
   attachA3PSource,
   DEFAULT_A3P_XML_ENTRY,
@@ -70,6 +70,7 @@ export async function parseA3PFromZip(
     jointHierarchy: extractJointHierarchy(nodeIndex.jointImplementations),
     boundingBoxes: extractBoundingBoxes(nodeIndex.modelResourceInfos),
     textureRefs: extractTextureRefs(nodeIndex.textureReferences, zip),
+    importedAssets: extractImportedProjectAssets(doc),
   };
 
   attachA3PSource(project, {

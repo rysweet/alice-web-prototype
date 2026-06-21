@@ -10,7 +10,10 @@ import {
 import { extractStatements } from "./statements.js";
 import type {
   AliceFieldDefinition,
+  ImportedProjectAsset,
+  ImportedProjectAssetKind,
   AliceMethod,
+  MaterialBinding,
   AliceObject,
   AliceTypeDefinition,
 } from "./types.js";
@@ -160,7 +163,89 @@ function parseUserField(field: Element, keyMap: Map<string, Element>): AliceObje
   }
 
   const resourceType = extractResourceType(field, keyMap);
-  return { name, typeName, resourceType, position: null, orientation: null, size: null };
+  const object: AliceObject = { name, typeName, resourceType, position: null, orientation: null, size: null };
+  const modelResourceId = field.getAttribute("modelResourceId");
+  if (modelResourceId) {
+    object.modelResourceId = modelResourceId;
+  }
+  const materialBindings = extractMaterialBindings(field);
+  if (materialBindings.length > 0) {
+    object.materialBindings = materialBindings;
+  }
+  return object;
+}
+
+function extractMaterialBindings(field: Element): MaterialBinding[] {
+  const bindingsElement = directElementChild(field, "material-bindings");
+  if (!bindingsElement) return [];
+
+  const bindings: MaterialBinding[] = [];
+  for (const child of directElementChildren(bindingsElement)) {
+    if (child.tagName !== "binding") continue;
+    const target = child.getAttribute("target");
+    const textureResourceId = child.getAttribute("textureResourceId");
+    if (target === "surface" && textureResourceId) {
+      bindings.push({ target, textureResourceId });
+    }
+  }
+  return bindings;
+}
+
+export function extractImportedProjectAssets(doc: Document): ImportedProjectAsset[] {
+  const importedAssetsElement = firstElementByTagName(doc, "imported-assets");
+  if (!importedAssetsElement) return [];
+
+  const assets: ImportedProjectAsset[] = [];
+  for (const child of directElementChildren(importedAssetsElement)) {
+    if (child.tagName !== "asset") continue;
+
+    const id = child.getAttribute("id");
+    const kind = readAssetKind(child.getAttribute("kind"));
+    const name = child.getAttribute("name");
+    const fileName = child.getAttribute("fileName");
+    const resourcePath = child.getAttribute("resourcePath");
+    const contentType = child.getAttribute("contentType");
+    const byteLengthText = child.getAttribute("byteLength");
+    const byteLength = byteLengthText ? Number.parseInt(byteLengthText, 10) : Number.NaN;
+
+    if (!id || !kind || !name || !fileName || !resourcePath || !contentType || !Number.isFinite(byteLength)) {
+      continue;
+    }
+
+    assets.push({
+      id,
+      kind,
+      name,
+      fileName,
+      resourcePath,
+      contentType,
+      byteLength,
+    });
+  }
+
+  return assets;
+}
+
+function readAssetKind(kind: string | null): ImportedProjectAssetKind | null {
+  return kind === "model" || kind === "texture" ? kind : null;
+}
+
+function firstElementByTagName(parent: Document | Element, tagName: string): Element | null {
+  const matches = parent.getElementsByTagName(tagName);
+  return matches.length > 0 ? matches[0] : null;
+}
+
+function directElementChild(parent: Element, tagName: string): Element | null {
+  return directElementChildren(parent).find((child) => child.tagName === tagName) ?? null;
+}
+
+function directElementChildren(parent: Element): Element[] {
+  const children: Element[] = [];
+  for (let index = 0; index < parent.childNodes.length; index += 1) {
+    const child = parent.childNodes[index] as Element;
+    if (child.nodeType === 1) children.push(child);
+  }
+  return children;
 }
 
 function enrichFromMethods(sceneType: Element, objects: AliceObject[], keyMap: Map<string, Element>): void {

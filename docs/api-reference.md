@@ -35,7 +35,10 @@ surface.
 | `/api/launch` | `POST` | Start or reset a project session |
 | `/api/project/templates` | `GET` | List available project templates |
 | `/api/project/new` | `POST` | Create a new project from a template |
+| `/api/assets/import-model` | `POST` | Import a `.gltf` or `.glb` model into the current project |
+| `/api/assets/import-texture` | `POST` | Import a `.png`, `.jpg`, `.jpeg`, or `.webp` texture into the current project |
 | `/api/scene/add-object` | `POST` | Add one object to the scene |
+| `/api/scene/apply-texture` | `POST` | Bind an imported texture to a scene object's surface |
 | `/api/code/create-procedure` | `POST` | Create a procedure in the current project state |
 | `/api/code/create-function` | `POST` | Create a function in the current project state |
 | `/api/code/edit-procedure` | `POST` | Append a procedure edit proof |
@@ -224,6 +227,7 @@ Request body:
 | --- | --- | --- | --- |
 | `className` | `string` | yes | Alice class name to add |
 | `name` | `string` | no | Scene field name; defaults from class name |
+| `modelResourceId` | `string` | no | Imported model resource ID such as `project/models/moon-rover.glb` |
 
 Example response:
 
@@ -236,6 +240,134 @@ Example response:
   "evidenceArtifact": "evidence/scene-object-added.json"
 }
 ```
+
+Providing `modelResourceId` makes the object use the imported model asset stored
+in project state. Unknown model resource IDs return `400`.
+
+## `POST /api/assets/import-model`
+
+Import a `.gltf` or `.glb` model into the current project. This route uses JSON
+base64 uploads with a 25 MiB body limit.
+
+```bash
+MODEL_BASE64="$(base64 -w0 assets/models/moon-rover.glb)"
+
+curl -X POST http://127.0.0.1:3000/api/assets/import-model \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"fileName\":\"moon-rover.glb\",\"displayName\":\"Moon Rover\",\"contentBase64\":\"$MODEL_BASE64\"}"
+```
+
+Request body:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `fileName` | `string` | yes | Source filename ending in `.gltf` or `.glb` |
+| `displayName` | `string` | no | Human-readable asset name; defaults from `fileName` |
+| `contentBase64` | `string` | yes | Base64-encoded model bytes |
+
+Example response:
+
+```json
+{
+  "status": "imported",
+  "asset": {
+    "id": "project/models/moon-rover.glb",
+    "kind": "model",
+    "name": "Moon Rover",
+    "fileName": "moon-rover.glb",
+    "resourcePath": "resources/models/moon-rover.glb",
+    "contentType": "model/gltf-binary",
+    "byteLength": 18422
+  }
+}
+```
+
+Validation rejects missing fields, invalid base64, empty decoded bytes, unsafe
+filenames, unsupported extensions, and decoded resources that exceed Project
+IO's archive size limit. Duplicate asset IDs get `-2`, `-3`, and later suffixes
+before the extension.
+
+## `POST /api/assets/import-texture`
+
+Import a browser-compatible image texture into the current project. This route
+uses the same 25 MiB JSON body limit as model imports.
+
+```bash
+TEXTURE_BASE64="$(base64 -w0 assets/textures/checker.png)"
+
+curl -X POST http://127.0.0.1:3000/api/assets/import-texture \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"fileName\":\"checker.png\",\"displayName\":\"Checker\",\"contentBase64\":\"$TEXTURE_BASE64\"}"
+```
+
+Request body:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `fileName` | `string` | yes | Source filename ending in `.png`, `.jpg`, `.jpeg`, or `.webp` |
+| `displayName` | `string` | no | Human-readable asset name; defaults from `fileName` |
+| `contentBase64` | `string` | yes | Base64-encoded image bytes |
+
+Example response:
+
+```json
+{
+  "status": "imported",
+  "asset": {
+    "id": "project/textures/checker.png",
+    "kind": "texture",
+    "name": "Checker",
+    "fileName": "checker.png",
+    "resourcePath": "resources/textures/checker.png",
+    "contentType": "image/png",
+    "byteLength": 4281
+  }
+}
+```
+
+Validation rejects missing fields, invalid base64, empty decoded bytes, unsafe
+filenames, unsupported extensions, and decoded resources that exceed Project
+IO's archive size limit. Duplicate asset IDs get `-2`, `-3`, and later suffixes
+before the extension.
+
+## `POST /api/scene/apply-texture`
+
+Bind an imported texture to a scene object's surface material.
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/scene/apply-texture \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"objectName":"box","textureResourceId":"project/textures/checker.png","target":"surface"}'
+```
+
+Request body:
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `objectName` | `string` | yes | Existing scene object name |
+| `textureResourceId` | `string` | yes | Imported texture resource ID |
+| `target` | `"surface"` | no | Material target; defaults to `"surface"` |
+
+Example response:
+
+```json
+{
+  "status": "applied",
+  "objectName": "box",
+  "materialBindings": [
+    {
+      "target": "surface",
+      "textureResourceId": "project/textures/checker.png"
+    }
+  ]
+}
+```
+
+Validation rejects unknown texture resource IDs and unsupported targets with
+`400`. Missing scene objects return `404`.
 
 ## Joint manipulation endpoints
 

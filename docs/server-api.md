@@ -155,7 +155,10 @@ export/share/validation routes:
 | `POST` | `/api/launch` | project launch summary | initializes per-server project state |
 | `GET` | `/api/project/templates` | template list | none |
 | `POST` | `/api/project/new` | `eatme.alice-project-new-result/v1` | writes `project-new/<ProjectName>.a3p` |
+| `POST` | `/api/assets/import-model` | imported model asset descriptor | adds model bytes and `project/models/<assetId>` metadata to current state |
+| `POST` | `/api/assets/import-texture` | imported texture asset descriptor | adds texture bytes and `project/textures/<assetId>` metadata to current state |
 | `POST` | `/api/scene/add-object` | object add summary | writes `scene-object-added.json` |
+| `POST` | `/api/scene/apply-texture` | texture binding summary | updates the selected scene object's surface material binding |
 | `POST` | `/api/code/create-procedure` | procedure creation summary | adds a procedure to current state |
 | `POST` | `/api/code/create-function` | function creation summary | adds a function to current state |
 | `POST` | `/api/code/edit-procedure` | `eatme.alice-first-lesson-code-editor-action-proof-result/v1` | writes edit proof and `edited-project.a3p` |
@@ -338,6 +341,12 @@ The active state tracks:
 - the template library used by project creation
 - the active camera workflow state and in-memory camera markers
 
+Issue #221 adds state for imported model and texture asset descriptors,
+one active archive resource map for imported bytes and parsed archive resources,
+and scene object model resource IDs plus surface material bindings. Imported
+bytes should use the same resource map seeded from `readProject()` and passed to
+`writeProject()`; they should not live in a second imported-byte-only map.
+
 Launching a project seeds default `ground` and `camera` scene objects when the
 project has no loaded scene objects and resets camera workflow state to the
 default Alice home view. Creating a project from a template replaces the active
@@ -361,6 +370,12 @@ project state, resets camera workflow state, and marks the server launched.
 | Camera workflow | `src/camera-workflow.ts` | Serializable camera state, movement math, presets, markers, and validation |
 | Camera routes | `src/server/routes/camera-routes.ts` | HTTP translation and route-level token guard for `/api/camera/*` |
 | Routes | `src/server/routes/*.ts` | Translate HTTP requests and responses to service calls |
+
+Asset import routes use the same per-server state and Alice API
+identity as the rest of the local API. They need a larger JSON body limit than
+the general API routes because base64 model and texture uploads can exceed 1
+MiB. The limit is 25 MiB for `/api/assets/import-model` and
+`/api/assets/import-texture`.
 
 Route handlers stay thin: they read request data, call the relevant state or service helper, choose the HTTP status code, and return JSON.
 
@@ -398,6 +413,23 @@ curl -X POST http://127.0.0.1:3000/api/scene/add-object \
   -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"className":"org.lgna.story.SBiped","name":"bunny"}'
+```
+
+Issue #221 plans texture import and application routes. After that
+implementation lands, import a texture and apply it to an object:
+
+```bash
+TEXTURE_BASE64="$(base64 -w0 assets/textures/checker.png)"
+
+curl -X POST http://127.0.0.1:3000/api/assets/import-texture \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"fileName\":\"checker.png\",\"displayName\":\"Checker\",\"contentBase64\":\"$TEXTURE_BASE64\"}"
+
+curl -X POST http://127.0.0.1:3000/api/scene/apply-texture \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"objectName":"bunny","textureResourceId":"project/textures/checker.png","target":"surface"}'
 ```
 
 Append an edit proof to `scene.myFirstMethod`:

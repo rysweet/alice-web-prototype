@@ -24,7 +24,7 @@ those modules directly.
 | XML pass-through | Preserving the `programType.xml` or legacy `program.xml` entry name and migrated XML text through the internal `__original_xml__` marker |
 | Manifest and version sync | Reading `manifest.json`, detecting Alice versions, updating the first recognized version field after migration, and serializing manifests |
 | Migration | Applying project-IO migration through `project-migration.ts` without moving migration rule ownership into archive code |
-| Resources | Extracting project resources, classifying resource kinds, and filtering internal entries during writes |
+| Resources | Extracting project resources, classifying resource kinds, preserving safe binary entries, and filtering internal entries during writes |
 | Thumbnails | Reading `thumbnail.png`, writing supplied thumbnails, and optionally generating thumbnails from the scene |
 
 ## Archive flow
@@ -93,6 +93,9 @@ Project IO preserves the existing `.a3p` behavior:
   writing, replacing thumbnails, preserving XML, and handling errors.
 - Use [Project IO configuration](./project-io-configuration.md) for archive
   conventions, size limits, path rules, and thumbnail-generation options.
+- Use [[PLANNED] Imported model and texture assets](./imported-models-and-textures.md)
+  for the issue #221 `project/models/...` and `project/textures/...` identity
+  convention.
 - Follow the [round-trip tutorial](./tutorial-project-io-round-trip.md) to load,
   inspect, modify, and save an `.a3p` file.
 - See the [TypeScript source export](./typescript-source-export.md)

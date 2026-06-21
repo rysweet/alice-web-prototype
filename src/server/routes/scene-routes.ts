@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import type { ServerContext } from "../context.js";
-import { DEFAULT_POSITION } from "../state.js";
+import { addSceneObjectToCurrentProject, DEFAULT_POSITION } from "../state.js";
 import { registerSceneObjectJointsIfSupported } from "./joint-routes.js";
 import {
   readJsonObjectBody,
@@ -34,6 +34,10 @@ export function registerSceneRoutes(app: Express, context: ServerContext): void 
       name: objectName,
       className: className.value,
       position: { ...DEFAULT_POSITION },
+    });
+    addSceneObjectToCurrentProject(context.state, {
+      name: objectName,
+      className: className.value,
     });
 
     try {

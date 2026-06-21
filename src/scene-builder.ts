@@ -9,6 +9,7 @@ import {
   createModel,
 } from "./scenegraph";
 import { markSceneOwnedGeometry, markSceneOwnedMaterials } from "./scene-disposal";
+import { projectResourceIdToArchivePath } from "./imported-project-assets";
 
 // ── Exported interfaces ───────────────────────────────────────────────
 
@@ -40,6 +41,7 @@ export interface SceneBuildOptions {
   cameraTarget?: { x: number; y: number; z: number };
   cameraMinDistance?: number;
   cameraMaxDistance?: number;
+  resources?: Map<string, Uint8Array>;
 }
 
 /** Post-build light management API. */
@@ -186,7 +188,7 @@ export function buildScene(project: AliceProject, opts?: SceneBuildOptions): Sce
 
   // Scene objects with optional debug visualizations
   for (const obj of project.sceneObjects) {
-    const mesh = createMeshForObject(obj);
+    const mesh = createMeshForObject(obj, opts?.resources);
     if (!mesh) continue;
     scene.add(mesh);
 
@@ -395,7 +397,7 @@ function createSceneGraphModel(obj: AliceObject): SceneGraphModel | null {
 
 // ── Mesh creation (existing logic, extended) ──────────────────────────
 
-function createMeshForObject(obj: AliceObject): THREE.Object3D | null {
+function createMeshForObject(obj: AliceObject, resources?: Map<string, Uint8Array>): THREE.Object3D | null {
   const typeName = obj.typeName;
 
   if (typeName.includes("SGround")) {
@@ -412,10 +414,10 @@ function createMeshForObject(obj: AliceObject): THREE.Object3D | null {
     typeName.includes("SFlyer") ||
     typeName.includes("SQuadruped")
   ) {
-    return createPropPlaceholder(obj);
+    return createPropPlaceholder(obj, resources);
   }
 
-  return createGenericPlaceholder(obj);
+  return createGenericPlaceholder(obj, resources);
 }
 
 function createGround(obj: AliceObject): THREE.Mesh {
@@ -426,14 +428,14 @@ function createGround(obj: AliceObject): THREE.Mesh {
   return mesh;
 }
 
-function createPropPlaceholder(obj: AliceObject): THREE.Mesh {
+function createPropPlaceholder(obj: AliceObject, resources?: Map<string, Uint8Array>): THREE.Mesh {
   const w = obj.size?.width ?? 1;
   const h = obj.size?.height ?? 1;
   const d = obj.size?.depth ?? 1;
 
   // BoxGeometry varies per object — cannot cache
   const geo = markSceneOwnedGeometry(new THREE.BoxGeometry(w, h, d));
-  const mat = obj.typeName.includes("SProp") ? propMat() : modelMat();
+  const mat = materialForObject(obj, obj.typeName.includes("SProp") ? propMat() : modelMat(), resources);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.castShadow = true;
 
@@ -442,13 +444,52 @@ function createPropPlaceholder(obj: AliceObject): THREE.Mesh {
   return mesh;
 }
 
-function createGenericPlaceholder(obj: AliceObject): THREE.Mesh {
-  const mesh = new THREE.Mesh(sphereGeo(), defaultMat());
+function createGenericPlaceholder(obj: AliceObject, resources?: Map<string, Uint8Array>): THREE.Mesh {
+  const mesh = new THREE.Mesh(sphereGeo(), materialForObject(obj, defaultMat(), resources));
   mesh.castShadow = true;
 
   applyTransform(mesh, obj);
   mesh.name = obj.name;
   return mesh;
+}
+
+function materialForObject(
+  obj: AliceObject,
+  fallback: THREE.MeshLambertMaterial,
+  resources?: Map<string, Uint8Array>,
+): THREE.MeshLambertMaterial {
+  const textureResourceId = obj.materialBindings
+    ?.find((binding) => binding.target === "surface")?.textureResourceId;
+  if (!textureResourceId || !resources || typeof Blob === "undefined" || typeof URL === "undefined") {
+    return fallback;
+  }
+
+  const resourceBytes = resources.get(projectResourceIdToArchivePath(textureResourceId));
+  if (!resourceBytes) {
+    return fallback;
+  }
+
+  const texture = textureFromBytes(resourceBytes, textureResourceId);
+  const material = new THREE.MeshLambertMaterial({ map: texture });
+  markSceneOwnedMaterials(material);
+  return material;
+}
+
+function textureFromBytes(bytes: Uint8Array, textureResourceId: string): THREE.Texture {
+  const blobBytes = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(blobBytes).set(bytes);
+  const blob = new Blob([blobBytes], { type: textureContentType(textureResourceId) });
+  const url = URL.createObjectURL(blob);
+  const texture = new THREE.TextureLoader().load(url, () => URL.revokeObjectURL(url));
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function textureContentType(textureResourceId: string): string {
+  const lower = textureResourceId.toLowerCase();
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".webp")) return "image/webp";
+  return "image/png";
 }
 
 function applyTransform(mesh: THREE.Object3D, obj: AliceObject): void {

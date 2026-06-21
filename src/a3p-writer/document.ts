@@ -4,6 +4,8 @@ import {
   type AliceObject,
   type AliceProject,
   type AliceTypeDefinition,
+  type ImportedProjectAsset,
+  type MaterialBinding,
   getA3PMethodSource,
   getA3PSource,
   snapshotAliceProject,
@@ -52,6 +54,7 @@ export function buildProjectXml(project: AliceProject, baseXmlText: string | nul
       setPropertyText(doc, sceneTypeNode, "name", sceneType.name);
     }
     syncFields(doc, sceneTypeNode, desiredFields);
+    syncSceneObjectMetadata(doc, sceneTypeNode, project.sceneObjects);
     syncMethods(doc, sceneTypeNode, desiredMethods);
   }
 
@@ -75,6 +78,8 @@ export function buildProjectXml(project: AliceProject, baseXmlText: string | nul
       }
     }
   }
+
+  syncImportedAssets(doc, root, project.importedAssets ?? []);
 
   return preserveXmlDeclaration(baseXmlText, serializeXmlString(doc));
 }
@@ -138,6 +143,67 @@ function syncFields(doc: Document, typeNode: Element, desiredFields: AliceFieldD
   }
   for (let index = existingFields.length; index < desiredFields.length; index += 1) {
     collection.appendChild(createFieldNode(doc, desiredFields[index]));
+  }
+}
+
+function syncImportedAssets(doc: Document, root: Element, assets: ImportedProjectAsset[]): void {
+  removeDirectChildren(root, "imported-assets");
+  if (assets.length === 0) return;
+
+  const importedAssetsNode = doc.createElement("imported-assets");
+  for (const asset of assets) {
+    const assetNode = doc.createElement("asset");
+    assetNode.setAttribute("id", asset.id);
+    assetNode.setAttribute("kind", asset.kind);
+    assetNode.setAttribute("name", asset.name);
+    assetNode.setAttribute("fileName", asset.fileName);
+    assetNode.setAttribute("resourcePath", asset.resourcePath);
+    assetNode.setAttribute("contentType", asset.contentType);
+    assetNode.setAttribute("byteLength", String(asset.byteLength));
+    importedAssetsNode.appendChild(assetNode);
+  }
+  root.appendChild(importedAssetsNode);
+}
+
+function syncSceneObjectMetadata(doc: Document, sceneTypeNode: Element, sceneObjects: AliceObject[]): void {
+  const collection = ensureCollectionProperty(doc, sceneTypeNode, "fields");
+  const byName = new Map(sceneObjects.map((object) => [object.name, object]));
+
+  for (const fieldNode of directCollectionNodes(collection)
+    .filter((node) => node.getAttribute("type") === "org.lgna.project.ast.UserField")) {
+    const name = getPropertyText(fieldNode, "name");
+    const object = name ? byName.get(name) : undefined;
+    if (!object) continue;
+
+    if (object.modelResourceId) {
+      fieldNode.setAttribute("modelResourceId", object.modelResourceId);
+    } else {
+      fieldNode.removeAttribute("modelResourceId");
+    }
+    syncMaterialBindings(doc, fieldNode, object.materialBindings ?? []);
+  }
+}
+
+function syncMaterialBindings(doc: Document, fieldNode: Element, bindings: MaterialBinding[]): void {
+  removeDirectChildren(fieldNode, "material-bindings");
+  if (bindings.length === 0) return;
+
+  const bindingsNode = doc.createElement("material-bindings");
+  for (const binding of bindings) {
+    const bindingNode = doc.createElement("binding");
+    bindingNode.setAttribute("target", binding.target);
+    bindingNode.setAttribute("textureResourceId", binding.textureResourceId);
+    bindingsNode.appendChild(bindingNode);
+  }
+  fieldNode.appendChild(bindingsNode);
+}
+
+function removeDirectChildren(parent: Element, tagName: string): void {
+  for (let index = parent.childNodes.length - 1; index >= 0; index -= 1) {
+    const child = parent.childNodes[index] as Element;
+    if (child.nodeType === 1 && child.tagName === tagName) {
+      parent.removeChild(child);
+    }
   }
 }
 

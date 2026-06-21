@@ -37,6 +37,8 @@ not render a replacement.
 | `version.txt` | Alice project version text at the ZIP root |
 | `thumbnail.png` | Optional thumbnail PNG bytes at the ZIP root |
 | `resources/...` | Typical location for project resources, though Project IO accepts any safe non-special archive-relative path |
+| `resources/models/<assetId>` | [PLANNED] Imported `.gltf` and `.glb` model bytes for issue #221 |
+| `resources/textures/<assetId>` | [PLANNED] Imported `.png`, `.jpg`, `.jpeg`, and `.webp` texture bytes for issue #221 |
 | `__original_xml__` | Internal resource-map marker used by Project IO, not a ZIP entry and not a normal resource callers should create manually |
 
 ## Runnable web package conventions
@@ -170,6 +172,17 @@ Project IO treats these paths as special and does not expose them as normal
 
 All other safe non-directory entries are extracted as resources and classified
 as `image`, `audio`, `model`, or `other`.
+
+[PLANNED] Issue #221 imported project assets use fixed project-to-archive path
+mapping:
+
+| Project state value | Archive resource |
+| --- | --- |
+| `project/models/<assetId>` | `resources/models/<assetId>` |
+| `project/textures/<assetId>` | `resources/textures/<assetId>` |
+
+Project IO must preserve both the project state references and the archive
+resource bytes through save/load/export/import when issue #221 lands.
 
 ## Development memory setting
 

@@ -98,6 +98,68 @@ archive.resources.set("//server/share/texture.png", new Uint8Array());
 
 Rejected paths throw `ProjectIoError` with code `unsafe-path`.
 
+## Add imported model and texture assets
+
+Issue #221 imported assets need both project metadata and archive bytes. Store
+scene-facing IDs under `project/models/` or `project/textures/`, and store bytes
+under the matching `resources/` archive path.
+
+```typescript
+import { readFile } from "node:fs/promises";
+import { readProject, writeProject } from "./src/project-io.js";
+
+const archive = await readProject(projectBytes);
+
+const modelBytes = await readFile("assets/models/moon-rover.glb");
+const textureBytes = await readFile("assets/textures/checker.png");
+
+archive.project.importedAssets = [
+  ...(archive.project.importedAssets ?? []),
+  {
+    id: "project/models/moon-rover.glb",
+    kind: "model",
+    name: "Moon Rover",
+    fileName: "moon-rover.glb",
+    resourcePath: "resources/models/moon-rover.glb",
+    contentType: "model/gltf-binary",
+    byteLength: modelBytes.byteLength,
+  },
+  {
+    id: "project/textures/checker.png",
+    kind: "texture",
+    name: "Checker",
+    fileName: "checker.png",
+    resourcePath: "resources/textures/checker.png",
+    contentType: "image/png",
+    byteLength: textureBytes.byteLength,
+  },
+];
+
+archive.resources.set(
+  "resources/models/moon-rover.glb",
+  new Uint8Array(modelBytes),
+);
+archive.resources.set(
+  "resources/textures/checker.png",
+  new Uint8Array(textureBytes),
+);
+
+const box = archive.project.sceneObjects.find((object) => object.name === "box");
+if (box) {
+  box.materialBindings = [
+    {
+      target: "surface",
+      textureResourceId: "project/textures/checker.png",
+    },
+  ];
+}
+
+const output = await writeProject(archive);
+```
+
+See [[Imported model and texture assets](./imported-models-and-textures.md)
+for the full asset descriptor and scene binding contract.
+
 ## Replace a thumbnail
 
 `archive.thumbnail` maps to root `thumbnail.png`.

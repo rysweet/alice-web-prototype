@@ -1,7 +1,7 @@
 # Tutorial: Adding Open-Source 3D Models
 
-This guide explains how to add 3D models to the Alice web prototype using
-the open-asset pipeline. Three approaches are available, from simplest to
+This guide explains how to add 3D models to Alice using the open-asset pipeline.
+Four approaches are available, from simplest to
 most flexible.
 
 ## Before You Start
@@ -10,7 +10,7 @@ You need:
 
 - A working local build (see [Getting Started](./getting-started.md))
 - For Option B/C: Blender 3.0+ (for model conversion)
-- For Option B: A `.glb` or `.gltf` model file
+- For Option B/D: A `.glb` or `.gltf` model file
 
 ## Option A: Use Procedural Models (No External Files)
 
@@ -199,6 +199,39 @@ const script = generateBlenderExportScript({
 // Write script to disk, then run with Blender
 ```
 
+## Option D: [PLANNED] Import a model into an Alice project
+
+Use the browser or local REST API when the model belongs to a specific project
+instead of the shared gallery. Alice stores the imported bytes in the `.a3p`
+archive and records a project resource ID on the scene object. This option is
+the target issue #221 workflow and requires the matching implementation.
+
+```text
+project/models/moon-rover.glb      # project resource ID
+resources/models/moon-rover.glb    # archive resource path
+```
+
+In the browser:
+
+1. Open the model import control.
+2. Choose `moon-rover.glb` or a self-contained `moon-rover.gltf`.
+3. Add or select the scene object that should use the model.
+4. Save the project.
+
+The same flow is planned over HTTP:
+
+```bash
+MODEL_BASE64="$(base64 -w0 assets/models/moon-rover.glb)"
+
+curl -X POST http://127.0.0.1:3000/api/assets/import-model \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"fileName\":\"moon-rover.glb\",\"displayName\":\"Moon Rover\",\"contentBase64\":\"$MODEL_BASE64\"}"
+```
+
+See [[PLANNED] Import a model and apply a custom texture](./tutorial-import-model-and-apply-texture.md)
+for the complete target save/load workflow.
+
 ## Adding Models to the Gallery
 
 After registering models with the catalog, they appear in the gallery browser:
@@ -245,6 +278,8 @@ facing the wrong direction.
 ## What's Next
 
 - [Open-Asset Pipeline reference](./open-asset-pipeline.md) — full API docs
+- [[PLANNED] Imported model and texture assets](./imported-models-and-textures.md) —
+  project asset, texture binding, API, and persistence contract
 - [Open-Source 3D Alternatives](./open-source-3d-alternatives.md) — research
   on available tools and model repositories
 - [Model Resources](./model-resources.md) — catalog system internals

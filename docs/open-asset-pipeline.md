@@ -58,6 +58,31 @@ const definitions = createModelDefinitions({
 });
 ```
 
+### With Project Imports
+
+Browser and API imports store project-owned model bytes in Project IO resources
+and resolve them through the open-asset pipeline by project resource ID:
+
+```typescript
+const modelResourceId = "project/models/moon-rover.glb";
+const archivePath = "resources/models/moon-rover.glb";
+```
+
+Scene objects reference the project resource ID:
+
+```json
+{
+  "name": "moonRover",
+  "typeName": "SModel",
+  "modelResourceId": "project/models/moon-rover.glb"
+}
+```
+
+The archive path holds the bytes in `.a3p` files. See the issue #221
+contract in
+[[Imported model and texture assets](./imported-models-and-textures.md)
+for the project-state and persistence contract.
+
 ## Architecture
 
 ```
@@ -302,6 +327,8 @@ They can be loaded with `importGltfData()` for testing.
 
 - [Tutorial: Adding 3D Models](./tutorial-adding-3d-models.md) — step-by-step
   guide for adding new models
+- [[Imported model and texture assets](./imported-models-and-textures.md) —
+  project-owned model and texture import contract
 - [Open-Source 3D Alternatives](./open-source-3d-alternatives.md) — research
   on available tools and repositories
 - [Model Resources](./model-resources.md) — catalog system for browsing and

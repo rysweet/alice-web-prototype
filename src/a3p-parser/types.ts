@@ -9,6 +9,25 @@ export interface AliceObject {
   orientation: { x: number; y: number; z: number; w: number } | null;
   size: { width: number; height: number; depth: number } | null;
   constructorArgs?: string[];
+  modelResourceId?: string;
+  materialBindings?: MaterialBinding[];
+}
+
+export type ImportedProjectAssetKind = "model" | "texture";
+
+export interface ImportedProjectAsset {
+  id: string;
+  kind: ImportedProjectAssetKind;
+  name: string;
+  fileName: string;
+  resourcePath: string;
+  contentType: string;
+  byteLength: number;
+}
+
+export interface MaterialBinding {
+  target: "surface";
+  textureResourceId: string;
 }
 
 export interface AliceStatement {
@@ -70,6 +89,7 @@ export interface AliceProject {
   jointHierarchy?: JointNode[];
   boundingBoxes?: Record<string, BoundingBox>;
   textureRefs?: string[];
+  importedAssets?: ImportedProjectAsset[];
 }
 
 export interface A3PSourceMetadata {
@@ -105,6 +125,7 @@ export function snapshotAliceProject(project: AliceProject): string {
     jointHierarchy: project.jointHierarchy ?? [],
     boundingBoxes: project.boundingBoxes ?? {},
     textureRefs: project.textureRefs ?? [],
+    importedAssets: project.importedAssets ?? [],
   });
 }
 

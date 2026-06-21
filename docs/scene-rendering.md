@@ -3,7 +3,8 @@
 `src/scene-builder.ts` converts parsed Alice project data into a Three.js scene.
 This document covers the configurable camera, multi-light system, ground grid,
 bounding-box overlays, and joint-skeleton visualizations that extend the base
-scene builder.
+scene builder. Imported model and surface texture bindings are supported by the
+issue #221 asset workflow.
 
 ## Quick Start
 
@@ -39,6 +40,23 @@ const result = buildScene(project, {
 // result.lights      — SceneLights handle for post-build light management
 // result.sceneGraph  — scenegraph.Transformable root with Model/Visual/Geometry nodes
 ```
+
+Imported project assets resolve from project resource IDs:
+
+```json
+{
+  "name": "box",
+  "materialBindings": [
+    {
+      "target": "surface",
+      "textureResourceId": "project/textures/checker.png"
+    }
+  ]
+}
+```
+
+The bytes live in the `.a3p` archive at `resources/textures/checker.png` once
+the issue #221 persistence work lands.
 
 ## Backward Compatibility
 
@@ -453,10 +471,30 @@ for future toggling.
 
 ---
 
+### 6. Imported Models and Surface Textures
+
+Scene building will resolve imported model and texture references from project
+state:
+
+| Scene field | Resource bytes | Render effect |
+| --- | --- | --- |
+| `modelResourceId: "project/models/<assetId>"` | `resources/models/<assetId>` | Loads the model through the open-asset pipeline |
+| `materialBindings[{ target: "surface", textureResourceId }]` | `resources/textures/<assetId>` | Applies the image as the object's surface texture |
+
+If an imported texture binding replaces a flat color, the material will keep the
+object opacity and transform behavior. If an imported model is unavailable, the
+scene builder will report the missing resource instead of silently dropping the
+object.
+
+See [[Imported model and texture assets](./imported-models-and-textures.md)
+for the persistence and API contract.
+
+---
+
 ## Debug Object Tagging
 
 All debug visualizations are tagged via `THREE.Object3D.userData.debugType`.
-This enables future UI toggles without changing the builder:
+This lets UI controls toggle debug helpers without changing the builder:
 
 | `userData.debugType` | Object | Created by |
 |---|---|---|

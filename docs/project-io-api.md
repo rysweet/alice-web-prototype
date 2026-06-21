@@ -171,6 +171,17 @@ interface ProjectResourceDescriptor {
 | `kind` | `image`, `audio`, `model`, or `other` |
 | `size` | Extracted byte length |
 
+Issue #221 imported project assets use these resource paths:
+
+| Project resource ID | Archive resource path |
+| --- | --- |
+| `project/models/<assetId>` | `resources/models/<assetId>` |
+| `project/textures/<assetId>` | `resources/textures/<assetId>` |
+
+The project resource ID will be stored in `AliceProject.importedAssets`,
+`AliceObject.modelResourceId`, or `AliceObject.materialBindings`. The archive
+resource path is the key used in `AliceProjectArchive.resources`.
+
 ### `WriteProjectOptions`
 
 ```typescript

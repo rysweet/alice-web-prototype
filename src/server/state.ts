@@ -6,6 +6,7 @@ import {
   createDefaultCameraWorkflowState,
   type CameraWorkflowState,
 } from "../camera-workflow.js";
+import type { AliceProjectArchive } from "../project-io.js";
 
 export interface Position {
   x: number;
@@ -33,6 +34,8 @@ export interface ServerState {
   procedures: Map<string, string[]>;
   parsedProject: AliceProject | null;
   cameraWorkflow: CameraWorkflowState;
+  projectArchive: AliceProjectArchive | null;
+  resources: Map<string, Uint8Array>;
   eventSystem: EventSystem;
   templateLibrary: TemplateLibrary;
   jointState: JointStateStore;
@@ -51,6 +54,8 @@ export function createInitialServerState(): ServerState {
     procedures: new Map([["myFirstMethod", []]]),
     parsedProject: null,
     cameraWorkflow: createDefaultCameraWorkflowState(),
+    projectArchive: null,
+    resources: new Map(),
     eventSystem: new EventSystem({
       hasObject: (name) => sceneObjects.has(name),
       getObjectPosition: (name) => sceneObjects.get(name)?.position ?? null,
@@ -112,6 +117,31 @@ function cloneProject(project: AliceProject): AliceProject {
   return JSON.parse(JSON.stringify(project)) as AliceProject;
 }
 
+export function ensureCurrentProject(state: ServerState): AliceProject {
+  if (!state.parsedProject) {
+    state.parsedProject = buildCurrentProject(state);
+  }
+  return state.parsedProject;
+}
+
+export function addSceneObjectToCurrentProject(
+  state: ServerState,
+  input: { name: string; className: string },
+): void {
+  const project = ensureCurrentProject(state);
+  if (project.sceneObjects.some((object) => object.name === input.name)) {
+    return;
+  }
+  project.sceneObjects.push({
+    name: input.name,
+    typeName: input.className,
+    resourceType: null,
+    position: null,
+    orientation: null,
+    size: null,
+  });
+}
+
 export function seedDefaultSceneObjects(state: ServerState): void {
   if (state.sceneObjects.size !== 0) return;
 
@@ -127,6 +157,17 @@ export function seedDefaultSceneObjects(state: ServerState): void {
   };
   state.sceneObjects.set("ground", ground);
   state.sceneObjects.set("camera", camera);
+}
+
+export function syncServerSceneObjectsFromProject(state: ServerState, project: AliceProject): void {
+  state.sceneObjects.clear();
+  for (const object of project.sceneObjects) {
+    state.sceneObjects.set(object.name, {
+      name: object.name,
+      className: object.typeName,
+      position: object.position ?? { ...DEFAULT_POSITION },
+    });
+  }
 }
 
 export function parseMethodParams(
