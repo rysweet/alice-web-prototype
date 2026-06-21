@@ -2,6 +2,10 @@ import { EventSystem } from "../events.js";
 import { JointStateStore } from "../joint-system.js";
 import { TemplateLibrary } from "../project-templates.js";
 import type { AliceProject } from "../a3p-parser.js";
+import {
+  createDefaultCameraWorkflowState,
+  type CameraWorkflowState,
+} from "../camera-workflow.js";
 
 export interface Position {
   x: number;
@@ -28,6 +32,7 @@ export interface ServerState {
   sceneObjects: Map<string, SceneObject>;
   procedures: Map<string, string[]>;
   parsedProject: AliceProject | null;
+  cameraWorkflow: CameraWorkflowState;
   eventSystem: EventSystem;
   templateLibrary: TemplateLibrary;
   jointState: JointStateStore;
@@ -45,6 +50,7 @@ export function createInitialServerState(): ServerState {
     sceneObjects,
     procedures: new Map([["myFirstMethod", []]]),
     parsedProject: null,
+    cameraWorkflow: createDefaultCameraWorkflowState(),
     eventSystem: new EventSystem({
       hasObject: (name) => sceneObjects.has(name),
       getObjectPosition: (name) => sceneObjects.get(name)?.position ?? null,

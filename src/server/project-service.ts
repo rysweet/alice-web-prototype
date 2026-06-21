@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { parseA3P, type AliceProject } from "../a3p-parser.js";
 import { writeA3P } from "../a3p-writer/archive.js";
+import { createDefaultCameraWorkflowState } from "../camera-workflow.js";
 import { executeProject, type LogEntry } from "../tweedle-vm.js";
 import { jointStateSidecarPath, writeJointStateSidecar } from "./joint-state-sidecar.js";
 import { buildCurrentProject, seedDefaultSceneObjects, type ServerState } from "./state.js";
@@ -122,6 +123,7 @@ export const projectService: ProjectService = {
     state.projectPath = resolvedProjectFile;
     state.projectName = projectName;
     state.parsedProject = parsedProject;
+    state.cameraWorkflow = createDefaultCameraWorkflowState();
 
     seedDefaultSceneObjects(state);
     state.eventSystem.reset();

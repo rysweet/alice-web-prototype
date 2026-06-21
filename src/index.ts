@@ -81,6 +81,7 @@ export * as KeyboardEventBridge from "./keyboard-event-bridge";
 export * as LayoutBridge from "./layout-bridge";
 export * as LayoutSystem from "./layout-system";
 export * as CameraSystem from "./camera-system";
+export * as CameraWorkflow from "./camera-workflow";
 export * as EntityAnimation from "./entity-animation";
 export * as IkSolver from "./ik-solver";
 export * as Localization from "./localization";

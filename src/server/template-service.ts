@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { writeA3P } from "../a3p-writer/archive.js";
+import { createDefaultCameraWorkflowState } from "../camera-workflow.js";
 import type { TemplateDescriptor } from "../project-templates.js";
 import { DEFAULT_POSITION, type ServerState } from "./state.js";
 import { sanitizeFilename } from "./validation.js";
@@ -44,6 +45,7 @@ export const templateService: TemplateService = {
     state.parsedProject = project;
     state.projectName = project.projectName;
     state.projectPath = newProjectPath;
+    state.cameraWorkflow = createDefaultCameraWorkflowState();
     state.sceneObjects.clear();
     for (const obj of project.sceneObjects) {
       state.sceneObjects.set(obj.name, {

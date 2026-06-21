@@ -1,6 +1,7 @@
 import express from "express";
 import { createServerContext, type ServerOptions } from "./server/context.js";
 import { registerCodeRoutes } from "./server/routes/code-routes.js";
+import { registerCameraRoutes } from "./server/routes/camera-routes.js";
 import { registerEventRoutes } from "./server/routes/event-routes.js";
 import { registerHealthRoutes } from "./server/routes/health-routes.js";
 import { registerJointRoutes } from "./server/routes/joint-routes.js";
@@ -73,6 +74,7 @@ export function createServer(options: ServerOptions): express.Express {
 
   registerLaunchRoutes(app, context);
   registerHealthRoutes(app, context);
+  registerCameraRoutes(app, context);
   registerSceneRoutes(app, context);
   registerJointRoutes(app, context);
   registerCodeRoutes(app, context);

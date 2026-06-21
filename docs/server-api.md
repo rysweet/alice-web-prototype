@@ -13,6 +13,7 @@ Contract source: server API tests, `EATME.md`, and observed HTTP behavior.
 - [Evidence artifacts](#evidence-artifacts)
 - [Project path validation](#project-path-validation)
 - [Screenshot behavior](#screenshot-behavior)
+- [Camera workflow behavior](#camera-workflow-behavior)
 - [Server state model](#server-state-model)
 - [Route responsibility map](#route-responsibility-map)
 - [Tutorial: create and run a project](#tutorial-create-and-run-a-project)
@@ -143,8 +144,8 @@ The public API contract is defined by the existing tests, `EATME.md`, and observ
 
 See [API reference](./api-reference.md) and
 [Alice identity boundary](./alice-identity-boundary.md) for endpoint-by-endpoint
-request, response, API header, and runtime identity details. The server exposes these
-routes:
+request, response, API header, and runtime identity details. The table includes
+implemented routes, including `/api/camera/*`:
 
 | Method | Route | Success response | Main side effect |
 | --- | --- | --- | --- |
@@ -159,6 +160,18 @@ routes:
 | `POST` | `/api/project/save` | `eatme.alice-project-save-result/v1` | writes save proof and `project-save/saved-project.a3p` |
 | `POST` | `/api/world/run` | `eatme.alice-run-world-result/v1` | writes `run-world-result.json` |
 | `POST` | `/api/screenshot` | screenshot capture summary | writes `screenshot.png` |
+| `GET` | `/api/camera/state` | `eatme.alice-camera-workflow-state/v1` | reads camera workflow state |
+| `POST` | `/api/camera/move` | `eatme.alice-camera-workflow-state/v1` | moves the active camera |
+| `POST` | `/api/camera/pan` | `eatme.alice-camera-workflow-state/v1` | pans the active camera |
+| `POST` | `/api/camera/zoom` | `eatme.alice-camera-workflow-state/v1` | zooms the active camera |
+| `POST` | `/api/camera/focus` | `eatme.alice-camera-workflow-state/v1` | focuses the active camera on a target |
+| `POST` | `/api/camera/orbit` | `eatme.alice-camera-workflow-state/v1` | orbits around the camera target |
+| `POST` | `/api/camera/preset` | `eatme.alice-camera-workflow-state/v1` | applies a named view preset |
+| `POST` | `/api/camera/mode` | `eatme.alice-camera-workflow-state/v1` | switches orbit or first-person mode |
+| `GET` | `/api/camera/markers` | `eatme.alice-camera-workflow-state/v1` | lists camera markers |
+| `POST` | `/api/camera/markers` | `eatme.alice-camera-workflow-state/v1` | saves a camera marker |
+| `POST` | `/api/camera/markers/:id/restore` | `eatme.alice-camera-workflow-state/v1` | restores a camera marker |
+| `DELETE` | `/api/camera/markers/:id` | `eatme.alice-camera-workflow-state/v1` | deletes a camera marker |
 | `POST` | `/api/events/register` | event registration summary | writes `event-register.json` |
 | `POST` | `/api/events/fire` | triggered handler summary | writes `event-fire.json` |
 
@@ -172,6 +185,9 @@ Mutating local API routes require `Content-Type: application/json`. CLI-served
 instances also require the token passed at startup with `--api-token` in the
 `X-Alice-Local-Api-Token` header and reject non-local `Host` or browser
 `Origin` headers.
+
+Camera routes require `X-Alice-Local-Api-Token` on both read and mutation
+requests when the CLI server is started with `--api-token`.
 
 ## Evidence artifacts
 
@@ -255,6 +271,38 @@ When rendering fails, the server writes a placeholder PNG and returns:
 
 This fallback keeps headless and CI environments usable while preserving the evidence artifact contract.
 
+## Camera workflow behavior
+
+The camera workflow routes expose Alice camera movement, view presets, marker
+lifecycle, and first-person mode over the local REST API. They use the same
+state model and movement math as the browser Camera panel.
+
+Read the current state:
+
+```bash
+curl http://127.0.0.1:3000/api/camera/state \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN"
+```
+
+Move the camera:
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/camera/move \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"forward":2}'
+```
+
+Successful camera responses include
+`schema_version: "eatme.alice-camera-workflow-state/v1"` and the full current
+camera state. See [Camera workflow API](./camera-workflow-api.md) for request
+bodies, marker lifecycle, first-person behavior, and validation rules.
+
+Camera reads are protected when `--api-token` is configured. The camera routes
+use a route-level token guard so `GET /api/camera/state` and
+`GET /api/camera/markers` reject missing or invalid tokens the same way camera
+mutation routes do.
+
 ## Server state model
 
 Server state is per `createServer()` call. There is no singleton mutable project state shared across server instances.
@@ -268,8 +316,12 @@ The active state tracks:
 - the parsed `.a3p` project, when available
 - event registrations
 - the template library used by project creation
+- the active camera workflow state and in-memory camera markers
 
-Launching a project seeds default `ground` and `camera` scene objects when the project has no loaded scene objects. Creating a project from a template replaces the active project state and marks the server launched.
+Launching a project seeds default `ground` and `camera` scene objects when the
+project has no loaded scene objects and resets camera workflow state to the
+default Alice home view. Creating a project from a template replaces the active
+project state, resets camera workflow state, and marks the server launched.
 
 ## Route responsibility map
 
@@ -285,6 +337,8 @@ Launching a project seeds default `ground` and `camera` scene objects when the p
 | Evidence orchestration | `src/server/evidence-service.ts` | Coordinate proof artifact and project artifact writing |
 | Screenshot orchestration | `src/server/screenshot-service.ts` | Render screenshots and provide placeholder fallback |
 | Templates | `src/server/template-service.ts` | List registered templates and create new `.a3p` projects |
+| Camera workflow | `src/camera-workflow.ts` | Serializable camera state, movement math, presets, markers, and validation |
+| Camera routes | `src/server/routes/camera-routes.ts` | HTTP translation and route-level token guard for `/api/camera/*` |
 | Routes | `src/server/routes/*.ts` | Translate HTTP requests and responses to service calls |
 
 Route handlers stay thin: they read request data, call the relevant state or service helper, choose the HTTP status code, and return JSON.

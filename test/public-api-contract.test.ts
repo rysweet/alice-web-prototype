@@ -90,6 +90,7 @@ function buildFactoryCases() {
   return new Map<string, FactoryCase>([
     ["Accessibility.createHighContrastStyle", () => PublicApi.Accessibility.createHighContrastStyle()],
     ["Analytics.createAnalyticsSnapshot", () => PublicApi.Analytics.createAnalyticsSnapshot()],
+    ["CameraWorkflow.createDefaultCameraWorkflowState", () => PublicApi.CameraWorkflow.createDefaultCameraWorkflowState()],
     ["CodeGeneration.createTweedleSource", () => PublicApi.CodeGeneration.createTweedleSource("Demo", [])],
     ["Curriculum.createCurriculumMetadata", () => PublicApi.Curriculum.createCurriculumMetadata()],
     ["Curriculum.createCurriculumProgress", () => PublicApi.Curriculum.createCurriculumProgress()],
@@ -185,6 +186,13 @@ function assertFactoryResult(key: string, value: unknown): void {
     case "Analytics.createAnalyticsSnapshot":
       expectKeys(value, ["sessionId", "startedAt", "engagement"]);
       expect((value as { engagement: { activeDurationMs: number } }).engagement.activeDurationMs).toBeTypeOf("number");
+      return;
+    case "CameraWorkflow.createDefaultCameraWorkflowState":
+      expectKeys(value, ["camera", "markers", "activeMarkerId"]);
+      expect((value as { camera: { mode: string; activePreset: string } }).camera).toMatchObject({
+        mode: "orbit",
+        activePreset: "home",
+      });
       return;
     case "CodeGeneration.createTweedleSource":
       expect(typeof value).toBe("string");

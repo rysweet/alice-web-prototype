@@ -21,6 +21,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Architecture](./architecture.md)
 - [API reference](./api-reference.md)
 - [Alice identity boundary](./alice-identity-boundary.md)
+- [Camera workflow usage](./camera-workflow-usage.md)
 - [Server API](./server-api.md)
 - [Testing](./testing.md)
 
@@ -31,10 +32,10 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 | Tweedle | Parses, checks, and runs Alice code | [Tweedle parser](./tweedle-parser.md), [Tweedle type system](./tweedle-type-system.md), [Tweedle typechecker](./tweedle-typechecker.md), [VM scoping and functions](./vm-scoping-and-functions.md) |
 | AST and serialization | Stores program structure and converts it to and from files | [Serialization](./serialization.md), [A3P statement round-trip coverage](./a3p-statement-round-trip.md), [Tweedle code generation](./tweedle-codegen.md) |
 | Story API and scene model | Represents scenes, entities, events, joints, and runtime behavior | [Story API](./story-api.md), [Joint manipulation](./joint-manipulation.md), [planned Story API public barrel topology](./story-api-public-barrels.md), [SScene listener methods](./sscene-listener-methods.md), [Event system](./event-system.md), [Collision detection](./collision-detection.md) |
-| Rendering | Builds and draws 3D scenes in the browser | [Scene graph](./scene-graph.md), [Scene rendering](./scene-rendering.md), [Scene manager](./scene-manager.md) |
+| Rendering | Builds and draws 3D scenes in the browser | [Scene graph](./scene-graph.md), [Scene rendering](./scene-rendering.md), [Scene manager](./scene-manager.md), [camera workflow usage](./camera-workflow-usage.md), [camera workflow API](./camera-workflow-api.md) |
 | IDE workflows | Supports editing, running, and curriculum tasks | [IDE operations](./ide-operations.md), [Grading pipeline](./grading-pipeline.md) |
 | Assets and resources | Loads models, images, audio, and project files | [Creating, using, and testing 3D character assets](./creating-using-testing-3d-character-assets.md), [Model resources](./model-resources.md), [Open-asset pipeline](./open-asset-pipeline.md), [Resource manager](./resource-manager.md), [Project IO](./project-io.md), [Image editor](./image-editor.md), [Audio](./audio.md) |
-| eatme integration | Exposes HTTP endpoints and scenario-friendly workflows | [API reference](./api-reference.md), [Server API](./server-api.md), [Gadugi test scenarios](./gadugi-test-scenarios.md) |
+| eatme integration | Exposes HTTP endpoints and scenario-friendly workflows | [API reference](./api-reference.md), [Server API](./server-api.md), [camera workflow API](./camera-workflow-api.md), [Gadugi test scenarios](./gadugi-test-scenarios.md) |
 | External service integration | Wraps outbound HTTP and WebSocket calls behind retryable adapters | [External service integration](./external-service-integration.md) |
 
 ## Documentation map
@@ -48,6 +49,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Creating, using, and testing 3D character assets](./creating-using-testing-3d-character-assets.md)
 - [Round-trip an `.a3p` project with Project IO](./tutorial-project-io-round-trip.md)
 - [Tutorial: manipulate and verify joints](./tutorial-joint-manipulation.md)
+- [Camera workflow parity](./tutorial-camera-workflow.md)
 
 ### How-to guides and workflows
 
@@ -55,6 +57,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [IDE operations](./ide-operations.md)
 - [Gadugi test scenarios](./gadugi-test-scenarios.md)
 - [Project IO usage guide](./project-io-usage.md)
+- [Camera workflow usage](./camera-workflow-usage.md)
 
 ### Reference
 
@@ -66,6 +69,8 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [A3P statement round-trip coverage](./a3p-statement-round-trip.md)
 - [Animation system](./animation.md)
 - [Audio](./audio.md)
+- [Camera workflow API](./camera-workflow-api.md)
+- [Camera workflow configuration](./camera-workflow-configuration.md)
 - [Collision detection](./collision-detection.md)
 - [Event system](./event-system.md)
 - [External service integration](./external-service-integration.md)

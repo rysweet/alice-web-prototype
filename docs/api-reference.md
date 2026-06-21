@@ -23,6 +23,10 @@ same value as `X-Alice-Local-Api-Token`.
 
 ## Endpoint summary
 
+Rows under `/api/camera/*` are implemented camera workflow routes. See
+[Camera workflow endpoints](#camera-workflow-endpoints) for the shared REST and
+TypeScript contract.
+
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
 | `/api/health` | `GET` | Check that the server is alive |
@@ -36,6 +40,18 @@ same value as `X-Alice-Local-Api-Token`.
 | `/api/project/save` | `POST` | Save the current project and proof artifact |
 | `/api/world/run` | `POST` | Run the cached project through the Tweedle VM |
 | `/api/screenshot` | `POST` | Render the current scene to a PNG file |
+| `/api/camera/state` | `GET` | Read the active camera workflow state |
+| `/api/camera/move` | `POST` | Move the active camera |
+| `/api/camera/pan` | `POST` | Pan the active camera |
+| `/api/camera/zoom` | `POST` | Zoom the active camera |
+| `/api/camera/focus` | `POST` | Focus the active camera on a target |
+| `/api/camera/orbit` | `POST` | Orbit around the active target |
+| `/api/camera/preset` | `POST` | Apply a named camera view |
+| `/api/camera/mode` | `POST` | Switch orbit or first-person camera mode |
+| `/api/camera/markers` | `GET` | List saved camera markers |
+| `/api/camera/markers` | `POST` | Save a camera marker |
+| `/api/camera/markers/:id/restore` | `POST` | Restore a camera marker |
+| `/api/camera/markers/:id` | `DELETE` | Delete a camera marker |
 | `/api/events/register` | `POST` | Register an event handler |
 | `/api/events/fire` | `POST` | Fire an event and report which handlers ran |
 
@@ -446,6 +462,45 @@ Example response:
 
 If rendering fails, the server writes a placeholder PNG and returns a JSON
 response that explains that fallback.
+
+## Camera workflow endpoints
+
+Camera workflow endpoints move the Alice camera, apply standard views, save and
+restore markers, and switch first-person mode. All `/api/camera/*` routes
+require `X-Alice-Local-Api-Token` when the server is started with
+`--api-token`, including read routes.
+
+Move the camera forward:
+
+```bash
+curl -X POST http://127.0.0.1:3000/api/camera/move \
+  -H "X-Alice-Local-Api-Token: $ALICE_LOCAL_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"forward":2}'
+```
+
+Example response shape:
+
+```json
+{
+  "schema_version": "eatme.alice-camera-workflow-state/v1",
+  "status": "ok",
+  "operation": "move",
+  "camera": {
+    "mode": "orbit",
+    "position": { "x": 0, "y": 5, "z": 18 },
+    "target": { "x": 0, "y": 1, "z": -2 },
+    "fieldOfViewDegrees": 60,
+    "activePreset": null
+  },
+  "markers": [],
+  "activeMarkerId": null
+}
+```
+
+See [Camera workflow API](./camera-workflow-api.md) for the full state schema,
+request bodies, marker lifecycle routes, TypeScript exports, and validation
+rules.
 
 ## `POST /api/events/register`
 

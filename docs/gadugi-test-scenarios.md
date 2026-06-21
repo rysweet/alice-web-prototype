@@ -9,6 +9,9 @@ The completed scenario set verifies Java Alice parity from the outside in:
 project open and rendering, Tweedle world execution, scene entity manipulation,
 event handling, and save/export round trips.
 
+The camera workflow coverage adds browser and REST checks for camera movement,
+presets, markers, and first-person mode.
+
 ## Quick start
 
 Build the server, then ask `gadugi-test` to discover and validate the
@@ -58,9 +61,12 @@ NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi
 | `gadugi/03-scene-entity-manipulation.yaml` | `Scene Entity Manipulation` | Launch a blank scene, add entities, reject invalid input, capture a render |
 | `gadugi/04-event-system.yaml` | `Event System` | Register events, fire matching and non-matching events, reject invalid input |
 | `gadugi/05-save-export-roundtrip.yaml` | `Save / Export Round-Trip` | Edit a project, save it, relaunch, and verify the saved project opens |
+| `e2e/app-flow.spec.ts` | `Camera Workflow Parity` | Load the browser, move the camera, apply presets, save/restore/delete markers, switch first-person mode |
 
-The files are level 3 integration tests. They exercise the built server process
-and REST API rather than importing TypeScript modules directly.
+The `gadugi/*.yaml` files are level 3 integration tests. They exercise the
+built server process and REST API rather than importing TypeScript modules
+directly. Any future Gadugi camera scenario should follow the same execute-only
+pattern.
 
 ## Compatibility gate
 
@@ -198,6 +204,17 @@ uses.
 | `/api/events/fire` | `POST` | 04 |
 | `/api/code/edit-procedure` | `POST` | 05 |
 | `/api/project/save` | `POST` | 05 |
+| `/api/camera/state` | `GET` | planned 06 |
+| `/api/camera/move` | `POST` | planned 06 |
+| `/api/camera/pan` | `POST` | planned 06 |
+| `/api/camera/zoom` | `POST` | planned 06 |
+| `/api/camera/focus` | `POST` | planned 06 |
+| `/api/camera/orbit` | `POST` | planned 06 |
+| `/api/camera/preset` | `POST` | planned 06 |
+| `/api/camera/mode` | `POST` | planned 06 |
+| `/api/camera/markers` | `GET`, `POST` | planned 06 |
+| `/api/camera/markers/:id/restore` | `POST` | planned 06 |
+| `/api/camera/markers/:id` | `DELETE` | planned 06 |
 
 ## Scenario details
 
@@ -294,6 +311,29 @@ Flow:
 10. Launch the saved `.a3p` file.
 11. Assert the saved project launches and contains scene objects.
 12. Stop the second captured server process.
+
+### Camera Workflow Parity
+
+`e2e/app-flow.spec.ts` verifies the browser camera workflow. The REST contract is
+covered by `test/camera-routes.test.ts`.
+
+Flow:
+
+1. Start the server with `node dist-server/cli.js serve --api-token "$API_TOKEN"` without a project.
+2. Launch the default scene.
+3. Assert `GET /api/camera/state` returns the default `home` orbit state.
+4. `POST /api/camera/move` and assert `position` and `target` both change while
+   `activePreset` becomes `null`.
+5. Apply the `front` preset and assert `activePreset` is `front`.
+6. Save a marker and capture the returned opaque marker ID.
+7. Move to a different preset, restore the marker, and assert the saved snapshot
+   is restored.
+8. Delete the marker and assert it leaves the marker list.
+9. Switch to first-person mode and assert movement recalculates the target from
+   yaw and pitch.
+10. Assert camera `GET` routes require `X-Alice-Local-Api-Token` when
+    `--api-token` is configured.
+11. Stop the captured server process.
 
 ## Writing new scenarios
 
