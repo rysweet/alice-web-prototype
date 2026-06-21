@@ -129,12 +129,87 @@ Save the project. Writes save proof artifacts.
 { "saveSelector": "scene.myFirstMethod" }
 ```
 
+### `POST /api/project/export/web-package`
+Web-package feature contract: export the active project as a runnable
+`alice-web` ZIP package. The package contains `index.html`, `manifest.json`,
+`share.json`, `preview.png`, `project/project.json`, and `validation.json`.
+```json
+{
+  "title": "Winter Story",
+  "description": "A snow scene with a bunny.",
+  "canonicalUrl": "https://example.edu/alice/winter-story"
+}
+```
+Response:
+```json
+{
+  "schema_version": "alice-web.export-web-package-result/v1",
+  "status": "exported",
+  "runtime": "alice-web",
+  "package": {
+    "filename": "WinterStory.alice-web.zip",
+    "mimeType": "application/zip",
+    "sizeBytes": 24576,
+    "sha256": "8ad0e9b4f5d8f2d3b30f6d3f6f0f4e6d4f3b2a1900e4c4a1f03f7c2cb72f47cc",
+    "base64": "UEsDB..."
+  },
+  "manifest": {
+    "schemaVersion": "alice-web.package/v1",
+    "product": "Alice",
+    "packageName": "alice-web",
+    "runtimeIdentity": "alice-web-player",
+    "entrypoint": "index.html"
+  },
+  "artifacts": {
+    "entrypoint": "index.html",
+    "manifest": "manifest.json",
+    "share": "share.json",
+    "preview": "preview.png",
+    "validation": "validation.json"
+  },
+  "validation": {
+    "valid": true,
+    "errors": []
+  }
+}
+```
+
+### `POST /api/project/share`
+Web-package feature contract: generate shareable metadata from an exported
+package. The server decodes and validates `packageBase64`, links share metadata
+to the package filename, byte size, and SHA-256 digest, and returns playable
+HTML/package/preview references.
+```json
+{
+  "packageBase64": "UEsDB...",
+  "title": "Winter Story",
+  "description": "A snow scene with a bunny.",
+  "canonicalUrl": "https://example.edu/alice/winter-story"
+}
+```
+
+### `POST /api/project/validate-web-package`
+Web-package feature contract: validate an exported `alice-web` package before
+storing or sharing it.
+```json
+{ "packageBase64": "UEsDB..." }
+```
+Validation rejects malformed base64, unreadable ZIP data, missing required
+entries, unsafe ZIP paths, duplicate required files, wrong schema identity,
+wrong runtime identity, and generated metadata that uses the repository nickname
+as product/runtime/API identity.
+
+API response envelopes use snake_case `schema_version`. JSON files inside the
+exported ZIP use camelCase `schemaVersion`.
+
 ### `POST /api/screenshot`
-Capture a screenshot of the viewport (placeholder in headless mode).
+Capture viewport screenshot evidence for the current Alice scene.
 
-## Proof Artifact Schemas
+## Artifact Schemas
 
-All artifacts match the exact JSON schemas that Java Alice produces:
+Proof artifacts that model Java Alice behavior keep the exact JSON schemas that
+Java Alice produces. Web package artifacts use the `alice-web.*` schemas because
+they describe browser package, player, share, and validation contracts.
 
 | Artifact | Schema Version |
 |---|---|
@@ -145,6 +220,11 @@ All artifacts match the exact JSON schemas that Java Alice produces:
 | `edited-project.a3p` | (binary .a3p project file) |
 | `desktop-save-operation-result.json` | `eatme.alice-desktop-save-operation-result/v1` |
 | `run-world-result.json` | `eatme.alice-run-world-result/v1` |
+| `WinterStory.alice-web.zip` | `alice-web.package/v1` via package `manifest.json` |
+| `manifest.json` | `alice-web.package/v1` |
+| `share.json` | `alice-web.share/v1` |
+| `validation.json` | `alice-web.validation/v1` |
+| `preview.png` | PNG preview image referenced by manifest and share metadata |
 
 ## Eatme Comparison Target
 
@@ -162,8 +242,10 @@ and harness scripts.
 
 ## Gadugi Integration Test Scenarios
 
-Five gadugi-compatible YAML scenarios in `gadugi/` provide outside-in
-integration tests covering the full API surface:
+The gadugi-compatible YAML scenarios in `gadugi/` provide outside-in
+integration tests for the current REST API surface. The web package parity
+scenario is part of the feature contract and should be added with the route
+implementation.
 
 ```bash
 NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi
@@ -176,6 +258,10 @@ NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi
 | `03-scene-entity-manipulation` | Add objects → screenshot |
 | `04-event-system` | Register → fire → verify triggers |
 | `05-save-export-roundtrip` | Edit → save → re-launch → verify |
+
+The web-package route implementation should add
+`06-web-player-export-share-parity` for export → validate → share → player
+contract coverage.
 
 See [docs/gadugi-test-scenarios.md](docs/gadugi-test-scenarios.md) for full
 scenario documentation, schema reference, and writing guide.
@@ -190,6 +276,7 @@ src/
   a3p-parser.ts         — .a3p ZIP/XML parser + joint/bbox/texture extraction
   animation.ts          — Pure-functional tween engine (4 easings, Vec3/Quat/scalar)
   project-io.ts         — Full .a3p archive read/write (manifest, resources, thumbnail)
+  project-export.ts     — Runnable alice-web package export, player HTML, share metadata, preview, validation
   collision-detection.ts — Spatial math: distance, AABB, Direction constants
   tweedle-stdlib.ts     — 9 runtime primitives (say/think/move/turn/roll/resize/setOpacity/setColor/delay)
   grading-pipeline.ts   — Lesson 1–8 grading engine with GradeResult scoring

@@ -100,6 +100,29 @@ const scenarioSpecs: ScenarioSpec[] = [
       "danceTogether",
     ],
   },
+  {
+    file: "06-web-player-export-share-parity.yaml",
+    name: "Web Player Export Share Parity",
+    flowTokens: [
+      "/api/project/new",
+      "/api/project/export/web-package",
+      "alice-web.export-web-package-result/v1",
+      "packageBase64",
+      "manifest.json",
+      "share.json",
+      "preview.png",
+      "project/project.json",
+      "validation.json",
+      "window.AlicePlayer",
+      "alice-web-player",
+      "/api/project/validate-web-package",
+      "alice-web.validate-web-package-result/v1",
+      "entrypoint-playable",
+      "/api/project/share",
+      "alice-web.share-artifacts-result/v1",
+      "invalid-base64",
+    ],
+  },
 ];
 
 const unsupportedActions = [

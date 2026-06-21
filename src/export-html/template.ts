@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import type { AliceProject } from "../a3p-parser.js";
-import type { HtmlExportViewport } from "./types.js";
+import type { HtmlExportMetadata, HtmlExportViewport } from "./types.js";
 
 const require = createRequire(import.meta.url);
 let cachedThreeModuleSource: string | null = null;
@@ -38,31 +38,58 @@ export function createHtmlMarkup(
   previewMode: boolean,
   viewport: HtmlExportViewport,
   tweedleSource: string,
+  runtimeOptions: {
+    packageName: string;
+    runtimeIdentity: string;
+    metadata: HtmlExportMetadata;
+  },
 ): string {
+  const runtime = {
+    schemaVersion: "alice-web.player-runtime/v1",
+    product: "Alice",
+    packageName: runtimeOptions.packageName,
+    runtimeIdentity: runtimeOptions.runtimeIdentity,
+    entrypoint: "index.html",
+  };
+  const share = {
+    schemaVersion: "alice-web.share/v1",
+    product: "Alice",
+    runtimeIdentity: runtimeOptions.runtimeIdentity,
+    title,
+    ...runtimeOptions.metadata,
+  };
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="generator" content="Alice export-html">
+  <meta name="generator" content="Alice alice-web export-html">
+  <meta name="alice-product" content="Alice">
+  <meta name="alice-package" content="${escapeHtml(runtimeOptions.packageName)}">
+  <meta name="alice-runtime" content="${escapeHtml(runtimeOptions.runtimeIdentity)}">
   <title>${escapeHtml(title)}</title>
   <style>${buildInlineStyles()}</style>
 </head>
 <body class="alice-export ${previewMode ? "alice-export--preview" : "alice-export--standalone"}" data-preview-mode="${String(previewMode)}" style="--alice-export-width:${viewport.width}px; --alice-export-height:${viewport.height}px;">
-  <main class="alice-export__layout">
+  <main class="alice-export__layout" data-alice-player>
     <section class="alice-export__viewer-panel">
       <header class="alice-export__header">
         <div>
-          <p class="alice-export__eyebrow">${previewMode ? "IDE preview" : "Standalone HTML export"}</p>
+          <p class="alice-export__eyebrow">${previewMode ? "IDE preview" : "Alice web player"}</p>
           <h1 class="alice-export__title">${escapeHtml(title)}</h1>
           <p class="alice-export__subtitle">${escapeHtml(project.projectName || "Alice Project")} • ${project.sceneObjects.length} scene objects • self-contained single file</p>
         </div>
-        <span class="alice-export__badge">Three.js embedded</span>
+        <span class="alice-export__badge">${escapeHtml(runtimeOptions.runtimeIdentity)}</span>
       </header>
       <div class="alice-export__scene-shell">
         <div class="alice-export__scene" data-alice-scene aria-label="Alice project preview"></div>
       </div>
-      <p class="alice-export__status" data-alice-status>Initializing embedded Three.js scene…</p>
+      <div class="alice-export__controls" aria-label="Alice player controls">
+        <button type="button" data-alice-player-action="play">Play</button>
+        <button type="button" data-alice-player-action="pause">Pause</button>
+        <button type="button" data-alice-player-action="reset">Reset</button>
+      </div>
+      <p class="alice-export__status" data-alice-status data-alice-player-status>Initializing embedded Three.js scene…</p>
       <p class="alice-export__details" data-alice-details>Embedded Tweedle source is available below for offline viewing.</p>
     </section>
     <section class="alice-export__source-panel">
@@ -74,6 +101,8 @@ export function createHtmlMarkup(
     </section>
   </main>
   <script id="alice-export-config" type="application/json">${escapeJsonForScript({ title, previewMode, viewport })}</script>
+  <script id="alice-player-runtime" type="application/json">${escapeJsonForScript(runtime)}</script>
+  <script id="alice-share-metadata" type="application/json">${escapeJsonForScript(share)}</script>
   <script id="alice-project-data" type="application/json">${escapeJsonForScript(project)}</script>
   <script id="alice-tweedle-source" type="application/alice+tweedle">${escapeScriptText(tweedleSource)}</script>
   <script id="alice-embedded-three-source" type="text/plain">${escapeScriptText(getThreeModuleSource())}</script>
@@ -109,6 +138,9 @@ body[data-preview-mode="true"] .alice-export__badge, body[data-preview-mode="tru
 .alice-export__scene-shell { margin-top: 1.25rem; width: 100%; border-radius: 18px; overflow: hidden; border: 1px solid rgba(148, 163, 184, 0.2); background: #020617; }
 .alice-export__scene { width: 100%; min-height: var(--alice-export-height); }
 .alice-export__scene canvas { display: block; width: 100%; height: auto; }
+.alice-export__controls { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1rem; }
+.alice-export__controls button { border: 0; border-radius: 999px; padding: 0.55rem 1rem; font-weight: 800; color: #0f172a; background: #bfdbfe; cursor: pointer; }
+.alice-export__controls button:hover { background: #dbeafe; }
 .alice-export__status, .alice-export__details { margin: 1rem 0 0; color: rgba(226, 232, 240, 0.82); }
 body[data-preview-mode="true"] .alice-export__status, body[data-preview-mode="true"] .alice-export__details { color: #475569; }
 .alice-export__source-header { padding: 1.25rem 1.25rem 0; }
@@ -133,6 +165,7 @@ function buildBootstrapPrelude(): string {
   return [
     'const readText = (id) => document.getElementById(id)?.textContent ?? "";',
     'const config = JSON.parse(readText("alice-export-config") || "{}");',
+    'const runtime = JSON.parse(readText("alice-player-runtime") || "{}");',
     'const project = JSON.parse(readText("alice-project-data") || "{}");',
     'const sceneHost = document.querySelector("[data-alice-scene]");',
     'const status = document.querySelector("[data-alice-status]");',
@@ -142,6 +175,9 @@ function buildBootstrapPrelude(): string {
     'const writeText = (node, message) => { if (node instanceof HTMLElement) node.textContent = message; };',
     'const embeddedThreeSource = readText("alice-embedded-three-source");',
     'const threeUrl = URL.createObjectURL(new Blob([embeddedThreeSource], { type: "text/javascript" }));',
+    'const playerState = { status: "initializing", playing: false, render: () => {} };',
+    'window.AlicePlayer = { runtimeIdentity: runtime.runtimeIdentity || "alice-web-player", project, play() { playerState.playing = true; playerState.status = "playing"; writeText(status, "Playing " + String(project.projectName || "Alice Project") + "."); playerState.render(); }, pause() { playerState.playing = false; playerState.status = "paused"; writeText(status, "Paused " + String(project.projectName || "Alice Project") + "."); }, reset() { playerState.playing = false; playerState.status = "ready"; writeText(status, "Reset " + String(project.projectName || "Alice Project") + "."); playerState.render(); }, getStatus() { return playerState.status; } };',
+    'document.querySelectorAll("[data-alice-player-action]").forEach((button) => button.addEventListener("click", () => { const action = button.getAttribute("data-alice-player-action"); if (action && typeof window.AlicePlayer[action] === "function") window.AlicePlayer[action](); }));',
   ].join("\n");
 }
 
@@ -194,7 +230,9 @@ function buildRenderLoop(): string {
     '  const radius = Math.max(sizeVector.x, sizeVector.y, sizeVector.z, 6);',
     '  camera.position.set(center.x + radius, center.y + radius * 0.7, center.z + radius * 1.1); camera.lookAt(center);',
     '  const render = () => { const viewport = nextViewport(); renderer.setSize(viewport.width, viewport.height, false); camera.aspect = viewport.width / viewport.height; camera.updateProjectionMatrix(); renderer.render(scene, camera); };',
+    '  playerState.render = render;',
     '  render(); if (!config.previewMode) window.addEventListener("resize", render);',
+    '  playerState.status = "ready";',
     '  writeText(status, "Loaded " + String(project.projectName || "Alice Project") + " into an embedded Three.js scene.");',
     '  writeText(details, String(visibleObjects.length) + " scene objects and embedded Tweedle source are available offline.");',
   ].join("\n");

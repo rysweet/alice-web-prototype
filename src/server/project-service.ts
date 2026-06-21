@@ -5,6 +5,17 @@ import { writeA3P } from "../a3p-writer/archive.js";
 import { TypeScriptExporter } from "../project-export.js";
 import type { TypeScriptSourceManifest } from "../code-generation.js";
 import { createDefaultCameraWorkflowState } from "../camera-workflow.js";
+import {
+  exportWebPackage,
+  generateShareArtifacts,
+  validateWebPackage,
+  type ExportedWebPackage,
+  type ShareArtifacts,
+  type ShareArtifactsInput,
+  type ValidateWebPackageInput,
+  type WebPackageOptions,
+  type WebPackageValidation,
+} from "../project-export.js";
 import { executeProject, type LogEntry } from "../tweedle-vm.js";
 import { jointStateSidecarPath, writeJointStateSidecar } from "./joint-state-sidecar.js";
 import { buildCurrentProject, seedDefaultSceneObjects, type ServerState } from "./state.js";
@@ -33,6 +44,9 @@ export interface ProjectService {
     evidenceDir: string,
     evidenceService: EvidenceService,
   ): Promise<Record<string, unknown>>;
+  exportWebPackage(state: ServerState, input: WebPackageOptions): Promise<ExportedWebPackage>;
+  validateWebPackage(input: ValidateWebPackageInput): Promise<WebPackageValidation>;
+  generateShareArtifacts(input: ShareArtifactsInput): Promise<ShareArtifacts>;
   exportTypeScript(state: ServerState): Promise<TypeScriptExportResult>;
 }
 
@@ -334,6 +348,18 @@ export const projectService: ProjectService = {
       ...runResult,
       evidenceArtifact: runEvidencePath,
     };
+  },
+
+  async exportWebPackage(state, input) {
+    return exportWebPackage(buildCurrentProject(state), input);
+  },
+
+  async validateWebPackage(input) {
+    return validateWebPackage(input);
+  },
+
+  async generateShareArtifacts(input) {
+    return generateShareArtifacts(input);
   },
 
   async exportTypeScript(state) {

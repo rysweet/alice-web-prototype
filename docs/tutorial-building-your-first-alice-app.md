@@ -6,9 +6,8 @@ project from a template, populate a scene with objects, write code, run
 the world, wire up events, capture screenshots, and save your work — all
 from the command line.
 
-The request and response shapes below show the planned post-correction Alice
-identity contract. Once that implementation lands, you can reproduce them by
-following the steps in order.
+The request and response shapes below use the Alice / `alice-web` identity
+contract. You can reproduce them by following the steps in order.
 
 > **Note on screenshots:** The scene renderer currently produces the same
 > base rendering regardless of scene state — scene-graph mutations (adding

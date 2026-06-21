@@ -13,7 +13,7 @@
     "serve": "node dist-server/cli.js serve",
     "test": "vitest run",
     "test:coverage": "node -e \"require('fs').rmSync('coverage', { recursive: true, force: true })\" && vitest run --coverage --testTimeout=120000 --hookTimeout=120000",
-    "test:gadugi": "gadugi-test run -d gadugi -s \"A3P Open / Parse / Render\" && gadugi-test run -d gadugi -s \"Tweedle AST & VM Execution\" && gadugi-test run -d gadugi -s \"Scene Entity Manipulation\" && gadugi-test run -d gadugi -s \"Event System\" && gadugi-test run -d gadugi -s \"Save / Export Round-Trip\" && gadugi-test run -d gadugi -s \"TypeScript Source Export Handoff\"",
+    "test:gadugi": "gadugi-test run -d gadugi -s \"A3P Open / Parse / Render\" && gadugi-test run -d gadugi -s \"Tweedle AST & VM Execution\" && gadugi-test run -d gadugi -s \"Scene Entity Manipulation\" && gadugi-test run -d gadugi -s \"Event System\" && gadugi-test run -d gadugi -s \"Save / Export Round-Trip\" && gadugi-test run -d gadugi -s \"TypeScript Source Export Handoff\" && gadugi-test run -d gadugi -s \"Web Player Export Share Parity\"",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
   },
