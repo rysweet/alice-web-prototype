@@ -1,7 +1,7 @@
 import { EventSystem } from "../events.js";
 import { JointStateStore } from "../joint-system.js";
 import { TemplateLibrary } from "../project-templates.js";
-import type { AliceProject } from "../a3p-parser.js";
+import type { AliceProject, AliceStatement } from "../a3p-parser.js";
 import {
   createDefaultCameraWorkflowState,
   type CameraWorkflowState,
@@ -112,22 +112,38 @@ export function buildCurrentProject(state: ServerState): AliceProject {
       continue;
     }
     const existing = methodsByName.get(name);
+    const nextStatements = mergeProcedureStatements(existing?.statements ?? [], statements);
     methodsByName.set(name, {
       name,
       isFunction: existing?.isFunction ?? false,
       returnType: existing?.returnType ?? "void",
       parameters: existing?.parameters ?? [],
-      statements: statements.map((s) => ({
-        kind: "MethodCall" as const,
-        object: "this",
-        method: s,
-        arguments: [],
-      })),
+      statements: nextStatements,
     });
   }
   baseProject.methods = Array.from(methodsByName.values());
   syncSceneTypeMethods(baseProject, baseProject.methods);
   return baseProject;
+}
+
+function mergeProcedureStatements(existing: AliceStatement[], methods: string[]): AliceStatement[] {
+  const merged = [...existing];
+  const existingMethods = new Set(
+    existing
+      .filter((statement) => statement.kind === "MethodCall" && typeof statement.method === "string")
+      .map((statement) => statement.method),
+  );
+  for (const method of methods) {
+    if (existingMethods.has(method)) continue;
+    merged.push({
+      kind: "MethodCall",
+      object: "this",
+      method,
+      arguments: [],
+    });
+    existingMethods.add(method);
+  }
+  return merged;
 }
 
 function syncSceneTypeMethods(project: AliceProject, methods: AliceProject["methods"]): void {

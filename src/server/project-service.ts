@@ -290,20 +290,9 @@ export const projectService: ProjectService = {
 
     const methodNames = Array.from(state.procedures.keys());
 
-    let sourceProjectPath = state.projectPath;
-    if (sourceProjectPath) {
-      try {
-        await fs.promises.access(sourceProjectPath, fs.constants.R_OK);
-      } catch (error) {
-        if (!isMissingProjectFileError(error)) throw error;
-        sourceProjectPath = null;
-      }
-    }
-    const currentProjectBytes = sourceProjectPath
-      ? null
-      : await writeA3P(buildCurrentProject(state));
+    const currentProjectBytes = await writeA3P(buildCurrentProject(state));
     await evidenceService.writeEditedProjectArtifact(
-      sourceProjectPath,
+      null,
       evidenceDir,
       currentProjectBytes,
     );

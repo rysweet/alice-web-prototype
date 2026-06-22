@@ -499,6 +499,7 @@ describe("server API", () => {
       )).join("\n");
       expect(exportedText).toContain("persistedBunny");
       expect(exportedText).toContain(editMarker);
+      expect(exportedText).toContain(secondEditMarker);
     });
 
     it("rejects malformed save fields", async () => {
