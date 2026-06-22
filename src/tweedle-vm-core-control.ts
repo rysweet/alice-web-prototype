@@ -6,7 +6,7 @@ import type {
   AliceStatement,
 } from "./a3p-parser.js";
 import { runScopedStatements, runStatements } from "./tweedle-vm-core-setup.js";
-import { MAX_LOOP_ITERATIONS, MAX_TOTAL_STEPS, VMException, VMState } from "./tweedle-vm-core-types.js";
+import { DoTogetherEvidence, MAX_LOOP_ITERATIONS, MAX_TOTAL_STEPS, VMException, VMState } from "./tweedle-vm-core-types.js";
 import { evaluateValue, numericValue, valueToString } from "./tweedle-vm-eval-core.js";
 import { cloneObjectMap, cloneScopes, mergeStateFromBranch } from "./tweedle-vm-stack-debug.js";
 import { popScope, pushScope, scopeAssign, scopeLookup, scopeSet } from "./tweedle-vm-stack-scope.js";
@@ -34,13 +34,37 @@ export function execDoTogether(stmt: AliceStatement, state: VMState): void {
   const body = stmt.body ?? [];
 
   state.stepCounter++;
+  const groupId = `do-together-${state.stepCounter}`;
+  const windowId = `${groupId}-window`;
+  const activeWindowStartedAtStep = state.stepCounter + 1;
+  const evidence: DoTogetherEvidence = {
+    kind: "DoTogether",
+    groupId,
+    windowId,
+    actionCount: body.length,
+    activeWindow: {
+      startedAtStep: activeWindowStartedAtStep,
+      completedAtStep: activeWindowStartedAtStep,
+    },
+    actions: body.map((branchStatement, branchIndex) => ({
+      actionId: `${groupId}-action-${branchIndex}`,
+      branchIndex,
+      statementKind: branchStatement.kind,
+      groupId,
+      windowId,
+      startedAtStep: activeWindowStartedAtStep,
+      completedAtStep: activeWindowStartedAtStep,
+    })),
+  };
   state.log.push({
     step: state.stepCounter,
     kind: "DoTogether",
     detail: `run ${body.length} statements together`,
+    doTogetherEvidence: evidence,
   });
 
   if (body.length === 0) {
+    evidence.activeWindow.completedAtStep = state.stepCounter;
     return;
   }
 
@@ -48,7 +72,8 @@ export function execDoTogether(stmt: AliceStatement, state: VMState): void {
   const objectSnapshot = cloneObjectMap(state.objectMap);
   const branchStates: VMState[] = [];
 
-  for (const branchStatement of body) {
+  for (let branchIndex = 0; branchIndex < body.length; branchIndex++) {
+    const branchStatement = body[branchIndex];
     const branchObjectMap = cloneObjectMap(objectSnapshot);
     const branchState: VMState = {
       stepCounter: state.stepCounter,
@@ -68,6 +93,8 @@ export function execDoTogether(stmt: AliceStatement, state: VMState): void {
       debugRuntime: state.debugRuntime,
     };
     runScopedStatements([branchStatement], branchState);
+    evidence.actions[branchIndex].completedAtStep = Math.max(branchState.stepCounter, evidence.actions[branchIndex].startedAtStep);
+    evidence.activeWindow.completedAtStep = Math.max(evidence.activeWindow.completedAtStep, evidence.actions[branchIndex].completedAtStep);
     branchStates.push(branchState);
     state.stepCounter = Math.max(state.stepCounter, branchState.stepCounter);
   }
