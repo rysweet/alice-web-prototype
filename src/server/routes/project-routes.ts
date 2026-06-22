@@ -8,6 +8,9 @@ import type { ServerContext } from "../context.js";
 import {
   readJsonObjectBody,
   readOptionalStringField,
+  readRequiredStringField,
+  validateExistingProjectRealPath,
+  validateProjectPath,
 } from "../validation.js";
 
 export function registerProjectRoutes(app: Express, context: ServerContext): void {
@@ -98,6 +101,15 @@ export function registerProjectRoutes(app: Express, context: ServerContext): voi
       res.status(400).json({ error: targetPath.error });
       return;
     }
+    let resolvedTargetPath = targetPath.value;
+    if (resolvedTargetPath !== undefined) {
+      const validation = validateProjectPath(resolvedTargetPath, context.allowedProjectDirs);
+      if (!validation.valid) {
+        res.status(400).json({ error: validation.error });
+        return;
+      }
+      resolvedTargetPath = validation.resolvedPath;
+    }
 
     const response = await context.projectService.saveProject(
       context.state,
@@ -107,10 +119,55 @@ export function registerProjectRoutes(app: Express, context: ServerContext): voi
         ...(saveSelector.value !== undefined
           ? { saveSelector: saveSelector.value }
           : {}),
-        ...(targetPath.value !== undefined ? { targetPath: targetPath.value } : {}),
+        ...(resolvedTargetPath !== undefined ? { targetPath: resolvedTargetPath } : {}),
       },
     );
     res.json(response);
+  });
+
+  app.post("/api/project/reopen", async (req, res) => {
+    const body = readJsonObjectBody(req.body);
+    if (!body.ok) {
+      res.status(400).json({ error: body.error });
+      return;
+    }
+
+    const projectPath = readRequiredStringField(body.body, "project");
+    if (!projectPath.ok) {
+      res.status(400).json({ error: projectPath.error });
+      return;
+    }
+
+    const validation = validateProjectPath(projectPath.value, context.allowedProjectDirs);
+    if (!validation.valid) {
+      res.status(400).json({ error: validation.error });
+      return;
+    }
+
+    const realPathValidation = await validateExistingProjectRealPath(
+      validation.resolvedPath,
+      context.allowedProjectDirs,
+    );
+    if (!realPathValidation.valid) {
+      res.status(400).json({ error: realPathValidation.error });
+      return;
+    }
+
+    const launchResult = await context.projectService.launchProject(
+      context.state,
+      realPathValidation.resolvedPath,
+    );
+    if (!launchResult.ok) {
+      res.status(400).json({ error: launchResult.error });
+      return;
+    }
+
+    res.json({
+      status: "reopened",
+      project: context.state.projectPath,
+      projectName: context.state.projectName,
+      sceneObjectCount: context.state.sceneObjects.size,
+    });
   });
 
   app.post("/api/project/export/web-package", async (req, res, next) => {

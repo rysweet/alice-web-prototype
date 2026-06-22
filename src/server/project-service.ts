@@ -314,6 +314,10 @@ export const projectService: ProjectService = {
     }
     const a3pBytes = await writeProject(archive, { generateThumbnailFromScene: false });
     await fs.promises.writeFile(savedProjectPath, a3pBytes);
+    if (targetPath !== undefined) {
+      await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+      await fs.promises.writeFile(targetPath, a3pBytes);
+    }
 
     const saveArtifactFilename = "desktop-save-operation-result.json";
     const evidenceArtifact = evidenceService.recordSaveProof(

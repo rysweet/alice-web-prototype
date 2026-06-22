@@ -400,6 +400,56 @@ describe("server API", () => {
       expect(res.body.save_artifact).toBeTruthy();
     });
 
+    it("writes a caller-selected .a3p, reopens it, and exports the reopened project", async () => {
+      const persistenceDir = path.join(evidenceDir, "persistence");
+      const savedProjectPath = path.join(
+        persistenceDir,
+        "saved-projects",
+        "objects-first-round-trip.a3p",
+      );
+      const persistenceApp = createTestServer({
+        port: 0,
+        evidenceDir: persistenceDir,
+        allowedProjectDirs: [persistenceDir],
+      });
+
+      await localPost(persistenceApp, "/api/launch").send({}).expect(200);
+      const addObject = await localPost(persistenceApp, "/api/scene/add-object")
+        .send({ className: "org.lgna.story.SBiped", name: "persistedBunny" })
+        .expect(200);
+      const expectedObjectCount = addObject.body.sceneFieldCountAfter;
+
+      const save = await localPost(persistenceApp, "/api/project/save")
+        .send({
+          saveSelector: "scene.myFirstMethod",
+          targetPath: savedProjectPath,
+        })
+        .expect(200);
+      expect(save.body.status).toBe("saved");
+      expect(fs.existsSync(savedProjectPath)).toBe(true);
+
+      const savedBytes = fs.readFileSync(savedProjectPath);
+      expect(savedBytes.byteLength).toBeGreaterThan(0);
+      const savedProject = await parseA3P(savedBytes);
+      expect(savedProject.sceneObjects.map((object) => object.name)).toContain("persistedBunny");
+
+      await localPost(persistenceApp, "/api/launch").send({}).expect(200);
+      const reopen = await localPost(persistenceApp, "/api/project/reopen")
+        .send({ project: savedProjectPath })
+        .expect(200);
+      expect(reopen.body.status).toBe("reopened");
+      expect(reopen.body.project).toBe(fs.realpathSync(savedProjectPath));
+      expect(reopen.body.sceneObjectCount).toBe(expectedObjectCount);
+
+      const exportRes = await request(persistenceApp)
+        .get("/api/projects/current/export/typescript")
+        .expect(200);
+      expect(exportRes.headers["content-type"]).toContain("application/zip");
+      expect(exportRes.headers["content-disposition"]).toContain(
+        "alice-web-typescript-source.zip",
+      );
+    });
+
     it("rejects malformed save fields", async () => {
       await localPost(app, "/api/project/save")
         .send({ saveSelector: 123 })
@@ -411,6 +461,24 @@ describe("server API", () => {
 
       await localPost(app, "/api/project/save")
         .send({ targetPath: EXCESSIVE_ROUTE_STRING })
+        .expect(400);
+    });
+
+    it("rejects save and reopen paths outside allowed project directories", async () => {
+      const restrictedDir = path.join(evidenceDir, "restricted");
+      const restrictedApp = createTestServer({
+        port: 0,
+        evidenceDir: restrictedDir,
+        allowedProjectDirs: [restrictedDir],
+      });
+      const outsidePath = path.join(evidenceDir, "outside-save.a3p");
+
+      await localPost(restrictedApp, "/api/project/save")
+        .send({ targetPath: outsidePath })
+        .expect(400);
+
+      await localPost(restrictedApp, "/api/project/reopen")
+        .send({ project: outsidePath })
         .expect(400);
     });
   });
