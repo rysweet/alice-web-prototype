@@ -11,8 +11,10 @@ scenario:
     branding.
   type: cli
   level: 3
+  metadata:
+    flow: server-flow
 
-  tags: [alice, integration, export, typescript, source-handoff, java-parity]
+  tags: [alice, integration, export, typescript, source-handoff, java-parity, server-flow]
 
   agents:
     - name: cli

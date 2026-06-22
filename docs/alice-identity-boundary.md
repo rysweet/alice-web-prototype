@@ -31,6 +31,7 @@ variables, health response, or generated artifacts.
 - [Server API identity](#server-api-identity)
 - [Local API authentication](#local-api-authentication)
 - [Generated artifacts](#generated-artifacts)
+- [Alice HowTo parity audit identity](#alice-howto-parity-audit-identity)
 - [Browser runtime identity](#browser-runtime-identity)
 - [Compatibility terms that stay Alice](#compatibility-terms-that-stay-alice)
 - [Identity contract tests](#identity-contract-tests)
@@ -51,6 +52,7 @@ variables, health response, or generated artifacts.
 | Local API auth header | `X-Alice-Local-Api-Token` |
 | Local API token environment variable | `ALICE_LOCAL_API_TOKEN` |
 | Browser/API web URL environment variable | `ALICE_WEB_URL` |
+| HowTo parity audit baseline | `rysweet/RabbitHole origin/develop` |
 | Repository/project nickname | `LookingGlass` |
 | Current repository URL | `https://github.com/rysweet/alice-web-prototype` |
 
@@ -111,7 +113,7 @@ alice-web serve \
   --port 3099 \
   --evidence-dir ./evidence \
   --api-token "$ALICE_LOCAL_API_TOKEN" \
-  --project ./fixtures/starter.a3p
+  --project ./sample-projects/starter.a3p
 ```
 
 Print the resolved server configuration without binding a port:
@@ -163,7 +165,7 @@ Use Alice/alice-web names for runtime/API configuration:
 
 | Purpose | Canonical variable |
 | --- | --- |
-| Browser/API web URL used by web-platform harnesses | `ALICE_WEB_URL` |
+| Browser/API web URL used by web-platform tests | `ALICE_WEB_URL` |
 | Local API token value passed to the CLI and mutating requests | `ALICE_LOCAL_API_TOKEN` |
 
 Do not document or accept repository-nickname-prefixed runtime/API aliases.
@@ -248,8 +250,30 @@ Schema contract values consumed by `eatme` remain unchanged:
 }
 ```
 
-The `eatme.alice-*` schema namespace is an external curriculum test harness
-contract and also matches the product name.
+The `eatme.alice-*` schema namespace is an external curriculum test contract
+and also matches the product name.
+
+## Alice HowTo parity audit identity
+
+The `alice-web alice-howto-parity-audit` command verifies saved
+Alice.org HowTo coverage without changing the product boundary:
+
+| Audit surface | Required value |
+| --- | --- |
+| Product | `Alice` |
+| Runtime/package/CLI | `alice-web` |
+| Command | `alice-howto-parity-audit` |
+| Scope | `Alice.org HowTo coverage` |
+| Comparison baseline | `rysweet/RabbitHole origin/develop` |
+
+Audit evidence must use `Alice` for the product and `alice-web` for the runtime.
+The comparison baseline must remain the exact
+`rysweet/RabbitHole origin/develop` value. Do not use the baseline name as a
+product, package, runtime, CLI, API, browser, or generated-artifact identity.
+
+The command source is the committed 54-entry inventory and coverage map in
+`src/server/alice-howto-parity-inventory.ts`; it does not fetch live Alice.org
+content during execution.
 
 ## Browser runtime identity
 
@@ -279,7 +303,7 @@ concept:
 | Alice.org | The upstream project website |
 | `.a3p` | Alice 3 project archive format |
 | Tweedle / Alice language references | Language and curriculum terminology |
-| RabbitHole parity | Compatibility target terminology |
+| `rysweet/RabbitHole origin/develop` baseline | Comparison baseline for Alice.org HowTo coverage |
 | `eatme.alice-*` | External evidence schema contract |
 | `application/alice+tweedle` | Exported Tweedle script MIME type |
 | `alice-export*`, `data-alice-*`, `alice-project-data`, `alice-tweedle-source` | Exported HTML DOM/CSS hooks used by generated files |
@@ -299,7 +323,7 @@ asserts that:
 - exported web packages use `alice-web.package/v1`,
   `alice-web.share/v1`, `alice-web.validation/v1`, and
   `alice-web-player`;
-- web-platform harness examples use `ALICE_WEB_URL`;
+- web-platform test examples use `ALICE_WEB_URL`;
 - generated logs and transient artifacts are not part of the committed diff;
 - LookingGlass usage is limited to repository/project nickname, wrapper,
   migration, or historical PR/issue context.
@@ -310,4 +334,6 @@ asserts that:
 - [Server API](./server-api.md)
 - [API reference](./api-reference.md)
 - [TypeScript source export](./typescript-source-export.md)
+- [Alice HowTo parity audit](./alice-howto-parity-audit.md)
+- [Alice HowTo parity audit reference](./alice-howto-parity-audit-reference.md)
 - [Getting started](./getting-started.md)

@@ -13,8 +13,10 @@ scenario:
     Maps to Java Alice's EventManager listener pipeline.
   type: cli
   level: 3
+  metadata:
+    flow: server-flow
 
-  tags: [alice, integration, events, register, fire, proximity, java-parity]
+  tags: [alice, integration, events, register, fire, proximity, java-parity, server-flow]
 
   agents:
     - name: cli
