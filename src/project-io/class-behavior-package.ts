@@ -541,10 +541,29 @@ function renameTypeDefinition(type: AliceTypeDefinition, nextName: string): Alic
   const originalName = type.name;
   const renamed = cloneType(type);
   renamed.name = nextName;
+  renamed.fields = renamed.fields?.map((field) => ({
+    ...field,
+    typeName: field.typeName === originalName ? nextName : field.typeName,
+  }));
+  renamed.methods = renamed.methods?.map((method) => renameMethodTypeReferences(method, originalName, nextName));
   renamed.constructors = renamed.constructors?.map((constructorMethod) => ({
-    ...constructorMethod,
+    ...renameMethodTypeReferences(constructorMethod, originalName, nextName),
     name: constructorMethod.name === originalName ? nextName : constructorMethod.name,
-    returnType: constructorMethod.returnType === originalName ? nextName : constructorMethod.returnType,
   }));
   return renamed;
+}
+
+function renameMethodTypeReferences(
+  method: AliceMethod,
+  originalName: string,
+  nextName: string,
+): AliceMethod {
+  return {
+    ...method,
+    returnType: method.returnType === originalName ? nextName : method.returnType,
+    parameters: method.parameters.map((parameter) => ({
+      ...parameter,
+      type: parameter.type === originalName ? nextName : parameter.type,
+    })),
+  };
 }

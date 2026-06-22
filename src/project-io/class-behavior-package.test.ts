@@ -386,16 +386,19 @@ describe("project-io/class-behavior-package", () => {
     expect(target.types).toEqual([createReusableDoorType()]);
   });
 
-  it("renames same-name imports by default and only updates constructor identity", () => {
+  it("renames same-name imports by default and updates self type references", () => {
     const target = createProject([createReusableDoorType()]);
     const packageData = createPackage({
       ...createReusableDoorType(),
+      fields: [
+        { name: "sibling", typeName: "ReusableDoor" },
+      ],
       methods: [
         {
           name: "describeSelf",
           isFunction: true,
-          returnType: "java.lang.String",
-          parameters: [],
+          returnType: "ReusableDoor",
+          parameters: [{ name: "other", type: "ReusableDoor" }],
           statements: [{ kind: "return", expression: '"ReusableDoor"' }],
         },
       ],
@@ -416,6 +419,11 @@ describe("project-io/class-behavior-package", () => {
     expect(renamed?.constructors?.[0]).toMatchObject({
       name: "ReusableDoor2",
       returnType: "ReusableDoor2",
+    });
+    expect(renamed?.fields?.[0]).toMatchObject({ typeName: "ReusableDoor2" });
+    expect(renamed?.methods?.[0]).toMatchObject({
+      returnType: "ReusableDoor2",
+      parameters: [{ name: "other", type: "ReusableDoor2" }],
     });
     expect(renamed?.methods?.[0]?.statements).toEqual([{ kind: "return", expression: '"ReusableDoor"' }]);
   });
