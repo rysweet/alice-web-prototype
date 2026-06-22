@@ -33,8 +33,11 @@ import * as ProjectIo from "./project-io";
 import type * as ModelTextureCameraJointExportWorkflow from "./model-texture-camera-joint-export-workflow";
 import type * as ProjectExport from "./project-export";
 import type { AliceProjectArchive } from "./project-io";
+import { ProjectRunner, type RunResult } from "./project-runner";
 import { buildScene } from "./scene-builder";
 import { disposeSceneResources } from "./scene-disposal";
+import { TweedleCompiler } from "./tweedle-compiler";
+import type { LogEntry } from "./tweedle-vm-core-types";
 import { detectWebXRCapabilities, type WebXREvidence } from "./webxr-capabilities";
 import { type WebXRInputSourceState, type WebXRInputState } from "./webxr-input";
 import {
@@ -66,6 +69,9 @@ const modelInput = requireElement("model-file-input", HTMLInputElement);
 const textureInput = requireElement("texture-file-input", HTMLInputElement);
 const createShapeButton = requireElement("create-shape-button", HTMLButtonElement);
 const applyTextureButton = requireElement("assign-texture-button", HTMLButtonElement);
+const moveSelectedObjectButton = requireElement("move-selected-object-button", HTMLButtonElement);
+const turnSelectedObjectButton = requireElement("turn-selected-object-button", HTMLButtonElement);
+const resizeSelectedObjectButton = requireElement("resize-selected-object-button", HTMLButtonElement);
 const saveProjectButton = requireElement("export-a3p-button", HTMLButtonElement);
 const exportWebPackageButton = requireElement("export-web-package-button", HTMLButtonElement);
 const shareWebPackageButton = requireElement("share-web-package-button", HTMLButtonElement);
@@ -97,6 +103,30 @@ const addVisibleTimeButton = requireElement("add-visible-time", HTMLButtonElemen
 const visibleScoreLabel = requireElement("visible-score-label", HTMLElement);
 const visibleTimeLabel = requireElement("visible-time-label", HTMLElement);
 const runWorldButton = requireElement("run-world", HTMLButtonElement);
+const workflowSource = requireElement("workflow-source", HTMLTextAreaElement);
+const runWorkflowButton = requireElement("run-workflow-button", HTMLButtonElement);
+
+interface AliceWebRunResult {
+  status: "completed" | "error";
+  success: boolean;
+  completionReason: RunResult["completionReason"] | "error";
+  execution_log: LogEntry[];
+  log: RunResult["log"];
+  output: string[];
+  error: string | null;
+}
+
+interface AliceWebRuntimeState {
+  latestRunResult: AliceWebRunResult | null;
+}
+
+declare global {
+  interface Window {
+    aliceWeb: AliceWebRuntimeState;
+  }
+}
+
+window.aliceWeb = window.aliceWeb ?? { latestRunResult: null };
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
@@ -124,6 +154,9 @@ let selectedObjectName: string | null = null;
 let selectedTextureResourceId: string | null = null;
 let lastWebPackageBase64: string | null = null;
 const jointState = new JointSystem.JointStateStore();
+const MOVE_SELECTED_OBJECT_DELTA = { x: 1, y: 0, z: 0 } as const;
+const TURN_SELECTED_OBJECT_RADIANS = Math.PI / 12;
+const RESIZE_SELECTED_OBJECT_SCALE = 1.2;
 
 function createEmptyArchive(): AliceProjectArchive {
   const project: AliceProject = {
@@ -167,7 +200,25 @@ function describeObject(obj: AliceObject): string {
   const surfaceTexture = obj.materialBindings
     ?.find((binding) => binding.target === "surface")?.textureResourceId;
   const texture = surfaceTexture ? ` surface: ${surfaceTexture}` : "";
-  return `${obj.name} (${shortType})${resource}${model}${texture}`;
+  return `${obj.name} (${shortType})${resource}${model}${texture}${describeObjectTransform(obj)}`;
+}
+
+function describeObjectTransform(obj: AliceObject): string {
+  const parts: string[] = [];
+  if (obj.position) {
+    parts.push(`position: ${formatTransformNumber(obj.position.x)}, ${formatTransformNumber(obj.position.y)}, ${formatTransformNumber(obj.position.z)}`);
+  }
+  if (obj.orientation) {
+    parts.push(`orientation: ${formatTransformNumber(obj.orientation.x)}, ${formatTransformNumber(obj.orientation.y)}, ${formatTransformNumber(obj.orientation.z)}, ${formatTransformNumber(obj.orientation.w)}`);
+  }
+  if (obj.size) {
+    parts.push(`size: ${formatTransformNumber(obj.size.width)}, ${formatTransformNumber(obj.size.height)}, ${formatTransformNumber(obj.size.depth)}`);
+  }
+  return parts.length > 0 ? ` ${parts.join(" ")}` : "";
+}
+
+function formatTransformNumber(value: number): string {
+  return Number(value.toFixed(12)).toString();
 }
 
 function describeProject(project: AliceProject): string {
@@ -555,6 +606,116 @@ function handleApplyTexture(): void {
     setStatusMessage(`Applied texture to ${object.name}`);
 }
 
+function selectedSceneObject(project: AliceProject): AliceObject | null {
+    return selectedObjectName
+      ? project.sceneObjects.find((candidate) => candidate.name === selectedObjectName) ?? null
+      : null;
+}
+
+function requireSelectedSceneObject(project: AliceProject): AliceObject | null {
+    const object = selectedSceneObject(project);
+    if (!object) {
+      setErrorMessage("Select or create an object before using selected object actions.");
+      return null;
+    }
+    return object;
+}
+
+function requireArchiveForSelectedObjectAction(): AliceProjectArchive | null {
+    if (!lastArchive) {
+      setErrorMessage("Create or open an Alice project before using selected object actions.");
+      return null;
+    }
+    return lastArchive;
+}
+
+function handleMoveSelectedObject(): void {
+    const archive = requireArchiveForSelectedObjectAction();
+    if (!archive) return;
+    const project = archive.project;
+    const object = requireSelectedSceneObject(project);
+    if (!object) return;
+
+    const position = object.position ?? { x: 0, y: 0, z: 0 };
+    object.position = {
+      x: position.x + MOVE_SELECTED_OBJECT_DELTA.x,
+      y: position.y + MOVE_SELECTED_OBJECT_DELTA.y,
+      z: position.z + MOVE_SELECTED_OBJECT_DELTA.z,
+    };
+    renderProject(project);
+    setStatusMessage(`Moved ${object.name}`);
+}
+
+function handleTurnSelectedObject(): void {
+    const archive = requireArchiveForSelectedObjectAction();
+    if (!archive) return;
+    const project = archive.project;
+    const object = requireSelectedSceneObject(project);
+    if (!object) return;
+
+    object.orientation = multiplyQuaternions(
+      object.orientation ?? { x: 0, y: 0, z: 0, w: 1 },
+      yawQuaternion(TURN_SELECTED_OBJECT_RADIANS),
+    );
+    renderProject(project);
+    setStatusMessage(`Turned ${object.name}`);
+}
+
+function handleResizeSelectedObject(): void {
+    const archive = requireArchiveForSelectedObjectAction();
+    if (!archive) return;
+    const project = archive.project;
+    const object = requireSelectedSceneObject(project);
+    if (!object) return;
+
+    const size = object.size ?? { width: 1, height: 1, depth: 1 };
+    object.size = {
+      width: size.width * RESIZE_SELECTED_OBJECT_SCALE,
+      height: size.height * RESIZE_SELECTED_OBJECT_SCALE,
+      depth: size.depth * RESIZE_SELECTED_OBJECT_SCALE,
+    };
+    renderProject(project);
+    setStatusMessage(`Resized ${object.name}`);
+}
+
+function yawQuaternion(radians: number): NonNullable<AliceObject["orientation"]> {
+    const halfAngle = radians / 2;
+    return {
+      x: 0,
+      y: Math.sin(halfAngle),
+      z: 0,
+      w: Math.cos(halfAngle),
+    };
+}
+
+function multiplyQuaternions(
+    current: NonNullable<AliceObject["orientation"]>,
+    delta: NonNullable<AliceObject["orientation"]>,
+): NonNullable<AliceObject["orientation"]> {
+    const next = {
+      x: current.w * delta.x + current.x * delta.w + current.y * delta.z - current.z * delta.y,
+      y: current.w * delta.y - current.x * delta.z + current.y * delta.w + current.z * delta.x,
+      z: current.w * delta.z + current.x * delta.y - current.y * delta.x + current.z * delta.w,
+      w: current.w * delta.w - current.x * delta.x - current.y * delta.y - current.z * delta.z,
+    };
+    return normalizeQuaternion(next);
+}
+
+function normalizeQuaternion(
+    quaternion: NonNullable<AliceObject["orientation"]>,
+): NonNullable<AliceObject["orientation"]> {
+    const length = Math.hypot(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
+    if (length === 0 || !Number.isFinite(length)) {
+      throw new Error("Alice object orientation must be finite.");
+    }
+    return {
+      x: quaternion.x / length,
+      y: quaternion.y / length,
+      z: quaternion.z / length,
+      w: quaternion.w / length,
+    };
+}
+
 async function handleSaveProject(): Promise<void> {
     try {
       const archive = ensureArchive();
@@ -684,6 +845,48 @@ function handleJointPoseApply(): void {
     }
 }
 
+async function handleRunWorkflow(): Promise<void> {
+    const source = workflowSource.value;
+    window.aliceWeb.latestRunResult = null;
+    setStatusMessage("Running Alice workflow.");
+
+    try {
+      const unit = new TweedleCompiler().compile(source, "AliceWorkflow.tweedle");
+      if (!unit.success) {
+        const firstError = unit.errors[0];
+        throw new Error(firstError ? `Alice workflow compile error: ${firstError.message}` : "Alice workflow compile error");
+      }
+
+      const result = await new ProjectRunner({ loggingLevel: "debug", tickMs: 1 }).run(unit);
+      if (!result.execution_log) {
+        throw new Error("Alice workflow run did not produce a structured VM execution log.");
+      }
+
+      window.aliceWeb.latestRunResult = {
+        status: result.completionReason === "completed" ? "completed" : "error",
+        success: result.success,
+        completionReason: result.completionReason,
+        execution_log: result.execution_log,
+        log: result.log,
+        output: result.output,
+        error: result.error,
+      };
+      setStatusMessage(result.success ? "Alice workflow completed." : `Alice workflow stopped: ${result.completionReason}`);
+    } catch (error) {
+      console.error(error);
+      window.aliceWeb.latestRunResult = {
+        status: "error",
+        success: false,
+        completionReason: "error",
+        execution_log: [],
+        log: [],
+        output: [],
+        error: error instanceof Error ? error.message : String(error),
+      };
+      setErrorMessage(error);
+    }
+}
+
 const ModelTextureCameraJointExportWorkflowBrowser = {
     importModelAsset: handleModelImport,
     importTextureAsset: handleTextureImport,
@@ -809,8 +1012,14 @@ function installInputHandlers(): void {
   });
   createShapeButton.addEventListener("click", handleCreateShape);
   applyTextureButton.addEventListener("click", ModelTextureCameraJointExportWorkflowBrowser.assignTextureToModel);
+  moveSelectedObjectButton.addEventListener("click", handleMoveSelectedObject);
+  turnSelectedObjectButton.addEventListener("click", handleTurnSelectedObject);
+  resizeSelectedObjectButton.addEventListener("click", handleResizeSelectedObject);
   saveProjectButton.addEventListener("click", () => {
     void handleSaveProject();
+  });
+  runWorkflowButton.addEventListener("click", () => {
+    void handleRunWorkflow();
   });
   exportWebPackageButton.addEventListener("click", () => {
     void ModelTextureCameraJointExportWorkflowBrowser.exportWebPackage();

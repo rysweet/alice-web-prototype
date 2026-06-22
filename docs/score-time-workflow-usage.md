@@ -1,6 +1,6 @@
 ---
 title: Score and time workflow usage
-description: Planned how-to guide for creating scorekeeper and timekeeper state, binding it to visible Alice labels, and verifying it while a world runs.
+description: How-to guide for creating scorekeeper and timekeeper state, binding it to visible Alice labels, and verifying it while a world runs.
 last_updated: 2026-06-22
 review_schedule: quarterly
 doc_type: how-to
@@ -8,11 +8,9 @@ doc_type: how-to
 
 # Score and time workflow usage
 
-**[PLANNED - Implementation Pending]**
-
-This document describes the intended Alice scorekeeper and timekeeper workflow.
-The UI selectors, manifest fields, and TypeScript examples are planned contracts
-for the feature build.
+This document describes the Alice scorekeeper and timekeeper workflow. The UI
+selectors, manifest fields, and TypeScript examples are current contracts for
+the implemented feature.
 
 The workflow lets Alice projects show a score and elapsed world time while the
 world runs. Authors create scorekeeper and timekeeper definitions, bind them to
@@ -36,9 +34,8 @@ Alice execution time.
 
 ## Browser authoring flow
 
-Open Alice in a browser and use the planned **Score and Time** panel beside the
-scene. The panel shows scorekeepers, timekeepers, visible labels, and binding
-status.
+Open Alice in a browser and use the **Score and Time** panel beside the scene.
+The panel shows scorekeepers, timekeepers, visible labels, and binding status.
 
 ```bash
 npm install
@@ -127,7 +124,7 @@ Visible text is rendered as text, not HTML. Scorekeeper and timekeeper names are
 escaped by the browser before display. Binding errors are shown in the panel and
 the previous visible value remains unchanged.
 
-Planned stable browser selectors:
+Stable browser selectors:
 
 | Selector | Purpose |
 | --- | --- |
@@ -149,9 +146,9 @@ prove the workflow works for Alice web lessons.
 
 ## Use from TypeScript
 
-Use the planned public `AliceWorkflowState` namespace for authoring and test
-setup. The helpers manage definitions and visible bindings. They do not replace
-Alice runtime variable assignment.
+Use the public `AliceWorkflowState` namespace for authoring and test setup. The
+helpers manage definitions and visible bindings. They do not replace Alice
+runtime variable assignment.
 
 ```typescript
 import { AliceWorkflowState } from "alice-web";

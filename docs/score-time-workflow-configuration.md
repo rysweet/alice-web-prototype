@@ -1,6 +1,6 @@
 ---
 title: Score and time workflow configuration
-description: Planned configuration reference for Alice scorekeepers, timekeepers, visible bindings, project persistence, and local validation.
+description: Configuration reference for Alice scorekeepers, timekeepers, visible bindings, project persistence, and local validation.
 last_updated: 2026-06-22
 review_schedule: quarterly
 doc_type: reference
@@ -8,11 +8,8 @@ doc_type: reference
 
 # Score and time workflow configuration
 
-**[PLANNED - Implementation Pending]**
-
-This document describes the intended configuration contract for Alice
-scorekeepers, timekeepers, visible bindings, project persistence, and browser
-selectors.
+This document describes the configuration contract for Alice scorekeepers,
+timekeepers, visible bindings, project persistence, and browser selectors.
 
 Scorekeeper and timekeeper support is normal Alice project state. It does not
 require a feature flag, a separate server, a second timer, or new dependencies.
@@ -109,8 +106,7 @@ animations and make tests flaky.
 
 ## Browser selectors
 
-Browser tests and curriculum checks use planned stable `data-testid`
-attributes.
+Browser tests and curriculum checks use stable `data-testid` attributes.
 
 | Selector | Purpose |
 | --- | --- |

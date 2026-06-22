@@ -9,6 +9,8 @@ import {
 } from "./alice-workflow-state.js";
 import type { CompilationUnit, ExecutableAst, ExecutableMethod } from "./tweedle-compiler.js";
 import type { Expression, Statement } from "./tweedle-parser.js";
+import { TweedleVM } from "./tweedle-vm-core-compile.js";
+import type { LogEntry } from "./tweedle-vm-core-types.js";
 
 export interface RunConfiguration {
   speed?: number;
@@ -35,6 +37,7 @@ export interface RunResult {
   executionTimeMs: number;
   output: string[];
   log: ExecutionLogEntry[];
+  execution_log?: LogEntry[];
   error: string | null;
   stoppedAtBreakpoint: string | null;
   scoreValues: Map<string, number>;
@@ -152,6 +155,7 @@ export class ProjectRunner {
       executionTimeMs,
       output,
       log: log.toArray(),
+      execution_log: executeVmLog(activeProject),
       error: system.lastError ? String((system.lastError.cause as Error)?.message ?? system.lastError.cause) : null,
       stoppedAtBreakpoint,
       scoreValues: workflowState ? new Map(workflowState.scoreValues) : new Map(),
@@ -211,6 +215,34 @@ function normalizeProject(project: CompilationUnit | readonly CompilationUnit[] 
     return { units: [...project.units], entryPoint: project.entryPoint, aliceWorkflow: project.aliceWorkflow };
   }
   return { units: [project] };
+}
+
+function executeVmLog(project: ExecutableProject): LogEntry[] | undefined {
+  const unit = project.units.find((candidate) => candidate.ast !== null);
+  if (!unit?.ast) {
+    return undefined;
+  }
+
+  const entryMethod = entryMethodName(project.entryPoint ?? unit.executableAst?.entryPoint);
+  const result = new TweedleVM().execute(unit.ast, {
+    entryMethod,
+    instanceName: lowerFirst(unit.ast.name),
+    declarations: project.units
+      .map((candidate) => candidate.ast)
+      .filter((ast): ast is NonNullable<typeof ast> => ast !== null && ast !== unit.ast),
+  });
+  return [...result.execution_log];
+}
+
+function entryMethodName(entryPoint: string | null | undefined): string | undefined {
+  if (!entryPoint) {
+    return undefined;
+  }
+  return entryPoint.split(".").at(-1) || undefined;
+}
+
+function lowerFirst(value: string): string {
+  return value.length > 0 ? `${value[0].toLowerCase()}${value.slice(1)}` : value;
 }
 
 function buildExecutionPlan(project: ExecutableProject): PlannedStep[] {

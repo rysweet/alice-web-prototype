@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Alice 3 Web Viewer – Prototype</title>
+  <title>Alice 3 Web Viewer</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: system-ui, sans-serif; display: flex; height: 100vh; background: #1a1a2e; color: #eee; }
@@ -73,6 +73,19 @@
     </label>
     <button id="create-shape-button" data-testid="alice-create-shape-button" type="button">Create shape</button>
     <button id="assign-texture-button" data-testid="alice-apply-texture-button" type="button">Apply texture to selected shape</button>
+    <section id="selected-object-transform-panel" aria-label="Alice selected object actions">
+      <h2 style="font-size:0.9rem; margin-top:8px;">Selected object</h2>
+      <button id="move-selected-object-button" data-testid="alice-move-selected-object-button" type="button">Move selected object</button>
+      <button id="turn-selected-object-button" data-testid="alice-turn-selected-object-button" type="button">Turn selected object</button>
+      <button id="resize-selected-object-button" data-testid="alice-resize-selected-object-button" type="button">Resize selected object</button>
+    </section>
+    <section id="workflow-panel" aria-label="Alice workflow">
+      <h2 style="font-size:0.9rem; margin-top:8px;">Workflow</h2>
+      <label>Workflow source
+        <textarea id="workflow-source" data-testid="alice-workflow-source" rows="10" spellcheck="false"></textarea>
+      </label>
+      <button id="run-workflow-button" data-testid="alice-run-workflow-button" type="button">Run workflow</button>
+    </section>
     <button id="export-a3p-button" data-testid="alice-save-project-button" type="button">Save project</button>
     <button id="export-web-package-button" type="button">Export web package</button>
     <button id="share-web-package-button" type="button">Share web package</button>

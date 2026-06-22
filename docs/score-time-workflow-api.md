@@ -1,6 +1,6 @@
 ---
 title: Score and time workflow API
-description: Planned TypeScript API reference for Alice scorekeeper, timekeeper, visible binding, validation, and project workflow state.
+description: TypeScript API reference for Alice scorekeeper, timekeeper, visible binding, validation, and project workflow state.
 last_updated: 2026-06-22
 review_schedule: quarterly
 doc_type: reference
@@ -8,11 +8,9 @@ doc_type: reference
 
 # Score and time workflow API
 
-**[PLANNED - Implementation Pending]**
-
-This document describes the intended public TypeScript contract for Alice
+This document describes the public TypeScript contract for Alice
 scorekeepers, timekeepers, visible bindings, validation, and browser-visible
-state resolution. The API is planned for export from the root package under the
+state resolution. The API is exported from the root package under the
 `AliceWorkflowState` namespace.
 
 The namespace contains only reusable helpers for defining score/time workflow

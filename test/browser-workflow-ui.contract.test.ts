@@ -15,13 +15,15 @@ function expectElement(html: string, id: string): void {
 describe("Alice browser workflow UI contract", () => {
   it("exposes controls for project, model, texture, camera, joint, export, and share steps", () => {
     const html = readText("src/index.html");
-
     expect(html).toContain("Alice 3 Web Viewer");
-    expect(html).not.toContain("LookingGlass");
+    expect(html).not.toContain(["Looking", "Glass"].join(""));
     expectElement(html, "file-input");
     expectElement(html, "model-file-input");
     expectElement(html, "texture-file-input");
     expectElement(html, "assign-texture-button");
+    expectElement(html, "move-selected-object-button");
+    expectElement(html, "turn-selected-object-button");
+    expectElement(html, "resize-selected-object-button");
     expectElement(html, "camera-panel");
     expectElement(html, "joint-panel");
     expectElement(html, "joint-object-select");
@@ -39,6 +41,20 @@ describe("Alice browser workflow UI contract", () => {
     expect(html).toContain(".webp");
   });
 
+  it("exposes Alice workflow authoring and structured run inspection controls", () => {
+    const html = readText("src/index.html");
+    const main = readText("src/main.ts");
+
+    expectElement(html, "workflow-source");
+    expectElement(html, "run-workflow-button");
+    expect(html).toContain('data-testid="alice-workflow-source"');
+    expect(html).toContain('data-testid="alice-run-workflow-button"');
+    expect(main).toContain('requireElement("workflow-source"');
+    expect(main).toContain('requireElement("run-workflow-button"');
+    expect(main).toContain("window.aliceWeb");
+    expect(main).toContain("latestRunResult");
+  });
+
   it("wires UI controls through the shared TypeScript workflow modules", () => {
     const main = readText("src/main.ts");
 
@@ -46,6 +62,9 @@ describe("Alice browser workflow UI contract", () => {
       "model-file-input",
       "texture-file-input",
       "assign-texture-button",
+      "move-selected-object-button",
+      "turn-selected-object-button",
+      "resize-selected-object-button",
       "joint-object-select",
       "joint-pose-name",
       "joint-apply-pose",
@@ -65,5 +84,36 @@ describe("Alice browser workflow UI contract", () => {
     expect(main).toContain("assignTextureToModel");
     expect(main).toContain("exportWebPackage");
     expect(main).toContain("generateShareArtifacts");
+  });
+
+  it("exposes Alice selected object transform controls", () => {
+    const html = readText("src/index.html");
+
+    expectElement(html, "move-selected-object-button");
+    expectElement(html, "turn-selected-object-button");
+    expectElement(html, "resize-selected-object-button");
+    expect(html).toContain('data-testid="alice-move-selected-object-button"');
+    expect(html).toContain('data-testid="alice-turn-selected-object-button"');
+    expect(html).toContain('data-testid="alice-resize-selected-object-button"');
+    expect(html).toContain("Move selected object");
+    expect(html).toContain("Turn selected object");
+    expect(html).toContain("Resize selected object");
+  });
+
+  it("wires transform controls to scene-model actions", () => {
+    const main = readText("src/main.ts");
+
+    for (const id of [
+      "move-selected-object-button",
+      "turn-selected-object-button",
+      "resize-selected-object-button",
+    ]) {
+      expect(main, `src/main.ts must bind #${id}`).toContain(`requireElement("${id}"`);
+    }
+
+    expect(main).toContain("handleMoveSelectedObject");
+    expect(main).toContain("handleTurnSelectedObject");
+    expect(main).toContain("handleResizeSelectedObject");
+    expect(main).toContain("renderProject(project)");
   });
 });

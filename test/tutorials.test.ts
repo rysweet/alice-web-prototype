@@ -403,8 +403,8 @@ describe("tutorial parity", () => {
       runtime.animationLoop.step(1500);
 
       const heroPos = runtime.bridge.getNodeForEntity("hero")!.worldTransform.position;
-      // hop(1.5) moves forward 1.5m over 1s animation
-      expect(heroPos.z).toBeCloseTo(-1.5, 0);
+      // The saved initial z position is restored before hop(1.5) moves forward.
+      expect(heroPos.z).toBeCloseTo(-3.5, 0);
 
       const bubble = runtime.bridge.getSpeechBubbleElement("hero")?.textContent ?? "";
       expect(bubble).toContain("round-trip works");

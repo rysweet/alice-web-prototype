@@ -1,6 +1,6 @@
 ---
 title: Tutorial: add score and time to an Alice world
-description: Planned tutorial for an Alice web flow with a scorekeeper, a timekeeper, visible labels, and browser-visible state changes.
+description: Tutorial for an Alice web flow with a scorekeeper, a timekeeper, visible labels, and browser-visible state changes.
 last_updated: 2026-06-22
 review_schedule: quarterly
 doc_type: tutorial
@@ -8,11 +8,9 @@ doc_type: tutorial
 
 # Tutorial: add score and time to an Alice world
 
-**[PLANNED - Implementation Pending]**
-
-This tutorial describes the intended Alice score and time workflow. The UI
-controls, selectors, manifest fields, and TypeScript API shown here are planned
-contracts for the feature build.
+This tutorial walks through the Alice score and time workflow. The UI controls,
+selectors, manifest fields, and TypeScript API shown here are current contracts
+for the implemented feature.
 
 ## What you will build
 
@@ -45,7 +43,7 @@ Open the local Alice page printed by the development command.
 
 ## 1. Add scorekeeper state
 
-In the planned **Score and Time** panel:
+In the **Score and Time** panel:
 
 1. Enter `score` as the scorekeeper name.
 2. Enter `0` as the initial value.
