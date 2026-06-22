@@ -30,6 +30,29 @@ export interface LogEntry {
   step: number;
   kind: string;
   detail: string;
+  doTogetherEvidence?: DoTogetherEvidence;
+}
+
+export interface DoTogetherActionEvidence {
+  actionId: string;
+  branchIndex: number;
+  statementKind: string;
+  groupId: string;
+  windowId: string;
+  startedAtStep: number;
+  completedAtStep: number;
+}
+
+export interface DoTogetherEvidence {
+  kind: "DoTogether";
+  groupId: string;
+  windowId: string;
+  actionCount: number;
+  activeWindow: {
+    startedAtStep: number;
+    completedAtStep: number;
+  };
+  actions: DoTogetherActionEvidence[];
 }
 
 export interface ExecutionResult {

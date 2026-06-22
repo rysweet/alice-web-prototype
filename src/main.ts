@@ -23,8 +23,11 @@ import * as ProjectIo from "./project-io";
 import type * as ModelTextureCameraJointExportWorkflow from "./model-texture-camera-joint-export-workflow";
 import type * as ProjectExport from "./project-export";
 import type { AliceProjectArchive } from "./project-io";
+import { ProjectRunner, type RunResult } from "./project-runner";
 import { buildScene } from "./scene-builder";
 import { disposeSceneResources } from "./scene-disposal";
+import { TweedleCompiler } from "./tweedle-compiler";
+import type { LogEntry } from "./tweedle-vm-core-types";
 import { detectWebXRCapabilities, type WebXREvidence } from "./webxr-capabilities";
 import { type WebXRInputSourceState, type WebXRInputState } from "./webxr-input";
 import {
@@ -78,6 +81,30 @@ const cameraFirstPersonToggle = requireElement("camera-first-person-toggle", HTM
 const cameraMarkerName = requireElement("camera-marker-name", HTMLInputElement);
 const cameraSaveMarker = requireElement("camera-save-marker", HTMLButtonElement);
 const cameraMarkerList = requireElement("camera-marker-list", HTMLUListElement);
+const workflowSource = requireElement("workflow-source", HTMLTextAreaElement);
+const runWorkflowButton = requireElement("run-workflow-button", HTMLButtonElement);
+
+interface AliceWebRunResult {
+  status: "completed" | "error";
+  success: boolean;
+  completionReason: RunResult["completionReason"] | "error";
+  execution_log: LogEntry[];
+  log: RunResult["log"];
+  output: string[];
+  error: string | null;
+}
+
+interface AliceWebRuntimeState {
+  latestRunResult: AliceWebRunResult | null;
+}
+
+declare global {
+  interface Window {
+    aliceWeb: AliceWebRuntimeState;
+  }
+}
+
+window.aliceWeb = window.aliceWeb ?? { latestRunResult: null };
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
@@ -755,6 +782,48 @@ function handleJointPoseApply(): void {
     }
 }
 
+async function handleRunWorkflow(): Promise<void> {
+    const source = workflowSource.value;
+    window.aliceWeb.latestRunResult = null;
+    setStatusMessage("Running Alice workflow.");
+
+    try {
+      const unit = new TweedleCompiler().compile(source, "AliceWorkflow.tweedle");
+      if (!unit.success) {
+        const firstError = unit.errors[0];
+        throw new Error(firstError ? `Alice workflow compile error: ${firstError.message}` : "Alice workflow compile error");
+      }
+
+      const result = await new ProjectRunner({ loggingLevel: "debug", tickMs: 1 }).run(unit);
+      if (!result.execution_log) {
+        throw new Error("Alice workflow run did not produce a structured VM execution log.");
+      }
+
+      window.aliceWeb.latestRunResult = {
+        status: result.completionReason === "completed" ? "completed" : "error",
+        success: result.success,
+        completionReason: result.completionReason,
+        execution_log: result.execution_log,
+        log: result.log,
+        output: result.output,
+        error: result.error,
+      };
+      setStatusMessage(result.success ? "Alice workflow completed." : `Alice workflow stopped: ${result.completionReason}`);
+    } catch (error) {
+      console.error(error);
+      window.aliceWeb.latestRunResult = {
+        status: "error",
+        success: false,
+        completionReason: "error",
+        execution_log: [],
+        log: [],
+        output: [],
+        error: error instanceof Error ? error.message : String(error),
+      };
+      setErrorMessage(error);
+    }
+}
+
 const ModelTextureCameraJointExportWorkflowBrowser = {
     importModelAsset: handleModelImport,
     importTextureAsset: handleTextureImport,
@@ -879,6 +948,9 @@ function installInputHandlers(): void {
   resizeSelectedObjectButton.addEventListener("click", handleResizeSelectedObject);
   saveProjectButton.addEventListener("click", () => {
     void handleSaveProject();
+  });
+  runWorkflowButton.addEventListener("click", () => {
+    void handleRunWorkflow();
   });
   exportWebPackageButton.addEventListener("click", () => {
     void ModelTextureCameraJointExportWorkflowBrowser.exportWebPackage();

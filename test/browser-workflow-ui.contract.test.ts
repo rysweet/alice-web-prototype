@@ -16,6 +16,7 @@ describe("Alice browser workflow UI contract", () => {
   it("exposes controls for project, model, texture, camera, joint, export, and share steps", () => {
     const html = readText("src/index.html");
     expect(html).toContain("Alice 3 Web Viewer");
+    expect(html).not.toContain(["Looking", "Glass"].join(""));
     expectElement(html, "file-input");
     expectElement(html, "model-file-input");
     expectElement(html, "texture-file-input");
@@ -38,6 +39,20 @@ describe("Alice browser workflow UI contract", () => {
     expect(html).toContain(".jpg");
     expect(html).toContain(".jpeg");
     expect(html).toContain(".webp");
+  });
+
+  it("exposes Alice workflow authoring and structured run inspection controls", () => {
+    const html = readText("src/index.html");
+    const main = readText("src/main.ts");
+
+    expectElement(html, "workflow-source");
+    expectElement(html, "run-workflow-button");
+    expect(html).toContain('data-testid="alice-workflow-source"');
+    expect(html).toContain('data-testid="alice-run-workflow-button"');
+    expect(main).toContain('requireElement("workflow-source"');
+    expect(main).toContain('requireElement("run-workflow-button"');
+    expect(main).toContain("window.aliceWeb");
+    expect(main).toContain("latestRunResult");
   });
 
   it("wires UI controls through the shared TypeScript workflow modules", () => {
