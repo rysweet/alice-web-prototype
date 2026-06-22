@@ -20,6 +20,12 @@ interface MethodSignature {
   varArgs: boolean;
 }
 
+const KNOWN_TRANSFORM_METHOD_SIGNATURES = new Map<string, string[]>([
+  ["setPositionRelativeToVehicle", ["java.lang.Double", "java.lang.Double", "java.lang.Double"]],
+  ["setOrientationRelativeToVehicle", ["java.lang.Double", "java.lang.Double", "java.lang.Double", "java.lang.Double"]],
+  ["setSize", ["java.lang.Double", "java.lang.Double", "java.lang.Double"]],
+]);
+
 export function validateMethodInvocations(
   context: ValidationContext,
   errors: ProjectValidationError[],
@@ -95,7 +101,9 @@ function readMethodSignature(methodNode: Element, keyMap: Map<string, Element>):
       ?? "method";
     return {
       name: explicitName,
-      parameterTypes,
+      parameterTypes: parameterTypes.length > 0
+        ? parameterTypes
+        : KNOWN_TRANSFORM_METHOD_SIGNATURES.get(explicitName) ?? parameterTypes,
       varArgs: (signatureNode.getAttribute("isVarArgs") ?? "false") === "true",
     };
   }

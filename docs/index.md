@@ -23,6 +23,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [API reference](./api-reference.md)
 - [Alice identity boundary](./alice-identity-boundary.md)
 - [Camera workflow usage](./camera-workflow-usage.md)
+- [Selected object transform controls](./selected-object-transform-controls.md)
 - [Imported model and texture assets](./imported-models-and-textures.md)
 - [Model, texture, camera, joint, and export workflow](./model-texture-camera-joint-export-workflow.md)
 - [Server API](./server-api.md)
@@ -49,13 +50,14 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Getting started](./getting-started.md)
 - [Verify a local Alice server](./tutorial-alice-server-workflow.md)
 - [Building your first Alice application](./tutorial-building-your-first-alice-app.md)
-- [[PLANNED] Import a model and apply a custom texture](./tutorial-import-model-and-apply-texture.md)
+- [Import a model and apply a custom texture](./tutorial-import-model-and-apply-texture.md)
 - [Adding open-source 3D models](./tutorial-adding-3d-models.md)
 - [Creating, using, and testing 3D character assets](./creating-using-testing-3d-character-assets.md)
 - [Audio workflow tutorial](./tutorial-audio-workflow.md)
 - [Round-trip an `.a3p` project with Project IO](./tutorial-project-io-round-trip.md)
 - [Tutorial: manipulate and verify joints](./tutorial-joint-manipulation.md)
 - [Camera workflow parity](./tutorial-camera-workflow.md)
+- [Round-trip selected object transforms](./tutorial-selected-object-transform-round-trip.md)
 - [Alice audio workflow](./tutorial-audio-workflow.md)
 
 ### How-to guides and workflows
@@ -66,6 +68,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Project IO usage guide](./project-io-usage.md)
 - [Audio workflow usage](./audio-workflow-usage.md)
 - [Camera workflow usage](./camera-workflow-usage.md)
+- [Selected object transform controls](./selected-object-transform-controls.md)
 - [Export, play, share, and validate a web package](./project-io-usage.md#export-play-share-and-validate-a-web-package)
 
 ### Reference
@@ -81,6 +84,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Audio workflow configuration](./audio-workflow-configuration.md)
 - [Camera workflow API](./camera-workflow-api.md)
 - [Camera workflow configuration](./camera-workflow-configuration.md)
+- [Selected object transform API](./selected-object-transform-api.md)
 - [Collision detection](./collision-detection.md)
 - [Event system](./event-system.md)
 - [External service integration](./external-service-integration.md)

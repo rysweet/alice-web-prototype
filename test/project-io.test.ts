@@ -218,6 +218,42 @@ describe("project-io", () => {
       expect(archive.manifest).toEqual(manifest);
     });
 
+    it("ignores non-finite transform values when parsing scene object state", async () => {
+      const xmlText = SYNTHETIC_XML.replace(
+        '            <property name="methods"><collection type="java.util.ArrayList"/></property>',
+        `            <property name="methods"><collection type="java.util.ArrayList">
+              <node key="scene-method" type="org.lgna.project.ast.UserMethod" uuid="scene-method">
+                <property name="name"><value type="java.lang.String">myFirstMethod</value></property>
+                <property name="body">
+                  <node type="org.lgna.project.ast.BlockStatement" uuid="scene-method-body">
+                    <property name="statements"><collection type="java.util.ArrayList">
+                      <node type="org.lgna.project.ast.ExpressionStatement" uuid="set-position-statement">
+                        <property name="expression">
+                          <node type="org.lgna.project.ast.MethodInvocation" uuid="set-position-call">
+                            <property name="method"><node type="org.lgna.project.ast.JavaMethod" uuid="set-position-method"><method name="setPositionRelativeToVehicle"/></node></property>
+                            <property name="expression"><node type="org.lgna.project.ast.FieldAccess" uuid="ground-access"><property name="field"><node key="f2"/></property></node></property>
+                            <property name="requiredArguments"><collection type="java.util.ArrayList">
+                              <node type="org.lgna.project.ast.SimpleArgument" uuid="x-arg"><property name="expression"><node type="org.lgna.project.ast.DoubleLiteral" uuid="x-value"><property name="value"><value type="java.lang.Double">Infinity</value></property></node></property></node>
+                              <node type="org.lgna.project.ast.SimpleArgument" uuid="y-arg"><property name="expression"><node type="org.lgna.project.ast.DoubleLiteral" uuid="y-value"><property name="value"><value type="java.lang.Double">0.0</value></property></node></property></node>
+                              <node type="org.lgna.project.ast.SimpleArgument" uuid="z-arg"><property name="expression"><node type="org.lgna.project.ast.DoubleLiteral" uuid="z-value"><property name="value"><value type="java.lang.Double">1.0</value></property></node></property></node>
+                            </collection></property>
+                          </node>
+                        </property>
+                      </node>
+                    </collection></property>
+                  </node>
+                </property>
+              </node>
+            </collection></property>`,
+      );
+      const data = await createSyntheticArchive({ xmlText });
+
+      const archive = await readProject(data);
+      const ground = archive.project.sceneObjects.find((object) => object.name === "ground");
+
+      expect(ground?.position).toBeNull();
+    });
+
     it("returns null thumbnail when thumbnail.png is absent", async () => {
       const data = await createSyntheticArchive();
       const archive = await readProject(data);
@@ -397,6 +433,53 @@ describe("project-io", () => {
       const roundTripped = await readProject(output);
       expect(roundTripped.project.projectName).toBe(archive.project.projectName);
     });
+
+    it("writes selected object transform state as parser-compatible Alice calls", async () => {
+      const data = await createSyntheticArchive();
+      const archive = await readProject(data);
+      archive.project.sceneObjects.push({
+        name: "hero",
+        typeName: "org.lgna.story.SBox",
+        resourceType: null,
+        position: { x: 1.25, y: 0.5, z: -2.75 },
+        orientation: { x: 0, y: 0.13052619222005157, z: 0, w: 0.9914448613738104 },
+        size: { width: 1.2, height: 1.2, depth: 1.2 },
+      });
+
+      const output = await writeProject(archive);
+      const zip = await JSZip.loadAsync(output);
+      const xml = await zip.file("programType.xml")!.async("string");
+
+      expect(xml).toContain("setPositionRelativeToVehicle");
+      expect(xml).toContain("setOrientationRelativeToVehicle");
+      expect(xml).toContain("setSize");
+
+      const roundTripped = await readProject(output);
+      const hero = roundTripped.project.sceneObjects.find((object) => object.name === "hero");
+      expect(hero?.position).toEqual({ x: 1.25, y: 0.5, z: -2.75 });
+      expect(hero?.orientation).toEqual({
+        x: 0,
+        y: 0.13052619222005157,
+        z: 0,
+        w: 0.9914448613738104,
+      });
+      expect(hero?.size).toEqual({ width: 1.2, height: 1.2, depth: 1.2 });
+    });
+
+    it("rejects non-finite selected object transform values on write", async () => {
+      const data = await createSyntheticArchive();
+      const archive = await readProject(data);
+      archive.project.sceneObjects.push({
+        name: "badBox",
+        typeName: "org.lgna.story.SBox",
+        resourceType: null,
+        position: { x: Number.POSITIVE_INFINITY, y: 0, z: 0 },
+        orientation: { x: 0, y: 0, z: 0, w: 1 },
+        size: { width: 1, height: 1, depth: 1 },
+      });
+
+      await expect(writeProject(archive)).rejects.toThrow(/finite|transform|position/i);
+    });
   });
 
   describe("thumbnail generation", () => {
@@ -465,6 +548,32 @@ describe("project-io", () => {
       const rtXml = new TextDecoder().decode(roundTripped.resources.get("__original_xml__")!);
 
       expect(rtXml).toBe(originalXml);
+    });
+
+    it("preserves selected object transforms across save and reopen", async () => {
+      const data = await createSyntheticArchive();
+      const archive = await readProject(data);
+      archive.project.sceneObjects.push({
+        name: "box",
+        typeName: "org.lgna.story.SBox",
+        resourceType: null,
+        position: { x: 1, y: 0, z: -1 },
+        orientation: { x: 0, y: 0.13052619222005157, z: 0, w: 0.9914448613738104 },
+        size: { width: 1.2, height: 1.2, depth: 1.2 },
+      });
+
+      const bytes = await writeProject(archive);
+      const reopened = await readProject(bytes);
+      const box = reopened.project.sceneObjects.find((object) => object.name === "box");
+
+      expect(box?.position).toEqual({ x: 1, y: 0, z: -1 });
+      expect(box?.orientation).toEqual({
+        x: 0,
+        y: 0.13052619222005157,
+        z: 0,
+        w: 0.9914448613738104,
+      });
+      expect(box?.size).toEqual({ width: 1.2, height: 1.2, depth: 1.2 });
     });
   });
 

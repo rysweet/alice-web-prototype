@@ -56,6 +56,7 @@ export function buildProjectXml(project: AliceProject, baseXmlText: string | nul
     syncFields(doc, sceneTypeNode, desiredFields);
     syncSceneObjectMetadata(doc, sceneTypeNode, project.sceneObjects);
     syncMethods(doc, sceneTypeNode, desiredMethods);
+    syncSceneObjectTransforms(doc, sceneTypeNode, project.sceneObjects);
   }
 
   if (project.types?.length) {
@@ -245,6 +246,203 @@ function syncMethods(doc: Document, typeNode: Element, desiredMethods: AliceMeth
       collection.appendChild(createMethodNode(doc, desired));
     }
   }
+}
+
+const TRANSFORM_METHOD_NAME = "aliceWebSceneTransforms";
+
+function syncSceneObjectTransforms(doc: Document, sceneTypeNode: Element, sceneObjects: AliceObject[]): void {
+  const methodsCollection = ensureCollectionProperty(doc, sceneTypeNode, "methods");
+  const existingTransformMethod = findTransformMethod(methodsCollection);
+  if (!sceneObjects.some(hasTransformState)) {
+    if (existingTransformMethod) {
+      methodsCollection.removeChild(existingTransformMethod);
+    }
+    return;
+  }
+
+  const transformMethod = existingTransformMethod ?? createTransformMethod(doc, methodsCollection);
+  const bodyNode = ensureMethodBodyNode(doc, transformMethod);
+  const statementsCollection = ensureCollectionProperty(doc, bodyNode, "statements");
+  while (statementsCollection.firstChild) statementsCollection.removeChild(statementsCollection.firstChild);
+
+  const fieldNodesByName = sceneFieldNodesByName(sceneTypeNode);
+  for (const object of sceneObjects) {
+    const fieldNode = fieldNodesByName.get(object.name);
+    if (!fieldNode) continue;
+    if (object.position) {
+      appendTransformInvocation(doc, statementsCollection, fieldNode, "setPositionRelativeToVehicle", [
+        requireFiniteTransformNumber(object.position.x, `${object.name}.position.x`),
+        requireFiniteTransformNumber(object.position.y, `${object.name}.position.y`),
+        requireFiniteTransformNumber(object.position.z, `${object.name}.position.z`),
+      ]);
+    }
+    if (object.orientation) {
+      appendTransformInvocation(doc, statementsCollection, fieldNode, "setOrientationRelativeToVehicle", [
+        requireFiniteTransformNumber(object.orientation.x, `${object.name}.orientation.x`),
+        requireFiniteTransformNumber(object.orientation.y, `${object.name}.orientation.y`),
+        requireFiniteTransformNumber(object.orientation.z, `${object.name}.orientation.z`),
+        requireFiniteTransformNumber(object.orientation.w, `${object.name}.orientation.w`),
+      ]);
+    }
+    if (object.size) {
+      appendTransformInvocation(doc, statementsCollection, fieldNode, "setSize", [
+        requireFiniteTransformNumber(object.size.width, `${object.name}.size.width`),
+        requireFiniteTransformNumber(object.size.height, `${object.name}.size.height`),
+        requireFiniteTransformNumber(object.size.depth, `${object.name}.size.depth`),
+      ]);
+    }
+  }
+}
+
+function hasTransformState(object: AliceObject): boolean {
+  return object.position !== null || object.orientation !== null || object.size !== null;
+}
+
+function findTransformMethod(methodsCollection: Element): Element | null {
+  for (const methodNode of directCollectionNodes(methodsCollection)
+    .filter((node) => node.getAttribute("type") === "org.lgna.project.ast.UserMethod")) {
+    if (getPropertyText(methodNode, "name") === TRANSFORM_METHOD_NAME) {
+      return methodNode;
+    }
+  }
+  return null;
+}
+
+function createTransformMethod(doc: Document, methodsCollection: Element): Element {
+  const methodNode = createMethodNode(doc, {
+    name: TRANSFORM_METHOD_NAME,
+    isFunction: false,
+    returnType: "void",
+    parameters: [],
+    statements: [],
+  });
+  methodsCollection.appendChild(methodNode);
+  return methodNode;
+}
+
+function ensureMethodBodyNode(doc: Document, methodNode: Element): Element {
+  let bodyNode = getPropertyNode(methodNode, "body");
+  if (!bodyNode) {
+    const bodyProperty = ensureProperty(doc, methodNode, "body");
+    while (bodyProperty.firstChild) bodyProperty.removeChild(bodyProperty.firstChild);
+    bodyNode = doc.createElement("node");
+    bodyNode.setAttribute("type", "org.lgna.project.ast.BlockStatement");
+    bodyNode.setAttribute("uuid", generateUuid());
+    appendBooleanProperty(doc, bodyNode, "isEnabled", true);
+    bodyProperty.appendChild(bodyNode);
+  }
+  return bodyNode;
+}
+
+function sceneFieldNodesByName(sceneTypeNode: Element): Map<string, Element> {
+  const fieldsCollection = getProperty(sceneTypeNode, "fields");
+  const collection = fieldsCollection ? directChild(fieldsCollection, "collection") : null;
+  const byName = new Map<string, Element>();
+  if (!collection) return byName;
+
+  for (const fieldNode of directCollectionNodes(collection)
+    .filter((node) => node.getAttribute("type") === "org.lgna.project.ast.UserField")) {
+    const name = getPropertyText(fieldNode, "name");
+    if (name) byName.set(name, fieldNode);
+  }
+  return byName;
+}
+
+function appendTransformInvocation(
+  doc: Document,
+  statementsCollection: Element,
+  fieldNode: Element,
+  methodName: string,
+  values: number[],
+): void {
+  const expressionStatement = createEnabledNode(doc, "org.lgna.project.ast.ExpressionStatement");
+  const expressionProperty = doc.createElement("property");
+  expressionProperty.setAttribute("name", "expression");
+  const invocation = createEnabledNode(doc, "org.lgna.project.ast.MethodInvocation");
+
+  const methodProperty = doc.createElement("property");
+  methodProperty.setAttribute("name", "method");
+  methodProperty.appendChild(createJavaMethodNode(doc, methodName));
+  invocation.appendChild(methodProperty);
+
+  const receiverProperty = doc.createElement("property");
+  receiverProperty.setAttribute("name", "expression");
+  receiverProperty.appendChild(createFieldAccessNode(doc, fieldNode));
+  invocation.appendChild(receiverProperty);
+
+  const argsProperty = doc.createElement("property");
+  argsProperty.setAttribute("name", "requiredArguments");
+  const argsCollection = doc.createElement("collection");
+  argsCollection.setAttribute("type", "java.util.ArrayList");
+  for (const value of values) {
+    argsCollection.appendChild(createDoubleArgumentNode(doc, value));
+  }
+  argsProperty.appendChild(argsCollection);
+  invocation.appendChild(argsProperty);
+
+  expressionProperty.appendChild(invocation);
+  expressionStatement.appendChild(expressionProperty);
+  statementsCollection.appendChild(expressionStatement);
+}
+
+function createJavaMethodNode(doc: Document, methodName: string): Element {
+  const methodNode = doc.createElement("node");
+  methodNode.setAttribute("type", "org.lgna.project.ast.JavaMethod");
+  methodNode.setAttribute("uuid", generateUuid());
+  appendStringProperty(doc, methodNode, "name", methodName);
+  const methodElement = doc.createElement("method");
+  methodElement.setAttribute("name", methodName);
+  methodNode.appendChild(methodElement);
+  return methodNode;
+}
+
+function createFieldAccessNode(doc: Document, fieldNode: Element): Element {
+  const fieldAccess = createEnabledNode(doc, "org.lgna.project.ast.FieldAccess");
+  const fieldProperty = doc.createElement("property");
+  fieldProperty.setAttribute("name", "field");
+  const fieldReference = doc.createElement("node");
+  fieldReference.setAttribute("key", ensureNodeKey(fieldNode));
+  fieldProperty.appendChild(fieldReference);
+  fieldAccess.appendChild(fieldProperty);
+  return fieldAccess;
+}
+
+function createDoubleArgumentNode(doc: Document, value: number): Element {
+  const argumentNode = doc.createElement("node");
+  argumentNode.setAttribute("type", "org.lgna.project.ast.SimpleArgument");
+  argumentNode.setAttribute("uuid", generateUuid());
+  const expressionProperty = doc.createElement("property");
+  expressionProperty.setAttribute("name", "expression");
+  const literalNode = doc.createElement("node");
+  literalNode.setAttribute("type", "org.lgna.project.ast.DoubleLiteral");
+  literalNode.setAttribute("uuid", generateUuid());
+  appendStringProperty(doc, literalNode, "value", String(value), "java.lang.Double");
+  expressionProperty.appendChild(literalNode);
+  argumentNode.appendChild(expressionProperty);
+  return argumentNode;
+}
+
+function createEnabledNode(doc: Document, type: string): Element {
+  const node = doc.createElement("node");
+  node.setAttribute("type", type);
+  node.setAttribute("uuid", generateUuid());
+  appendBooleanProperty(doc, node, "isEnabled", true);
+  return node;
+}
+
+function ensureNodeKey(node: Element): string {
+  const existing = node.getAttribute("key");
+  if (existing) return existing;
+  const key = generateUuid();
+  node.setAttribute("key", key);
+  return key;
+}
+
+function requireFiniteTransformNumber(value: number, label: string): number {
+  if (!Number.isFinite(value)) {
+    throw new Error(`Alice object transform ${label} must be finite.`);
+  }
+  return value;
 }
 
 function syncMethodSignature(doc: Document, methodNode: Element, desired: AliceMethod): void {

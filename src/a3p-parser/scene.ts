@@ -19,6 +19,8 @@ import type {
 } from "./types.js";
 import { attachA3PMethodSource, snapshotAliceStatements } from "./types.js";
 
+const INTERNAL_TRANSFORM_METHOD_NAME = "aliceWebSceneTransforms";
+
 export function extractSceneObjects(namedUserTypes: Element[], keyMap: Map<string, Element>): AliceObject[] {
   const objects: AliceObject[] = [];
   const sceneType = findSceneType(namedUserTypes, keyMap);
@@ -271,6 +273,7 @@ function enrichFromMethods(sceneType: Element, objects: AliceObject[], keyMap: M
     if (!object) continue;
 
     const doubles = extractDoubleArgs(node);
+    if (!doubles.every(Number.isFinite)) continue;
     if (methodName === "setPositionRelativeToVehicle" && doubles.length >= 3) {
       object.position = { x: doubles[0], y: doubles[1], z: doubles[2] };
     } else if (methodName === "setOrientationRelativeToVehicle" && doubles.length >= 4) {
@@ -317,6 +320,7 @@ export function extractMethods(
   for (const node of methodNodes) {
     const name = getPropertyText(node, "name");
     if (!name) continue;
+    if (name === INTERNAL_TRANSFORM_METHOD_NAME) continue;
     if (!options.includeMain && name === "main") continue;
 
     const returnType = extractReturnType(node, keyMap);
