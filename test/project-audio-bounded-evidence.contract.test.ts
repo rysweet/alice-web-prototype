@@ -1,12 +1,18 @@
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
 import { describe, expect, it } from "vitest";
 import { writeAudioWorkflowEvidence } from "../src/evidence-writer.js";
 
 describe("project audio bounded evidence", () => {
   it("records audio support as bounded metadata and playback-bridge evidence, not native playback", () => {
-    const evidenceDir = fs.mkdtempSync(path.join(os.tmpdir(), "alice-audio-bounded-"));
+    const evidenceDir = path.join(
+      process.cwd(),
+      "target",
+      "test-work",
+      "alice-audio-bounded-evidence",
+    );
+    fs.rmSync(evidenceDir, { recursive: true, force: true });
+    fs.mkdirSync(evidenceDir, { recursive: true });
 
     try {
       const artifact = writeAudioWorkflowEvidence(evidenceDir, {
