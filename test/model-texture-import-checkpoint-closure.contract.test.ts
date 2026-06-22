@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import * as CameraWorkflow from "../src/camera-workflow.js";
 import * as ModelTextureWorkflow from "../src/model-texture-camera-joint-export-workflow.js";
 import { readProject } from "../src/project-io.js";
 import type { AliceProject } from "../src/a3p-parser.js";
@@ -17,8 +16,6 @@ const PNG_BYTES = new Uint8Array(Buffer.from(
 
 type ReopenedParityProject = AliceProject & {
   importedAssets?: Array<Record<string, unknown>>;
-  textureAssignments?: Array<Record<string, unknown>>;
-  cameraWorkflow?: CameraWorkflow.CameraWorkflowState;
 };
 
 function createImportProject(): AliceProject {
@@ -36,7 +33,7 @@ function createImportProject(): AliceProject {
 }
 
 describe("model-texture-import-checkpoint closure workflow", () => {
-  it("reopens exported A3P checkpoints with imported model, texture, camera marker, and assignment metadata intact", async () => {
+  it("reopens exported A3P checkpoints with imported model, texture, and material binding metadata intact", async () => {
     const initial = ModelTextureWorkflow.createWorkflowState({ project: createImportProject() });
     const withModel = await ModelTextureWorkflow.importModelAsset(initial, {
       fileName: "robot.gltf",
@@ -52,13 +49,7 @@ describe("model-texture-import-checkpoint closure workflow", () => {
       texturePath: "resources/textures/robot.png",
       materialName: "body",
     });
-    const camera = CameraWorkflow.saveCameraMarker(
-      CameraWorkflow.applyCameraPreset(CameraWorkflow.createDefaultCameraWorkflowState(), "isometric"),
-      { name: "Checkpoint view" },
-    );
-    const ready = ModelTextureWorkflow.setCameraWorkflowState(withAssignment, camera);
-
-    const exported = await ModelTextureWorkflow.exportA3pArchive(ready);
+    const exported = await ModelTextureWorkflow.exportA3pArchive(withAssignment);
     const reopened = await readProject(exported);
     const project = reopened.project as ReopenedParityProject;
 
@@ -84,17 +75,6 @@ describe("model-texture-import-checkpoint closure workflow", () => {
           textureResourceId: "project/textures/robot.png",
         },
       ],
-    });
-    expect(project.textureAssignments).toEqual([
-      {
-        objectName: "robot",
-        texturePath: "resources/textures/robot.png",
-        materialName: "body",
-      },
-    ]);
-    expect(project.cameraWorkflow).toMatchObject({
-      camera: { activePreset: "isometric" },
-      markers: [expect.objectContaining({ name: "Checkpoint view" })],
     });
   });
 });

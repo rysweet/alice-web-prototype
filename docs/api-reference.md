@@ -675,6 +675,11 @@ Example response:
       "sizeBytes": 24576,
       "sha256": "8ad0e9b4f5d8f2d3b30f6d3f6f0f4e6d4f3b2a1900e4c4a1f03f7c2cb72f47cc"
     },
+    "delivery": {
+      "mode": "browser-download-fallback",
+      "nativeWebShare": false,
+      "requiresUserDownload": true
+    },
     "links": {
       "html": "index.html",
       "package": "WinterStory.alice-web.zip",
@@ -1027,7 +1032,8 @@ Evidence artifact shape:
   "schema_version": "alice.audio-workflow/v1",
   "timestamp": 1710000000000,
   "source": "alice-web",
-  "status": "proved",
+  "status": "bounded",
+  "support_level": "metadata-and-playback-bridge",
   "supported_formats": [".mp3", ".wav", ".ogg", ".m4a"],
   "asset_count": 1,
   "asset_names": ["intro.wav"],
@@ -1036,8 +1042,17 @@ Evidence artifact shape:
   "cue_ids": ["intro-cue"],
   "saved_project_artifact": "saved-project.a3p",
   "reloaded": true,
+  "playback": {
+    "mode": "simulated-output-bridge",
+    "native_audio_playback": false,
+    "background_music_started": true,
+    "triggered_cue_ids": ["intro-cue"],
+    "synchronized_animation_ids": ["scene.myFirstMethod"]
+  },
   "doesNotClaim": [
-    "audible speaker output in the test environment",
+    "native audio playback",
+    "real speaker output in the browser or operating system",
+    "full audio authoring pipeline",
     "native desktop audio stack coverage",
     "visible rendering correctness"
   ]
