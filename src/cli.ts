@@ -2,7 +2,10 @@
 import { realpathSync } from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
-import { runAliceHowToParityAudit } from "./server/alice-howto-parity-audit.js";
+import {
+  AliceHowToAuditOutputPathError,
+  runAliceHowToParityAudit,
+} from "./server/alice-howto-parity-audit.js";
 import { createServer } from "./server.js";
 
 export interface CliConfig {
@@ -114,7 +117,7 @@ function parseApiToken(value: string | undefined): string {
 }
 
 function parseOutputPath(value: string | undefined): string {
-  if (!value || !value.trim()) {
+  if (!value || !value.trim() || value.startsWith("-")) {
     throw new CliUsageError("--output requires a file path");
   }
   return value;
@@ -160,17 +163,19 @@ async function runHowToParityAudit(config: CliConfig): Promise<void> {
     throw new CliUsageError("alice-howto-parity-audit requires --output <file>");
   }
 
-  try {
-    const result = await runAliceHowToParityAudit({
-      outputPath: config.outputPath,
-      pretty: config.pretty,
-      repoRoot: process.cwd(),
-    });
-    if (result.summary.failed > 0) {
-      process.exitCode = 1;
+  const result = await runAliceHowToParityAudit({
+    outputPath: config.outputPath,
+    pretty: config.pretty,
+    repoRoot: process.cwd(),
+  }).catch((error: unknown) => {
+    if (!(error instanceof AliceHowToAuditOutputPathError)) {
+      throw error;
     }
-  } catch (error) {
     throw new CliUsageError(formatError(error));
+  });
+
+  if (result.summary.failed > 0) {
+    process.exitCode = 1;
   }
 }
 

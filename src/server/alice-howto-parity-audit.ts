@@ -51,6 +51,13 @@ export interface AliceHowToParityAuditOptions {
   readonly repoRoot?: string;
 }
 
+export class AliceHowToAuditOutputPathError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AliceHowToAuditOutputPathError";
+  }
+}
+
 export async function runAliceHowToParityAudit(
   options: AliceHowToParityAuditOptions,
 ): Promise<AliceHowToParityAuditResult> {
@@ -226,7 +233,8 @@ async function validateCoverageRecord(repoRoot: string, record: AliceHowToCovera
   try {
     text = await readFile(absolutePath, "utf8");
   } catch (error) {
-    return `Evidence path cannot be read: ${record.path}: ${formatError(error)}.`;
+    const code = isNodeError(error) && error.code ? error.code : "READ_ERROR";
+    return `Evidence path cannot be read: ${record.path}: ${code}.`;
   }
 
   if (!text.includes(record.evidenceToken)) {
@@ -260,24 +268,30 @@ function checkWording(text: string): AliceHowToAuditCheck {
 async function assertWritableOutputPath(outputPath: string): Promise<void> {
   const parent = dirname(outputPath);
   if (parent === outputPath) {
-    throw new Error(`--output must point to a file path, not a filesystem root: ${outputPath}`);
+    throw new AliceHowToAuditOutputPathError(`--output must point to a file path, not a filesystem root: ${outputPath}`);
   }
 
   let parentStat;
   try {
     parentStat = await stat(parent);
   } catch (error) {
-    throw new Error(`--output parent directory does not exist: ${parent}: ${formatError(error)}`);
+    throw new AliceHowToAuditOutputPathError(`--output parent directory does not exist: ${parent}: ${formatError(error)}`);
   }
 
   if (!parentStat.isDirectory()) {
-    throw new Error(`--output parent path is not a directory: ${parent}`);
+    throw new AliceHowToAuditOutputPathError(`--output parent path is not a directory: ${parent}`);
   }
 
   try {
     const existing = await lstat(outputPath);
     if (existing.isDirectory()) {
-      throw new Error(`--output must point to a file, not a directory: ${outputPath}`);
+      throw new AliceHowToAuditOutputPathError(`--output must point to a file, not a directory: ${outputPath}`);
+    }
+    if (existing.isSymbolicLink()) {
+      throw new AliceHowToAuditOutputPathError(`--output must point to a regular file, not a symbolic link: ${outputPath}`);
+    }
+    if (!existing.isFile()) {
+      throw new AliceHowToAuditOutputPathError(`--output must point to a regular file: ${outputPath}`);
     }
   } catch (error) {
     if (!isNodeError(error) || error.code !== "ENOENT") {
@@ -288,7 +302,7 @@ async function assertWritableOutputPath(outputPath: string): Promise<void> {
   try {
     await access(parent, constants.W_OK);
   } catch (error) {
-    throw new Error(`--output parent directory is not writable: ${parent}: ${formatError(error)}`);
+    throw new AliceHowToAuditOutputPathError(`--output parent directory is not writable: ${parent}: ${formatError(error)}`);
   }
 }
 

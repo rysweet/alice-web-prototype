@@ -195,6 +195,7 @@ describe("Alice HowTo parity audit result contract", () => {
     expect(result.summary.status).toBe("failed");
     expect(result.summary.failed).toBeGreaterThan(0);
     expect(result.checks.find((check) => check.id === "coverage-evidence")?.status).toBe("failed");
+    expect(JSON.stringify(result)).not.toContain(emptyRoot);
   });
 
   it("keeps generated audit evidence inside the Alice identity and wording boundary", async () => {

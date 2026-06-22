@@ -152,6 +152,17 @@ describe("CLI argument behavior", () => {
     expect(result.stderr).toContain("Usage:");
   });
 
+  it("rejects Alice HowTo parity audit output when the next token is another option", () => {
+    const result = runBuiltCli(["alice-howto-parity-audit", "--output", "--pretty"]);
+
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("--output requires a file path");
+    expect(result.stderr).toContain("Usage:");
+    expect(fs.existsSync(path.join(PROJECT_ROOT, "--pretty"))).toBe(false);
+  });
+
   it("writes Alice HowTo parity audit JSON evidence without starting the server", () => {
     fs.mkdirSync(TEST_EVIDENCE_DIR, { recursive: true });
     const auditDir = fs.mkdtempSync(path.join(TEST_EVIDENCE_DIR, "audit-"));
@@ -271,6 +282,25 @@ describe("CLI argument behavior", () => {
     expect(result.status).toBe(2);
     expect(result.stdout).toBe("");
     expect(result.stderr).toContain("--output must point to a file, not a directory");
+  });
+
+  it("rejects Alice HowTo parity audit output paths that point to symbolic links", () => {
+    if (process.platform === "win32") {
+      return;
+    }
+
+    fs.mkdirSync(TEST_EVIDENCE_DIR, { recursive: true });
+    const linkPath = path.join(TEST_EVIDENCE_DIR, "audit-output-link.json");
+    const targetPath = path.join(TEST_EVIDENCE_DIR, "audit-output-target.json");
+    fs.symlinkSync(targetPath, linkPath);
+
+    const result = runBuiltCli(["alice-howto-parity-audit", "--output", linkPath]);
+
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("--output must point to a regular file, not a symbolic link");
+    expect(fs.existsSync(targetPath)).toBe(false);
   });
 
   it("rejects Alice HowTo parity audit output paths whose parent is not writable", () => {
