@@ -22,6 +22,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Architecture](./architecture.md)
 - [API reference](./api-reference.md)
 - [Alice identity boundary](./alice-identity-boundary.md)
+- [Alice do-together workflow](./do-together-workflow.md)
 - [Camera workflow usage](./camera-workflow-usage.md)
 - [Imported model and texture assets](./imported-models-and-textures.md)
 - [Model, texture, camera, joint, and export workflow](./model-texture-camera-joint-export-workflow.md)
@@ -37,7 +38,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 | AST and serialization | Stores program structure and converts it to and from files | [Serialization](./serialization.md), [A3P statement round-trip coverage](./a3p-statement-round-trip.md), [Tweedle code generation](./tweedle-codegen.md) |
 | Story API and scene model | Represents scenes, entities, joints, events, and runtime behavior | [Story API](./story-api.md), [Joint manipulation](./joint-manipulation.md), [Story API public barrel topology](./story-api-public-barrels.md), [SScene listener methods](./sscene-listener-methods.md), [Event system](./event-system.md), [Collision detection](./collision-detection.md) |
 | Rendering | Builds and draws 3D scenes in the browser | [Scene graph](./scene-graph.md), [Scene rendering](./scene-rendering.md), [Scene manager](./scene-manager.md), [WebXR and VR interactions](./webxr-vr.md), [camera workflow usage](./camera-workflow-usage.md), [camera workflow API](./camera-workflow-api.md) |
-| IDE workflows | Supports editing, running, and curriculum tasks | [IDE operations](./ide-operations.md), [Grading pipeline](./grading-pipeline.md) |
+| IDE workflows | Supports editing, running, and curriculum tasks | [IDE operations](./ide-operations.md), [Grading pipeline](./grading-pipeline.md), [Alice do-together workflow](./do-together-workflow.md) |
 | Assets and resources | Loads models, images, audio, textures, project files, and runnable web packages | [Model, texture, camera, joint, and export workflow](./model-texture-camera-joint-export-workflow.md), [Import a model and apply a custom texture](./tutorial-import-model-and-apply-texture.md), [Imported model and texture assets](./imported-models-and-textures.md), [Creating, using, and testing 3D character assets](./creating-using-testing-3d-character-assets.md), [Model resources](./model-resources.md), [Open-asset pipeline](./open-asset-pipeline.md), [Resource manager](./resource-manager.md), [Project IO](./project-io.md), [Project IO usage guide](./project-io-usage.md), [Image editor](./image-editor.md), [Audio](./audio.md), [Audio workflow usage](./audio-workflow-usage.md), [Audio workflow configuration](./audio-workflow-configuration.md) |
 | eatme integration | Exposes HTTP endpoints and scenario-friendly workflows | [API reference](./api-reference.md), [Server API](./server-api.md), [Audio workflow](./audio.md), [camera workflow API](./camera-workflow-api.md), [Gadugi test scenarios](./gadugi-test-scenarios.md) |
 | External service integration | Wraps outbound HTTP and WebSocket calls behind retryable adapters | [External service integration](./external-service-integration.md) |
@@ -66,6 +67,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Project IO usage guide](./project-io-usage.md)
 - [Audio workflow usage](./audio-workflow-usage.md)
 - [Camera workflow usage](./camera-workflow-usage.md)
+- [Alice do-together workflow](./do-together-workflow.md)
 - [Export, play, share, and validate a web package](./project-io-usage.md#export-play-share-and-validate-a-web-package)
 
 ### Reference
@@ -87,6 +89,7 @@ runtime, package, API, generated metadata, and user-facing app are Alice /
 - [Grading pipeline](./grading-pipeline.md)
 - [Image editor](./image-editor.md)
 - [Alice identity boundary](./alice-identity-boundary.md)
+- [Do-together runtime evidence](./do-together-runtime-evidence.md)
 - [Joint manipulation](./joint-manipulation.md)
 - [Imported model and texture assets](./imported-models-and-textures.md)
 - [Creating, using, and testing 3D character assets](./creating-using-testing-3d-character-assets.md)
