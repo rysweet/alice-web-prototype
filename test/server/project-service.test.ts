@@ -83,6 +83,21 @@ describe("ProjectService.exportTypeScript", () => {
     expect(allText).toContain("waveFromLiveEdit");
   });
 
+  it("exports web packages with project resources but without internal source XML", async () => {
+    const state = createInitialServerState();
+    state.launched = true;
+    state.projectName = "Web Package Resources";
+    seedDefaultSceneObjects(state);
+    state.resources.set("__original_xml__", new TextEncoder().encode("<node />"));
+    state.resources.set("resources/models/robot.glb", new Uint8Array([1, 2, 3]));
+
+    const result = await projectService.exportWebPackage(state, { title: "Resource Package" });
+    const zip = await JSZip.loadAsync(Buffer.from(result.package.base64, "base64"));
+
+    expect(zip.file("__original_xml__")).toBeNull();
+    expect(await zip.file("resources/models/robot.glb")?.async("uint8array")).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
   it("rejects export before a current Alice project is launched", async () => {
     const state = createInitialServerState();
 

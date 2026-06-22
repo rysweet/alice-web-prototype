@@ -33,6 +33,7 @@ const WEB_PACKAGE_ARTIFACTS = {
 const REQUIRED_WEB_PACKAGE_FILES = Object.values(WEB_PACKAGE_ARTIFACTS);
 const RESERVED_WEB_PACKAGE_PATHS = new Set<string>(REQUIRED_WEB_PACKAGE_FILES);
 const FORBIDDEN_IDENTITY_RE = /LookingGlass|lookingglass|alice-standalone-player/;
+const ENCODED_PATH_CONTROL_RE = /%(?:2e|2f|5c)/i;
 
 export interface ProjectExportResource {
   path: string;
@@ -538,6 +539,9 @@ function validatedPackageFilename(
     return fallback;
   }
   try {
+    if (ENCODED_PATH_CONTROL_RE.test(candidate)) {
+      throw new Error("package filename must not contain encoded path controls");
+    }
     const safe = assertSafeWritablePath(candidate);
     if (safe.includes("/")) {
       throw new Error("package filename must not contain directories");

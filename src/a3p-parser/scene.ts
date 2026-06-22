@@ -279,9 +279,13 @@ export function extractCameraWorkflow(doc: Document): { cameraWorkflow?: CameraW
   const text = cameraElement.textContent?.trim();
   if (!text) return {};
 
-  return {
-    cameraWorkflow: validateCameraWorkflowState(JSON.parse(text) as CameraWorkflowState),
-  };
+  try {
+    return {
+      cameraWorkflow: validateCameraWorkflowState(JSON.parse(text) as CameraWorkflowState),
+    };
+  } catch {
+    return {};
+  }
 }
 
 function readAssetKind(kind: string | null): ImportedProjectAssetKind | null {

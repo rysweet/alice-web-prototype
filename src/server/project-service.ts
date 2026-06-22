@@ -24,6 +24,7 @@ import {
   type ClassBehaviorImportResult,
 } from "../project-io/class-behavior-package.js";
 import { readProject, writeProject, type AliceProjectArchive } from "../project-io.js";
+import { SPECIAL_PROJECT_IO_PATHS } from "../project-io/types.js";
 import {
   applyAudioManifest,
   createDefaultProjectAudioState,
@@ -406,7 +407,8 @@ export const projectService: ProjectService = {
   async exportWebPackage(state, input) {
     return exportWebPackage(buildCurrentProject(state), {
       ...input,
-      resources: Array.from(state.resources, ([path, bytes]) => ({ path, bytes })),
+      resources: Array.from(state.resources, ([path, bytes]) => ({ path, bytes }))
+        .filter((resource) => !SPECIAL_PROJECT_IO_PATHS.has(resource.path)),
     });
   },
 

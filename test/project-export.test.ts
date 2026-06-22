@@ -431,6 +431,27 @@ describe("project-export", () => {
       expect.objectContaining({ code: "invalid-package-filename" }),
     ]));
 
+    const encodedTraversalFilename = await projectExportApi.validateWebPackage!({
+      packageBase64: await makeZip({
+        "index.html": "<!doctype html><script>window.AlicePlayer={runtimeIdentity:'alice-web-player'}</script>",
+        "manifest.json": JSON.stringify({
+          schemaVersion: "alice-web.package/v1",
+          product: "Alice",
+          packageName: "alice-web",
+          runtimeIdentity: "alice-web-player",
+          entrypoint: "index.html",
+          package: { filename: "%2e%2e%2fevil.zip", mimeType: "application/zip" },
+        }),
+        "share.json": JSON.stringify({ schemaVersion: "alice-web.share/v1", product: "Alice", runtimeIdentity: "alice-web-player" }),
+        "preview.png": new Uint8Array([137, 80, 78, 71]),
+        "project/project.json": "{}",
+        "validation.json": JSON.stringify({ schemaVersion: "alice-web.validation/v1" }),
+      }),
+    });
+    expect(encodedTraversalFilename.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "invalid-package-filename" }),
+    ]));
+
     const missingManifestFilename = await projectExportApi.validateWebPackage!({
       packageBase64: await makeZip({
         "index.html": "<!doctype html><script>window.AlicePlayer={runtimeIdentity:'alice-web-player'}</script>",
