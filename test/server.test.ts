@@ -415,6 +415,7 @@ describe("server API", () => {
 
     it("writes a caller-selected .a3p, reopens it, and exports the reopened project", async () => {
       const persistenceDir = path.join(evidenceDir, "persistence");
+      const editMarker = "persistedBunnyTurnProof";
       const savedProjectPath = path.join(
         persistenceDir,
         "saved-projects",
@@ -431,6 +432,12 @@ describe("server API", () => {
         .send({ className: "org.lgna.story.SBiped", name: "persistedBunny" })
         .expect(200);
       const expectedObjectCount = addObject.body.sceneFieldCountAfter;
+      await localPost(persistenceApp, "/api/code/edit-procedure")
+        .send({
+          procedureSelector: "scene.myFirstMethod",
+          editSpec: `append-comment:${editMarker}`,
+        })
+        .expect(200);
 
       const save = await localPost(persistenceApp, "/api/project/save")
         .send({
@@ -445,6 +452,8 @@ describe("server API", () => {
       expect(savedBytes.byteLength).toBeGreaterThan(0);
       const savedProject = await parseA3P(savedBytes);
       expect(savedProject.sceneObjects.map((object) => object.name)).toContain("persistedBunny");
+      const savedMethod = savedProject.methods.find((method) => method.name === "myFirstMethod");
+      expect(savedMethod?.statements.map((statement) => statement.method)).toContain(editMarker);
 
       await localPost(persistenceApp, "/api/launch").send({}).expect(200);
       const reopen = await localPost(persistenceApp, "/api/project/reopen")
@@ -463,6 +472,14 @@ describe("server API", () => {
       expect(exportRes.headers["content-disposition"]).toContain(
         "alice-web-typescript-source.zip",
       );
+      const zip = await JSZip.loadAsync(exportRes.body);
+      const exportedText = (await Promise.all(
+        Object.values(zip.files)
+          .filter((entry) => !entry.dir)
+          .map((entry) => entry.async("string")),
+      )).join("\n");
+      expect(exportedText).toContain("persistedBunny");
+      expect(exportedText).toContain(editMarker);
     });
 
     it("rejects malformed save fields", async () => {

@@ -37,9 +37,11 @@ import {
   buildCurrentProject,
   seedDefaultSceneObjects,
   syncServerSceneObjectsFromProject,
+  syncServerProceduresFromProject,
   type ServerState,
 } from "./state.js";
 import type { EvidenceService } from "./evidence-service.js";
+import { validateExistingProjectRealPath } from "./validation.js";
 
 export type LaunchProjectResult =
   | { ok: true }
@@ -57,7 +59,7 @@ export interface ProjectService {
     state: ServerState,
     evidenceDir: string,
     evidenceService: EvidenceService,
-    input: { saveSelector?: string; targetPath?: string },
+    input: { saveSelector?: string; targetPath?: string; allowedProjectDirs?: readonly string[] },
   ): Promise<Record<string, unknown>>;
   runWorld(
     state: ServerState,
@@ -164,6 +166,48 @@ export class ProjectExportError extends Error {
   }
 }
 
+export class ProjectSaveError extends Error {
+  readonly status = 400;
+
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "ProjectSaveError";
+  }
+}
+
+async function writeAllowedProjectFile(
+  targetPath: string,
+  a3pBytes: Uint8Array,
+  allowedProjectDirs: readonly string[],
+): Promise<void> {
+  await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+
+  let handle: fs.promises.FileHandle | null = null;
+  try {
+    handle = await fs.promises.open(
+      targetPath,
+      fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_NOFOLLOW,
+      0o600,
+    );
+    const openedPath = await fs.promises.realpath(`/proc/self/fd/${handle.fd}`);
+    const validation = await validateExistingProjectRealPath(openedPath, allowedProjectDirs);
+    if (!validation.valid || validation.resolvedPath !== targetPath) {
+      throw new ProjectSaveError("project path is outside allowed directories");
+    }
+    await handle.truncate(0);
+    await handle.writeFile(a3pBytes);
+  } catch (error) {
+    if (error instanceof ProjectSaveError) {
+      throw error;
+    }
+    throw new ProjectSaveError(`project file could not be written: ${targetPath}`, {
+      cause: error instanceof Error ? error : undefined,
+    });
+  } finally {
+    await handle?.close();
+  }
+}
+
 function isMissingProjectFileError(error: unknown): boolean {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
@@ -181,11 +225,13 @@ export const projectService: ProjectService = {
       state.projectArchive = loadResult.archive;
       state.resources = new Map(loadResult.archive.resources);
       syncServerSceneObjectsFromProject(state, loadResult.project);
+      syncServerProceduresFromProject(state, loadResult.project);
       state.projectAudio = applyAudioManifest(loadResult.archive.manifest);
       state.aliceAudio = loadResult.archive.aliceAudio ?? createDefaultProjectAudioState();
     } else {
       state.projectArchive = null;
       state.resources = new Map();
+      syncServerProceduresFromProject(state, null);
       state.projectAudio = createEmptyProjectAudioState();
       state.aliceAudio = createDefaultProjectAudioState();
     }
@@ -296,6 +342,7 @@ export const projectService: ProjectService = {
     const {
       saveSelector = "scene.myFirstMethod",
       targetPath,
+      allowedProjectDirs = [],
     } = input;
 
     const saveDir = path.join(evidenceDir, "project-save");
@@ -315,8 +362,7 @@ export const projectService: ProjectService = {
     const a3pBytes = await writeProject(archive, { generateThumbnailFromScene: false });
     await fs.promises.writeFile(savedProjectPath, a3pBytes);
     if (targetPath !== undefined) {
-      await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
-      await fs.promises.writeFile(targetPath, a3pBytes);
+      await writeAllowedProjectFile(targetPath, a3pBytes, allowedProjectDirs);
     }
 
     const saveArtifactFilename = "desktop-save-operation-result.json";

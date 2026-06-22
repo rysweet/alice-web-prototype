@@ -120,6 +120,7 @@ export function registerProjectRoutes(app: Express, context: ServerContext): voi
           ? { saveSelector: saveSelector.value }
           : {}),
         ...(resolvedTargetPath !== undefined ? { targetPath: resolvedTargetPath } : {}),
+        allowedProjectDirs: context.allowedProjectDirs,
       },
     );
     res.json(response);

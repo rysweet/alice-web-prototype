@@ -59,7 +59,7 @@ export function createInitialServerState(): ServerState {
     projectPath: null,
     projectName: "Program",
     sceneObjects,
-    procedures: new Map([["myFirstMethod", []]]),
+    procedures: createDefaultProcedures(),
     parsedProject: null,
     cameraWorkflow: createDefaultCameraWorkflowState(),
     projectArchive: null,
@@ -73,6 +73,10 @@ export function createInitialServerState(): ServerState {
     templateLibrary: new TemplateLibrary(),
     jointState: new JointStateStore(),
   };
+}
+
+export function createDefaultProcedures(): Map<string, string[]> {
+  return new Map([["myFirstMethod", []]]);
 }
 
 export function buildCurrentProject(state: ServerState): AliceProject {
@@ -180,6 +184,12 @@ export function syncServerSceneObjectsFromProject(state: ServerState, project: A
       position: object.position ?? { ...DEFAULT_POSITION },
     });
   }
+}
+
+export function syncServerProceduresFromProject(state: ServerState, project: AliceProject | null): void {
+  state.procedures = project
+    ? new Map(project.methods.map((method) => [method.name, []]))
+    : createDefaultProcedures();
 }
 
 export function parseMethodParams(
