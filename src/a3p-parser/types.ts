@@ -1,5 +1,4 @@
 import type JSZip from "jszip";
-import type { CameraWorkflowState } from "../camera-workflow";
 import type { BoundingBox, JointNode } from "../story-api/types";
 
 export interface AliceObject {
@@ -29,12 +28,6 @@ export interface ImportedProjectAsset {
 export interface MaterialBinding {
   target: "surface";
   textureResourceId: string;
-}
-
-export interface TextureAssignment {
-  objectName: string;
-  texturePath: string;
-  materialName?: string;
 }
 
 export interface AliceStatement {
@@ -97,8 +90,6 @@ export interface AliceProject {
   boundingBoxes?: Record<string, BoundingBox>;
   textureRefs?: string[];
   importedAssets?: ImportedProjectAsset[];
-  textureAssignments?: TextureAssignment[];
-  cameraWorkflow?: CameraWorkflowState;
 }
 
 export interface A3PSourceMetadata {
@@ -135,8 +126,6 @@ export function snapshotAliceProject(project: AliceProject): string {
     boundingBoxes: project.boundingBoxes ?? {},
     textureRefs: project.textureRefs ?? [],
     importedAssets: project.importedAssets ?? [],
-    textureAssignments: project.textureAssignments ?? [],
-    cameraWorkflow: project.cameraWorkflow ?? null,
   });
 }
 

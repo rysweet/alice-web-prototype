@@ -23,7 +23,6 @@ export {
   type ImportedProjectAssetKind,
   type AliceMethod,
   type MaterialBinding,
-  type TextureAssignment,
   type AliceObject,
   type AliceProject,
   type AliceStatement,
