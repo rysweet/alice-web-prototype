@@ -11,8 +11,10 @@ scenario:
     log. Maps to Java Alice's VirtualMachine.execute() pipeline.
   type: cli
   level: 3
+  metadata:
+    flow: server-flow
 
-  tags: [alice, integration, tweedle, vm, execution, java-parity]
+  tags: [alice, integration, tweedle, vm, execution, java-parity, server-flow]
 
   agents:
     - name: cli

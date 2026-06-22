@@ -2,14 +2,17 @@
 import { realpathSync } from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import { runAliceHowToParityAudit } from "./server/alice-howto-parity-audit.js";
 import { createServer } from "./server.js";
 
 export interface CliConfig {
-  readonly command: "serve" | "help" | "print-config";
+  readonly command: "serve" | "help" | "print-config" | "alice-howto-parity-audit";
   readonly port: number;
   readonly evidenceDir: string;
   readonly project?: string;
   readonly localApiToken?: string;
+  readonly outputPath?: string;
+  readonly pretty?: boolean;
 }
 
 const DEFAULT_PORT = 3000;
@@ -18,6 +21,7 @@ const USAGE = [
   "Usage:",
   "  alice-web serve [--port <1-65535>] [--evidence-dir <dir>] [--project <file.a3p>] [--api-token <token>]",
   "  alice-web print-config [--port <1-65535>] [--evidence-dir <dir>] [--project <file.a3p>] [--api-token <token>]",
+  "  alice-web alice-howto-parity-audit --output <file> [--pretty]",
   "  alice-web help",
 ].join("\n");
 
@@ -30,6 +34,8 @@ export function parseArgs(argv: string[]): CliConfig {
   let evidenceDir = DEFAULT_EVIDENCE_DIR;
   let project: string | undefined;
   let localApiToken: string | undefined;
+  let outputPath: string | undefined;
+  let pretty = false;
 
   for (let i = 1; i < args.length; i++) {
     const current = args[i];
@@ -46,9 +52,15 @@ export function parseArgs(argv: string[]): CliConfig {
       case "--api-token":
         localApiToken = parseApiToken(args[++i]);
         break;
+      case "--output":
+        outputPath = parseOutputPath(args[++i]);
+        break;
+      case "--pretty":
+        pretty = true;
+        break;
       case "--help":
       case "-h":
-        return { command: "help", port, evidenceDir, project, localApiToken };
+        return { command: "help", port, evidenceDir, project, localApiToken, outputPath, pretty };
       default:
         if (current?.startsWith("-")) {
           throw new Error(`Unknown option: ${current}`);
@@ -56,14 +68,14 @@ export function parseArgs(argv: string[]): CliConfig {
     }
   }
 
-  return { command, port, evidenceDir, project, localApiToken };
+  return { command, port, evidenceDir, project, localApiToken, outputPath, pretty };
 }
 
 function normalizeCommand(value: string): CliConfig["command"] {
   if (value === "--help" || value === "-h") {
     return "help";
   }
-  if (value === "serve" || value === "print-config" || value === "help") {
+  if (value === "serve" || value === "print-config" || value === "help" || value === "alice-howto-parity-audit") {
     return value;
   }
   throw new Error(`Unknown command: ${value}`);
@@ -101,6 +113,13 @@ function parseApiToken(value: string | undefined): string {
   return value;
 }
 
+function parseOutputPath(value: string | undefined): string {
+  if (!value || !value.trim()) {
+    throw new CliUsageError("--output requires a file path");
+  }
+  return value;
+}
+
 export function formatConfig(config: CliConfig): string {
   return JSON.stringify(
     {
@@ -127,9 +146,31 @@ async function run(config: CliConfig): Promise<void> {
     case "print-config":
       console.log(formatConfig(config));
       return;
+    case "alice-howto-parity-audit":
+      await runHowToParityAudit(config);
+      return;
     case "serve":
       await serve(config);
       return;
+  }
+}
+
+async function runHowToParityAudit(config: CliConfig): Promise<void> {
+  if (!config.outputPath) {
+    throw new CliUsageError("alice-howto-parity-audit requires --output <file>");
+  }
+
+  try {
+    const result = await runAliceHowToParityAudit({
+      outputPath: config.outputPath,
+      pretty: config.pretty,
+      repoRoot: process.cwd(),
+    });
+    if (result.summary.failed > 0) {
+      process.exitCode = 1;
+    }
+  } catch (error) {
+    throw new CliUsageError(formatError(error));
   }
 }
 
@@ -165,10 +206,21 @@ async function main(): Promise<void> {
   try {
     await run(parseArgs(process.argv));
   } catch (err) {
-    console.error(err instanceof Error ? err.message : String(err));
+    console.error(formatError(err));
     printUsage(process.stderr);
-    process.exit(1);
+    process.exit(err instanceof CliUsageError ? 2 : 1);
   }
+}
+
+class CliUsageError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CliUsageError";
+  }
+}
+
+function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function isDirectExecution(): boolean {
