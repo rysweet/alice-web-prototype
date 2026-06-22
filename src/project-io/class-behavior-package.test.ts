@@ -399,7 +399,18 @@ describe("project-io/class-behavior-package", () => {
           isFunction: true,
           returnType: "ReusableDoor",
           parameters: [{ name: "other", type: "ReusableDoor" }],
-          statements: [{ kind: "return", expression: '"ReusableDoor"' }],
+          statements: [{
+            kind: "EachInArrayTogether",
+            itemType: "ReusableDoor",
+            body: [{
+              kind: "LocalDeclarationStatement",
+              varType: "ReusableDoor",
+              tryBody: [{
+                kind: "CatchWrapper",
+                catchType: "ReusableDoor",
+              }],
+            }],
+          }],
         },
       ],
     });
@@ -425,7 +436,18 @@ describe("project-io/class-behavior-package", () => {
       returnType: "ReusableDoor2",
       parameters: [{ name: "other", type: "ReusableDoor2" }],
     });
-    expect(renamed?.methods?.[0]?.statements).toEqual([{ kind: "return", expression: '"ReusableDoor"' }]);
+    expect(renamed?.methods?.[0]?.statements).toEqual([{
+      kind: "EachInArrayTogether",
+      itemType: "ReusableDoor2",
+      body: [{
+        kind: "LocalDeclarationStatement",
+        varType: "ReusableDoor2",
+        tryBody: [{
+          kind: "CatchWrapper",
+          catchType: "ReusableDoor2",
+        }],
+      }],
+    }]);
   });
 
   it("skips existing numeric rename suffixes when importing a duplicate behavior", () => {

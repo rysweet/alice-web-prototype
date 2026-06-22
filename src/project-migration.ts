@@ -105,9 +105,22 @@ export function detectProjectVersion(
 ): ProjectVersionInfo {
   const normalizedVersionText = normalizeCandidate(versionText);
   const xmlVersion = extractXmlVersion(xmlText);
-  const directManifestVersion = extractDirectManifestVersion(manifest);
-  const nestedManifestVersion = directManifestVersion ?? findNestedAliceVersion(manifest);
-  const manifestVersion = directManifestVersion ?? nestedManifestVersion;
+  const explicitManifestVersion = extractExplicitManifestVersion(manifest);
+  const genericManifestVersion = extractGenericManifestVersion(manifest);
+  const supportedExplicitManifestVersion = isSupportedAliceVersion(explicitManifestVersion ?? "")
+    ? explicitManifestVersion
+    : null;
+  const supportedGenericManifestVersion = isSupportedAliceVersion(genericManifestVersion ?? "")
+    ? genericManifestVersion
+    : null;
+  const nestedManifestVersion = supportedExplicitManifestVersion
+    ?? supportedGenericManifestVersion
+    ?? findNestedAliceVersion(manifest);
+  const manifestVersion = supportedExplicitManifestVersion
+    ?? supportedGenericManifestVersion
+    ?? nestedManifestVersion
+    ?? explicitManifestVersion
+    ?? genericManifestVersion;
 
   if (normalizedVersionText && isAliceProjectVersion(normalizedVersionText)) {
     return buildVersionInfo({
@@ -131,20 +144,20 @@ export function detectProjectVersion(
     });
   }
 
-  if (directManifestVersion && isAliceProjectVersion(directManifestVersion)) {
+  if (supportedExplicitManifestVersion && isAliceProjectVersion(supportedExplicitManifestVersion)) {
     return buildVersionInfo({
-      originalAliceVersion: directManifestVersion,
-      detectedAliceVersion: directManifestVersion,
+      originalAliceVersion: supportedExplicitManifestVersion,
+      detectedAliceVersion: supportedExplicitManifestVersion,
       manifestVersion,
       xmlVersion,
       versionSource: "manifest",
     });
   }
 
-  if (directManifestVersion && isAlice2ProjectVersion(directManifestVersion)) {
+  if (supportedExplicitManifestVersion && isAlice2ProjectVersion(supportedExplicitManifestVersion)) {
     return buildVersionInfo({
-      originalAliceVersion: directManifestVersion,
-      detectedAliceVersion: directManifestVersion,
+      originalAliceVersion: supportedExplicitManifestVersion,
+      detectedAliceVersion: supportedExplicitManifestVersion,
       manifestVersion,
       xmlVersion,
       versionSource: "manifest",
@@ -170,6 +183,28 @@ export function detectProjectVersion(
       manifestVersion,
       xmlVersion,
       versionSource: "xml",
+      migrationSupport: "alice-2-guidance-only",
+      unsupportedReason: ALICE_2_UNSUPPORTED_REASON,
+    });
+  }
+
+  if (supportedGenericManifestVersion && isAliceProjectVersion(supportedGenericManifestVersion)) {
+    return buildVersionInfo({
+      originalAliceVersion: supportedGenericManifestVersion,
+      detectedAliceVersion: supportedGenericManifestVersion,
+      manifestVersion,
+      xmlVersion,
+      versionSource: "manifest",
+    });
+  }
+
+  if (supportedGenericManifestVersion && isAlice2ProjectVersion(supportedGenericManifestVersion)) {
+    return buildVersionInfo({
+      originalAliceVersion: supportedGenericManifestVersion,
+      detectedAliceVersion: supportedGenericManifestVersion,
+      manifestVersion,
+      xmlVersion,
+      versionSource: "manifest",
       migrationSupport: "alice-2-guidance-only",
       unsupportedReason: ALICE_2_UNSUPPORTED_REASON,
     });
@@ -341,7 +376,7 @@ function extractXmlVersion(xmlText: string): string | null {
   return normalizeCandidate(match?.[1]);
 }
 
-function extractDirectManifestVersion(manifest: Record<string, unknown> | null): string | null {
+function extractExplicitManifestVersion(manifest: Record<string, unknown> | null): string | null {
   if (!manifest) {
     return null;
   }
@@ -349,7 +384,6 @@ function extractDirectManifestVersion(manifest: Record<string, unknown> | null):
   const directCandidates = [
     manifest.aliceVersion,
     manifest.projectVersion,
-    manifest.version,
     isRecord(manifest.createdWith) ? manifest.createdWith.version : undefined,
   ];
 
@@ -361,6 +395,10 @@ function extractDirectManifestVersion(manifest: Record<string, unknown> | null):
   }
 
   return null;
+}
+
+function extractGenericManifestVersion(manifest: Record<string, unknown> | null): string | null {
+  return normalizeCandidate(typeof manifest?.version === "string" ? manifest.version : null);
 }
 
 function findNestedAliceVersion(value: unknown, depth = 0): string | null {

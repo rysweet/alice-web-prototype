@@ -135,6 +135,25 @@ describe("project-migration", () => {
     expect(migration.versionInfo.detectedAliceVersion).toBe(CURRENT_VERSION);
   });
 
+  it("falls through invalid direct manifest metadata to nested Alice 2 guidance", () => {
+    const alice2Xml = `<?xml version="1.0" encoding="UTF-8"?><node></node>`;
+    const versionInfo = detectProjectVersion(null, {
+      aliceVersion: "unknown",
+      project: {
+        createdWith: {
+          version: "2.4.3",
+        },
+      },
+    }, alice2Xml);
+
+    expect(versionInfo).toMatchObject({
+      originalAliceVersion: "2.4.3",
+      detectedAliceVersion: "2.4.3",
+      versionSource: "manifest",
+      migrationSupport: "alice-2-guidance-only",
+    });
+  });
+
   it("treats caller-supplied Alice 2 version info as guidance-only even without support metadata", () => {
     const alice2Xml = `<?xml version="1.0" encoding="UTF-8"?><node version="2.4.3"></node>`;
     const migration = migrateProjectXml(alice2Xml, {

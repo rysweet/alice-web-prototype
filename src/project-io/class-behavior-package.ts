@@ -565,5 +565,56 @@ function renameMethodTypeReferences(
       ...parameter,
       type: parameter.type === originalName ? nextName : parameter.type,
     })),
+    statements: method.statements.map((statement) =>
+      renameStatementTypeReferences(statement, originalName, nextName)
+    ),
   };
+}
+
+function renameStatementTypeReferences(
+  statement: AliceStatement,
+  originalName: string,
+  nextName: string,
+): AliceStatement {
+  const renamed: AliceStatement = {
+    ...statement,
+    ...(statement.varType === originalName ? { varType: nextName } : {}),
+    ...(statement.itemType === originalName ? { itemType: nextName } : {}),
+    ...(statement.catchType === originalName ? { catchType: nextName } : {}),
+  };
+  if (statement.body) {
+    renamed.body = renameStatementList(statement.body, originalName, nextName);
+  }
+  if (statement.ifBody) {
+    renamed.ifBody = renameStatementList(statement.ifBody, originalName, nextName);
+  }
+  if (statement.elseBody) {
+    renamed.elseBody = renameStatementList(statement.elseBody, originalName, nextName);
+  }
+  if (statement.tryBody) {
+    renamed.tryBody = renameStatementList(statement.tryBody, originalName, nextName);
+  }
+  if (statement.catchBody) {
+    renamed.catchBody = renameStatementList(statement.catchBody, originalName, nextName);
+  }
+  if (statement.cases) {
+    renamed.cases = statement.cases.map((entry) => ({
+      ...entry,
+      body: renameStatementList(entry.body, originalName, nextName),
+    }));
+  }
+  if (statement.defaultCase) {
+    renamed.defaultCase = renameStatementList(statement.defaultCase, originalName, nextName);
+  }
+  return renamed;
+}
+
+function renameStatementList(
+  statements: AliceStatement[],
+  originalName: string,
+  nextName: string,
+): AliceStatement[] {
+  return statements.map((statement) =>
+    renameStatementTypeReferences(statement, originalName, nextName)
+  );
 }

@@ -430,6 +430,31 @@ describe("project-export", () => {
       expect.objectContaining({ code: "invalid-identity" }),
       expect.objectContaining({ code: "forbidden-repository-identity" }),
     ]));
+
+    const unsafeCanonicalUrl = await projectExportApi.validateWebPackage!({
+      packageBase64: await makeZip({
+        "index.html": "<!doctype html><script>window.AlicePlayer={runtimeIdentity:'alice-web-player'}</script>",
+        "manifest.json": JSON.stringify({
+          schemaVersion: "alice-web.package/v1",
+          product: "Alice",
+          packageName: "alice-web",
+          runtimeIdentity: "alice-web-player",
+          entrypoint: "index.html",
+        }),
+        "share.json": JSON.stringify({
+          schemaVersion: "alice-web.share/v1",
+          product: "Alice",
+          runtimeIdentity: "alice-web-player",
+          canonicalUrl: "javascript:alert(1)",
+        }),
+        "preview.png": new Uint8Array([137, 80, 78, 71]),
+        "project/project.json": "{}",
+        "validation.json": JSON.stringify({ schemaVersion: "alice-web.validation/v1" }),
+      }),
+    });
+    expect(unsafeCanonicalUrl.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "invalid-canonical-url" }),
+    ]));
   });
 
   it("generateShareArtifacts validates packageBase64 and links share metadata to the decoded package", async () => {
@@ -570,6 +595,11 @@ describe("project-export", () => {
   });
 
   it("rejects teacher metadata with null values or non-array list fields", async () => {
+    await expect(projectExportApi.exportWebPackage!(createProjectFixture(), {
+      title: "Bad Teacher Pack",
+      teacher: "not-an-object" as unknown as Record<string, never>,
+    })).rejects.toThrow(/teacher must be a JSON object/);
+
     await expect(projectExportApi.exportWebPackage!(createProjectFixture(), {
       title: "Bad Teacher Pack",
       teacher: {
