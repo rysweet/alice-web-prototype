@@ -126,7 +126,19 @@ export function buildCurrentProject(state: ServerState): AliceProject {
     });
   }
   baseProject.methods = Array.from(methodsByName.values());
+  syncSceneTypeMethods(baseProject, baseProject.methods);
   return baseProject;
+}
+
+function syncSceneTypeMethods(project: AliceProject, methods: AliceProject["methods"]): void {
+  const sceneType = project.types?.find((type) => type.superTypeName?.includes("SScene"));
+  if (!sceneType?.methods) return;
+
+  const methodsByName = new Map(sceneType.methods.map((method) => [method.name, method]));
+  for (const method of methods) {
+    methodsByName.set(method.name, method);
+  }
+  sceneType.methods = Array.from(methodsByName.values());
 }
 
 function cloneProject(project: AliceProject): AliceProject {
@@ -188,7 +200,12 @@ export function syncServerSceneObjectsFromProject(state: ServerState, project: A
 
 export function syncServerProceduresFromProject(state: ServerState, project: AliceProject | null): void {
   state.procedures = project
-    ? new Map(project.methods.map((method) => [method.name, []]))
+    ? new Map(project.methods.map((method) => [
+        method.name,
+        method.statements
+          .filter((statement) => statement.kind === "MethodCall" && typeof statement.method === "string")
+          .map((statement) => statement.method!),
+      ]))
     : createDefaultProcedures();
 }
 

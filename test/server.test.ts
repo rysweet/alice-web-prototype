@@ -416,6 +416,7 @@ describe("server API", () => {
     it("writes a caller-selected .a3p, reopens it, and exports the reopened project", async () => {
       const persistenceDir = path.join(evidenceDir, "persistence");
       const editMarker = "persistedBunnyTurnProof";
+      const secondEditMarker = "persistedBunnySecondProof";
       const savedProjectPath = path.join(
         persistenceDir,
         "saved-projects",
@@ -462,6 +463,24 @@ describe("server API", () => {
       expect(reopen.body.status).toBe("reopened");
       expect(reopen.body.project).toBe(fs.realpathSync(savedProjectPath));
       expect(reopen.body.sceneObjectCount).toBe(expectedObjectCount);
+      await localPost(persistenceApp, "/api/code/edit-procedure")
+        .send({
+          procedureSelector: "scene.myFirstMethod",
+          editSpec: `append-comment:${secondEditMarker}`,
+        })
+        .expect(200);
+      const secondSave = await localPost(persistenceApp, "/api/project/save")
+        .send({
+          saveSelector: "scene.myFirstMethod",
+          targetPath: savedProjectPath,
+        })
+        .expect(200);
+      expect(secondSave.body.status).toBe("saved");
+      const resavedProject = await parseA3P(fs.readFileSync(savedProjectPath));
+      const resavedMethod = resavedProject.methods.find((method) => method.name === "myFirstMethod");
+      expect(resavedMethod?.statements.map((statement) => statement.method)).toEqual(
+        expect.arrayContaining([editMarker, secondEditMarker]),
+      );
 
       const exportRes = await request(persistenceApp)
         .get("/api/projects/current/export/typescript")
