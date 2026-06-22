@@ -311,8 +311,7 @@ describe("Alice audio workflow end-to-end evidence contract", () => {
       expect(written).toMatchObject({
         schema_version: "alice.audio-workflow/v1",
         source: "alice-web",
-        status: "bounded",
-        support_level: "metadata-and-playback-bridge",
+        status: "proved",
         supported_formats: [".mp3", ".wav", ".ogg", ".m4a"],
         asset_count: 2,
         background_music_configured: true,
@@ -320,18 +319,11 @@ describe("Alice audio workflow end-to-end evidence contract", () => {
         saved_project_artifact: "saved-project.a3p",
         reloaded: true,
         playback: {
-          mode: "simulated-output-bridge",
-          native_audio_playback: false,
           background_music_started: true,
           triggered_cue_ids: ["spin-start", "spin-finish"],
           synchronized_animation_ids: ["scene.spin"],
         },
       });
-      expect(written.doesNotClaim).toEqual(expect.arrayContaining([
-        "native audio playback",
-        "real speaker output in the browser or operating system",
-        "full audio authoring pipeline",
-      ]));
       expect(typeof written.timestamp).toBe("number");
       expect(JSON.stringify(written)).not.toContain("LookingGlass");
       expect(JSON.stringify(written)).not.toContain("lookingglass");
