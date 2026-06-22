@@ -8,6 +8,10 @@ doc_type: reference
 
 # Alice evidence artifact API
 
+LookingGlass is the repository/project nickname for this Alice web codebase.
+The runtime, API, package metadata, and generated evidence artifacts use Alice /
+`alice-web` identity.
+
 Alice browser evidence files are JSON artifacts created from visible runtime
 behavior. They are designed for browser export, Playwright/E2E verification, and
 EatMe parity evidence. They are not screenshots, videos, telemetry events, or
