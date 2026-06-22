@@ -1,17 +1,21 @@
 ---
-title: Alice WebXR and VR interactions
-description: Reference for capability-aware WebXR/VR setup, input, locomotion, UI evidence, and public APIs in alice-web.
+title: Alice WebXR and camera comfort evidence
+description: Reference for browser-facing WebXR capability evidence, camera comfort fallback, UI evidence, and public APIs in alice-web.
 last_updated: 2026-06-21
 review_schedule: quarterly
 doc_type: reference
 ---
 
-# Alice WebXR and VR interactions
+# Alice WebXR and camera comfort evidence
 
-Alice enables immersive WebXR VR interaction when the browser, device, and page
-context provide the required APIs. When a capability is missing, Alice reports
-structured unsupported, degraded, or failed evidence instead of silently falling
-back.
+Alice reports browser-facing WebXR capability and camera comfort evidence in the
+runtime UI. The supported parity scope is WebXR/camera comfort and desktop
+camera fallback evidence. Alice does not claim true headset/native VR support;
+the evidence artifact exports `trueHeadsetVrSupported: false` and
+`nativeVrSupported: false`.
+
+When a capability is missing, Alice reports structured unsupported, degraded, or
+fallback evidence instead of silently pretending that headset VR is supported.
 
 The product, browser runtime, package, and public API identity stay Alice /
 `alice-web`. See [Alice identity boundary](./alice-identity-boundary.md) for the
@@ -35,7 +39,7 @@ repository nickname rules.
 
 ## Quick start
 
-Run Alice locally and open it in a WebXR-capable browser:
+Run Alice locally and open it in a browser:
 
 ```bash
 export NODE_OPTIONS=--max-old-space-size=32768
@@ -44,32 +48,33 @@ npm run build
 npm run dev
 ```
 
-Open the printed Vite URL in a browser that supports `immersive-vr`. The page
-must be served from a secure context: `https://`, `http://localhost`, or
+Open the printed Vite URL. For WebXR capability detection, the page must be
+served from a secure context: `https://`, `http://localhost`, or
 `http://127.0.0.1`.
 
 1. Load or create an Alice scene.
-2. Select the **Enter VR** button.
-3. Grant the browser's VR permission prompt.
-4. Use controller rays to point at pickable Alice objects or movement targets.
-5. Use the configured locomotion mode to move through the scene.
+2. Check the camera/WebXR comfort panel.
+3. Move the browser camera with the available camera controls.
+4. Confirm the reduced-motion, keyboard movement, and fallback statuses.
+5. Capture and export Alice evidence.
 
-If VR is unavailable, the button will remain disabled or the session request
-will fail visibly. The status panel will explain the unsupported state with
-evidence codes
-such as `webxr-unavailable`, `immersive-vr-unsupported`, or
-`secure-context-required`.
+If WebXR is unavailable, Alice keeps the browser camera workflow available and
+renders fallback evidence such as `webxr-unavailable`,
+`immersive-vr-unsupported`, `secure-context-required`, or
+`desktop-camera-fallback`. This is a valid evidence result, not a failure.
 
 ## Browser and device requirements
 
-Alice enables WebXR only when all required runtime conditions are true.
+Alice records WebXR capability only when browser runtime conditions are true.
+The evidence workflow does not require a headset and does not claim native VR
+parity.
 
 | Requirement | Required for | Evidence |
 | --- | --- | --- |
 | Secure browser context | All WebXR APIs | `secure-context-required` |
 | `navigator.xr` | Capability detection and session startup | `webxr-unavailable` |
 | `navigator.xr.isSessionSupported('immersive-vr')` | Entering immersive VR | `immersive-vr-unsupported` |
-| `navigator.xr.requestSession('immersive-vr')` | Active VR session | `session-request-failed` when rejected |
+| `navigator.xr.requestSession('immersive-vr')` | Browser WebXR session request when explicitly invoked | `session-request-failed` when rejected |
 | `local-floor` or `local` reference space | Stable tracking origin | `reference-space-unavailable` |
 | `XRInputSource` records | Controller and hand tracking | `input-sources-unavailable` |
 
@@ -87,10 +92,22 @@ startup:
 
 ## Runtime behavior
 
-The WebXR implementation must keep desktop scene behavior available outside VR.
-When an immersive VR session is active:
+The WebXR implementation keeps desktop scene behavior available regardless of VR
+capability. Camera/WebXR evidence has three browser-visible outcomes:
 
-- the Three.js renderer will have `renderer.xr.enabled = true`;
+| Outcome | Meaning |
+| --- | --- |
+| `available` | The browser exposes WebXR capability information and Alice can render capability evidence |
+| `fallback` | Alice renders desktop camera controls and WebXR fallback evidence |
+| `unsupported` | A required browser condition is missing and Alice renders unsupported evidence |
+
+When an immersive WebXR session is explicitly started in an environment that
+supports it, Alice records session state. That session state is browser WebXR
+evidence only; it is not a true headset/native VR parity claim.
+
+When a browser WebXR session is active:
+
+- the Three.js renderer has `renderer.xr.enabled = true`;
 - the animation loop is driven by the XR frame loop;
 - OrbitControls are disabled and restored after the session ends;
 - the user rig follows the active XR reference space;
@@ -101,13 +118,14 @@ When an immersive VR session is active:
   movement surfaces.
 
 No browser or device data may be persisted or transmitted by the WebXR runtime.
-Capability and unsupported-state evidence must stay local, coarse, and intended
-for UI diagnostics and tests.
+Capability and unsupported-state evidence stays local, coarse, and intended for
+UI diagnostics and tests.
 
 ## Capability evidence
 
 Capability detection returns a report with a status and machine-readable
-evidence. Evidence is also rendered into the UI.
+evidence. Evidence is also rendered into the UI and copied into
+`runtimeReview.cameraVrComfort` when the user captures Alice evidence.
 
 ```typescript
 import { detectWebXRCapabilities } from 'alice-web';
@@ -228,8 +246,8 @@ render the `ended` UI state.
 
 ## Controllers and hands
 
-Alice will represent each `XRInputSource` as an Alice-owned input record. The
-record will use browser-provided spaces when available and record evidence when
+Alice represents each `XRInputSource` as an Alice-owned input record. The
+record uses browser-provided spaces when available and records evidence when
 optional parts are missing.
 
 ```typescript
@@ -252,7 +270,7 @@ interface WebXRInputSourceState {
 
 When a controller has a target ray, Alice renders a ray affordance from
 that pose. When it has a grip pose, Alice renders a simple controller object
-at the grip transform. These affordances are built in; Alice will not require
+at the grip transform. These affordances are built in; Alice does not require
 external controller model assets to make input usable.
 
 Controller select events can trigger:
@@ -266,7 +284,7 @@ behaviors. Squeeze does not trigger locomotion by default.
 
 ### Hand affordances
 
-When an input source exposes `XRHand`, Alice will track the hand and render
+When an input source exposes `XRHand`, Alice tracks the hand and renders
 simple hand affordances from available joint poses. Missing or invalid joint
 poses must not end the session; they add `hand-pose-unavailable` evidence for
 that frame.
@@ -328,15 +346,20 @@ Alice renders WebXR state with text-safe DOM updates. Evidence messages
 must use `textContent`; Alice must never inject WebXR evidence through
 `innerHTML`.
 
-Stable data attributes:
+Stable data attributes and test ids:
 
-| Attribute | Element | Values |
+| Attribute or selector | Element | Values |
 | --- | --- | --- |
-| `data-alice-webxr-vr-button` | Enter/Exit VR button | `enter`, `exit`, `disabled` |
-| `data-alice-webxr-status` | Status container | Session states: `idle`, `unsupported`, `starting`, `active`, `ended`, `failed`; capability-only UI may also render `degraded` |
+| `[data-testid="alice-camera-vr-comfort-panel"]` | Camera/WebXR comfort panel | Present when evidence is rendered |
+| `[data-testid="alice-camera-vr-comfort-status"]` | Status text | `available`, `fallback`, or `unsupported` |
+| `[data-testid="alice-camera-keyboard-movement"]` | Keyboard/camera movement evidence | Text-rendered availability |
+| `[data-testid="alice-camera-reduced-motion"]` | Reduced-motion evidence | Text-rendered status |
+| `[data-testid="alice-true-vr-unsupported"]` | Unsupported true VR statement | Always visible in the evidence workflow |
+| `data-alice-webxr-vr-button` | WebXR action button, when present | `enter`, `exit`, `disabled` |
+| `data-alice-webxr-status` | Status container | `available`, `fallback`, `unsupported`, `idle`, `starting`, `active`, `ended`, `failed`, or `degraded` |
 | `data-alice-webxr-evidence` | Evidence list | Present when evidence is rendered |
-| `data-alice-webxr-evidence-code` | Evidence item | Evidence code such as `immersive-vr-unsupported` |
-| `data-alice-webxr-locomotion-mode` | Mode label/control | Active locomotion mode |
+| `data-alice-webxr-evidence-code` | Evidence item | Evidence code such as `desktop-camera-fallback` or `immersive-vr-unsupported` |
+| `data-alice-webxr-locomotion-mode` | Mode label/control | Active locomotion mode when WebXR locomotion is available |
 | `data-alice-webxr-invalid-target` | Invalid movement target message | Present when the last select hit an invalid target |
 
 Example UI state:
@@ -353,8 +376,8 @@ Example UI state:
 </section>
 ```
 
-Tests should assert data attributes and text content, not browser-specific
-phrasing from native permission prompts.
+Tests assert data attributes and text content, not browser-specific phrasing from
+native permission prompts.
 
 ## Configuration
 
@@ -507,25 +530,26 @@ current status, active locomotion mode, and evidence list.
 
 These examples use the public WebXR API exported from `alice-web`.
 
-### Check whether to enable a custom VR button
+### Render fallback status for a custom panel
 
 ```typescript
 import { detectWebXRCapabilities } from 'alice-web';
 
-const button = document.querySelector<HTMLButtonElement>('#enter-vr');
-if (!button) {
-  throw new Error('missing #enter-vr button');
+const panel = document.querySelector<HTMLElement>('#camera-vr-comfort');
+if (!panel) {
+  throw new Error('missing #camera-vr-comfort panel');
 }
 
 const report = await detectWebXRCapabilities();
-button.disabled = report.status === 'unsupported';
-button.textContent = report.status === 'unsupported'
-  ? 'VR unavailable'
-  : 'Enter VR';
-button.dataset.aliceWebxrVrButton = button.disabled ? 'disabled' : 'enter';
+panel.dataset.aliceWebxrStatus = report.status === 'unsupported'
+  ? 'fallback'
+  : report.status;
+panel.textContent = report.status === 'unsupported'
+  ? 'Desktop camera fallback is available. True headset/native VR is unsupported.'
+  : 'WebXR capability evidence is available.';
 ```
 
-### Start VR from explicit user intent
+### Start a browser WebXR session from explicit user intent
 
 ```typescript
 import { createWebXRSessionController, renderWebXRStatus } from 'alice-web';
@@ -550,6 +574,10 @@ document.querySelector('#enter-vr')?.addEventListener('click', async () => {
   }
 });
 ```
+
+This example records browser WebXR session evidence only. The Alice evidence
+artifact still reports true headset/native VR as unsupported unless a separate
+native/headset implementation proves otherwise.
 
 ### Restrict click/move to named surfaces
 
@@ -596,7 +624,8 @@ even when the movement surface is closer than the object along the same ray.
 
 | Symptom | Cause | Expected Alice evidence/UI |
 | --- | --- | --- |
-| The Enter VR button is disabled. | Browser or context does not support WebXR immersive VR. | `unsupported` status with `secure-context-required`, `webxr-unavailable`, or `immersive-vr-unsupported`. |
+| The camera/WebXR panel shows fallback. | Browser or context does not support WebXR immersive VR, or no session has been requested. | `fallback` status with desktop camera controls and unsupported true VR text. |
+| The Enter VR button is disabled. | Browser or context does not support WebXR immersive VR. | `unsupported` status with `secure-context-required`, `webxr-unavailable`, or `immersive-vr-unsupported`; evidence export still records camera fallback. |
 | The browser prompt appears, then VR does not start. | `requestSession('immersive-vr')` failed or permission was denied. | `failed` status with `session-request-failed`. |
 | VR starts at the wrong floor height. | `local-floor` is unavailable and Alice used `local`. | Active session with `reference-space-local-fallback` evidence. |
 | Controllers appear but do not move the user smoothly. | The input source has no gamepad axes/buttons. | `controller-missing-gamepad`; click/move can still work if target rays are available. |
@@ -609,5 +638,6 @@ even when the movement surface is closer than the object along the same ray.
 - [Scene rendering](./scene-rendering.md)
 - [Scene graph](./scene-graph.md)
 - [Event system](./event-system.md)
+- [Alice evidence workflow usage](./alice-evidence-workflow-usage.md)
 - [Testing](./testing.md)
 - [Alice identity boundary](./alice-identity-boundary.md)

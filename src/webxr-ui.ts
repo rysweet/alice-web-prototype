@@ -1,4 +1,5 @@
 import type { WebXREvidence } from "./webxr-capabilities";
+import type { CameraVrComfortEvidence } from "./runtime-parity-evidence";
 import type { WebXRLocomotionMode } from "./webxr-locomotion";
 import type { WebXRSessionState } from "./webxr-session";
 
@@ -11,6 +12,7 @@ export interface WebXRStatusViewModel {
   readonly locomotionMode?: WebXRLocomotionMode;
   readonly invalidTargetMessage?: string;
   readonly evidence: readonly WebXREvidence[];
+  readonly cameraComfort?: CameraVrComfortEvidence;
 }
 
 export interface WebXRStatusElements {
@@ -58,6 +60,46 @@ export function renderWebXRStatus(root: HTMLElement, viewModel: WebXRStatusViewM
   if (viewModel.invalidTargetMessage) {
     const invalidTarget = appendTextElement(root, "div", viewModel.invalidTargetMessage);
     invalidTarget.dataset.aliceWebxrInvalidTarget = "true";
+  }
+
+  if (viewModel.cameraComfort) {
+    const comfort = root.ownerDocument.createElement("section");
+    comfort.dataset.testid = "alice-camera-vr-comfort-panel";
+    comfort.setAttribute("aria-label", "Alice camera and VR comfort evidence");
+
+    const comfortStatus = appendTextElement(
+      comfort,
+      "div",
+      `Camera/WebXR comfort: ${viewModel.cameraComfort.status}`,
+    );
+    comfortStatus.dataset.testid = "alice-camera-vr-comfort-status";
+
+    const keyboard = appendTextElement(
+      comfort,
+      "div",
+      viewModel.cameraComfort.keyboardMovementAvailable
+        ? "Keyboard camera movement available"
+        : "Keyboard camera movement unavailable",
+    );
+    keyboard.dataset.testid = "alice-camera-keyboard-movement";
+
+    const reducedMotion = appendTextElement(
+      comfort,
+      "div",
+      viewModel.cameraComfort.reducedMotionRespected
+        ? "Reduced-motion comfort check respected"
+        : "Reduced-motion comfort check unavailable",
+    );
+    reducedMotion.dataset.testid = "alice-camera-reduced-motion";
+
+    const trueVr = appendTextElement(
+      comfort,
+      "div",
+      viewModel.cameraComfort.unsupportedReason,
+    );
+    trueVr.dataset.testid = "alice-true-vr-unsupported";
+
+    root.appendChild(comfort);
   }
 
   const evidence = root.ownerDocument.createElement("ul");

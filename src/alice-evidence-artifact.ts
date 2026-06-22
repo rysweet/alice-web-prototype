@@ -44,6 +44,12 @@ export interface AliceEvidenceVisibleBehavior {
   objects: AliceEvidenceVisibleObject[];
 }
 
+export interface AliceEvidenceRuntimeReview {
+  cameraVrComfort?: unknown;
+  accessibilityRescueCaptions?: unknown;
+  galleryWalkRubric?: unknown;
+}
+
 export interface AliceEvidenceArtifact {
   format: typeof ALICE_EVIDENCE_FORMAT;
   version: typeof ALICE_EVIDENCE_VERSION;
@@ -61,6 +67,7 @@ export interface AliceEvidenceArtifact {
     capturedAt: string;
   };
   visibleBehavior: AliceEvidenceVisibleBehavior;
+  runtimeReview?: AliceEvidenceRuntimeReview;
   export: {
     method: AliceEvidenceExportMethod;
     requestedAt: string;
@@ -88,6 +95,7 @@ export interface AliceEvidenceArtifactInput {
     capturedAt: string;
   };
   visibleBehavior: AliceEvidenceVisibleBehavior;
+  runtimeReview?: AliceEvidenceRuntimeReview;
   export: {
     method: AliceEvidenceExportMethod;
     requestedAt: string;
@@ -164,6 +172,7 @@ export function createAliceEvidenceArtifact(input: AliceEvidenceArtifactInput): 
       },
       objects: input.visibleBehavior.objects.slice(0, MAX_VISIBLE_OBJECTS).map(sanitizeVisibleObject),
     },
+    ...(input.runtimeReview ? { runtimeReview: sanitizeRuntimeReview(input.runtimeReview) } : {}),
     export: {
       method: input.export.method,
       requestedAt: stringValue(input.export.requestedAt),
@@ -283,6 +292,36 @@ export function validateAliceEvidenceArtifact(value: unknown): AliceEvidenceVali
     validateVisibleObjects(visibleBehavior.objects, errors);
   }
 
+  if (artifact.runtimeReview !== undefined) {
+    const runtimeReview = nestedRecord(artifact.runtimeReview, "runtimeReview", errors);
+    if (runtimeReview) {
+      if (runtimeReview.cameraVrComfort !== undefined) {
+        const cameraVrComfort = nestedRecord(runtimeReview.cameraVrComfort, "runtimeReview.cameraVrComfort", errors);
+        if (cameraVrComfort) {
+          expectEqual(cameraVrComfort.schema_version, "alice.camera-vr-comfort-evidence/v1", "runtimeReview.cameraVrComfort.schema_version", errors);
+          expectEqual(cameraVrComfort.status, "partial", "runtimeReview.cameraVrComfort.status", errors);
+          expectLiteralFalse(cameraVrComfort.trueHeadsetVrSupported, "runtimeReview.cameraVrComfort.trueHeadsetVrSupported", errors);
+          expectLiteralFalse(cameraVrComfort.nativeVrSupported, "runtimeReview.cameraVrComfort.nativeVrSupported", errors);
+        }
+      }
+      if (runtimeReview.accessibilityRescueCaptions !== undefined) {
+        const captions = nestedRecord(runtimeReview.accessibilityRescueCaptions, "runtimeReview.accessibilityRescueCaptions", errors);
+        if (captions) {
+          expectEqual(captions.schema_version, "alice.accessibility-rescue-camera-captions/v1", "runtimeReview.accessibilityRescueCaptions.schema_version", errors);
+          expectEqual(captions.status, "partial", "runtimeReview.accessibilityRescueCaptions.status", errors);
+        }
+      }
+      if (runtimeReview.galleryWalkRubric !== undefined) {
+        const galleryWalkRubric = nestedRecord(runtimeReview.galleryWalkRubric, "runtimeReview.galleryWalkRubric", errors);
+        if (galleryWalkRubric) {
+          expectEqual(galleryWalkRubric.schema_version, "alice.gallery-walk-rubric-evidence/v1", "runtimeReview.galleryWalkRubric.schema_version", errors);
+          expectEqual(galleryWalkRubric.status, "partial", "runtimeReview.galleryWalkRubric.status", errors);
+          expectLiteralFalse(galleryWalkRubric.liveStudioSupported, "runtimeReview.galleryWalkRubric.liveStudioSupported", errors);
+        }
+      }
+    }
+  }
+
   const exported = nestedRecord(artifact.export, "export", errors);
   if (exported) {
     if (exported.method !== "download" && exported.method !== "native-share") {
@@ -375,6 +414,34 @@ function sanitizeCanvasSnapshot(snapshot: AliceEvidenceCanvasSnapshot): AliceEvi
   };
 }
 
+function sanitizeRuntimeReview(review: AliceEvidenceRuntimeReview): AliceEvidenceRuntimeReview {
+  return {
+    ...(review.cameraVrComfort !== undefined ? { cameraVrComfort: sanitizeCameraVrComfortReview(review.cameraVrComfort) } : {}),
+    ...(review.accessibilityRescueCaptions !== undefined ? { accessibilityRescueCaptions: cloneJsonRecord(review.accessibilityRescueCaptions) } : {}),
+    ...(review.galleryWalkRubric !== undefined ? { galleryWalkRubric: sanitizeGalleryWalkRubricReview(review.galleryWalkRubric) } : {}),
+  };
+}
+
+function sanitizeCameraVrComfortReview(value: unknown): unknown {
+  return {
+    ...(cloneJsonRecord(value) as Record<string, unknown>),
+    trueHeadsetVrSupported: false,
+    nativeVrSupported: false,
+  };
+}
+
+function sanitizeGalleryWalkRubricReview(value: unknown): unknown {
+  return {
+    ...(cloneJsonRecord(value) as Record<string, unknown>),
+    liveStudioSupported: false,
+  };
+}
+
+function cloneJsonRecord(value: unknown): unknown {
+  const record = recordValue(value);
+  return record ? JSON.parse(JSON.stringify(record)) : {};
+}
+
 function sanitizeVector(vector: AliceEvidenceVector): AliceEvidenceVector {
   return {
     x: finiteNumber(vector.x),
@@ -411,6 +478,12 @@ function nestedRecord(value: unknown, label: string, errors: string[]): Record<s
     errors.push(`${label} must be an object.`);
   }
   return record;
+}
+
+function expectLiteralFalse(value: unknown, label: string, errors: string[]): void {
+  if (value !== false) {
+    errors.push(`${label} must be false.`);
+  }
 }
 
 function expectEqual(actual: unknown, expected: unknown, label: string, errors: string[]): void {

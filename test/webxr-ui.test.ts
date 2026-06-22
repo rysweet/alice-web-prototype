@@ -92,4 +92,51 @@ describe("renderWebXRStatus", () => {
     expect(root.querySelector<HTMLElement>("[data-alice-webxr-status]")?.dataset.aliceWebxrStatus).toBe("active");
     expect(invalidTarget?.textContent).toBe("Tree is not a valid movement target.");
   });
+
+  it("renders camera comfort fallback evidence without claiming true VR support", () => {
+    const dom = new JSDOM("<!doctype html><main id=\"root\"></main>");
+    const root = dom.window.document.getElementById("root");
+    if (!root) {
+      throw new Error("missing root");
+    }
+
+    renderWebXRStatus(root, {
+      status: "unsupported",
+      buttonState: "disabled",
+      message: "Browser camera workflow available.",
+      evidence: [
+        {
+          code: "desktop-camera-fallback",
+          severity: "degraded",
+          message: "Desktop camera fallback is available.",
+        },
+      ],
+      cameraComfort: {
+        schema_version: "alice.camera-vr-comfort-evidence/v1",
+        status: "partial",
+        browserWebXrStatus: "unsupported",
+        desktopCameraAvailable: true,
+        keyboardMovementAvailable: true,
+        reducedMotionRespected: true,
+        trueHeadsetVrSupported: false,
+        nativeVrSupported: false,
+        cameraMode: "orbit",
+        evidenceCodes: ["desktop-camera-fallback", "true-vr-unsupported"],
+        comfortChecks: {
+          discreteMovementStep: true,
+          stableHorizon: true,
+          noForcedHeadset: true,
+        },
+        unsupportedReason: "LookingGlass records browser WebXR and desktop camera comfort evidence only; true headset/native VR remains unsupported.",
+      },
+    });
+
+    expect(root.querySelector("[data-testid=\"alice-camera-vr-comfort-panel\"]")).not.toBeNull();
+    expect(root.querySelector("[data-testid=\"alice-camera-keyboard-movement\"]")?.textContent)
+      .toContain("Keyboard camera movement available");
+    expect(root.querySelector("[data-testid=\"alice-camera-reduced-motion\"]")?.textContent)
+      .toContain("Reduced-motion comfort check respected");
+    expect(root.querySelector("[data-testid=\"alice-true-vr-unsupported\"]")?.textContent)
+      .toContain("true headset/native VR remains unsupported");
+  });
 });

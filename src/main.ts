@@ -51,6 +51,10 @@ import { disposeSceneResources } from "./scene-disposal";
 import { TweedleCompiler } from "./tweedle-compiler";
 import type { LogEntry } from "./tweedle-vm-core-types";
 import { detectWebXRCapabilities, type WebXREvidence } from "./webxr-capabilities";
+import {
+  createCameraVrComfortEvidence,
+  createRuntimeParityEvidence,
+} from "./runtime-parity-evidence";
 import { type WebXRInputSourceState, type WebXRInputState } from "./webxr-input";
 import {
   createWebXRLocomotion,
@@ -173,6 +177,7 @@ let controls: OrbitControls | null = null;
 let lastProject: AliceProject | null = null;
 let webXRController: WebXRSessionController | null = null;
 let webXREvidence: readonly WebXREvidence[] = [];
+let lastWebXRCapabilityReport: Awaited<ReturnType<typeof detectWebXRCapabilities>> | null = null;
 let webXRInvalidTargetMessage: string | undefined;
 let lastAnimationTime = 0;
 let cameraWorkflow: CameraWorkflowState = createDefaultCameraWorkflowState();
@@ -969,6 +974,12 @@ function createEvidenceArtifactForCurrentScene(
       },
       objects: collectVisibleObjectEvidence(project),
     },
+    runtimeReview: createRuntimeParityEvidence({
+      camera: cameraWorkflow.camera,
+      project,
+      statusText: status.textContent?.trim() || describeProject(project),
+      webxrReport: lastWebXRCapabilityReport,
+    }),
     export: {
       method,
       requestedAt,
@@ -1523,6 +1534,10 @@ function renderWebXRPanel(state: WebXRSessionState = webXRController?.state ?? "
     locomotionMode: locomotion.mode,
     invalidTargetMessage: webXRInvalidTargetMessage,
     evidence: webXREvidence,
+    cameraComfort: createCameraVrComfortEvidence({
+      camera: cameraWorkflow.camera,
+      webxrReport: lastWebXRCapabilityReport,
+    }),
   });
   elements.button.addEventListener("click", () => {
     void handleVRButtonClick();
@@ -1534,6 +1549,7 @@ async function refreshCapabilityStatus(): Promise<void> {
     isSecureContext,
     navigator: navigator as unknown as NonNullable<Parameters<typeof detectWebXRCapabilities>[0]>["navigator"],
   });
+  lastWebXRCapabilityReport = report;
   webXREvidence = report.evidence;
   renderWebXRPanel(report.status === "unsupported" ? "unsupported" : webXRController?.state ?? "idle");
 }

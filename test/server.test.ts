@@ -207,6 +207,61 @@ describe("server API", () => {
     });
   });
 
+  describe("runtime parity evidence APIs", () => {
+    it("reports camera comfort evidence without claiming true headset VR", async () => {
+      const res = await request(app).get("/api/vr/camera-comfort").expect(200);
+
+      expect(res.body.schema_version).toBe("alice.camera-vr-comfort-evidence/v1");
+      expect(res.body.status).toBe("partial");
+      expect(res.body.desktopCameraAvailable).toBe(true);
+      expect(res.body.trueHeadsetVrSupported).toBe(false);
+      expect(res.body.nativeVrSupported).toBe(false);
+      expect(res.body.unsupportedReason).toContain("true headset/native VR remains unsupported");
+    });
+
+    it("reports accessibility rescue camera captions for current scene review", async () => {
+      await localPost(app, "/api/scene/add-object")
+        .send({ className: "org.lgna.story.SBiped", name: "guide" })
+        .expect(200);
+
+      const res = await request(app)
+        .get("/api/accessibility/rescue-camera-captions")
+        .expect(200);
+
+      expect(res.body.schema_version).toBe("alice.accessibility-rescue-camera-captions/v1");
+      expect(res.body.status).toBe("partial");
+      expect(res.body.cameraCaption).toContain("Camera");
+      expect(res.body.objectCaption).toContain("guide");
+      expect(res.body.captionChecks.map((check: { id: string }) => check.id)).toEqual(
+        expect.arrayContaining(["aria-live-status", "camera-caption", "scene-object-caption"]),
+      );
+    });
+
+    it("reports gallery walk rubric evidence while live studio remains unsupported", async () => {
+      await localPost(app, "/api/scene/add-object")
+        .send({ className: "org.lgna.story.SProp", name: "checkpoint" })
+        .expect(200);
+
+      const res = await request(app)
+        .get("/api/review/gallery-walk-rubric")
+        .expect(200);
+
+      expect(res.body.schema_version).toBe("alice.gallery-walk-rubric-evidence/v1");
+      expect(res.body.reviewWorkflowSupported).toBe(true);
+      expect(res.body.rubricRecordingSupported).toBe(true);
+      expect(res.body.liveStudioSupported).toBe(false);
+      expect(res.body.galleryItems.map((item: { title: string }) => item.title)).toContain("checkpoint");
+    });
+
+    it("bundles the runtime parity evidence sections", async () => {
+      const res = await request(app).get("/api/review/runtime-parity").expect(200);
+
+      expect(res.body.cameraVrComfort.schema_version).toBe("alice.camera-vr-comfort-evidence/v1");
+      expect(res.body.accessibilityRescueCaptions.schema_version).toBe("alice.accessibility-rescue-camera-captions/v1");
+      expect(res.body.galleryWalkRubric.schema_version).toBe("alice.gallery-walk-rubric-evidence/v1");
+    });
+  });
+
   describe("request body parsing", () => {
     it("rejects malformed JSON bodies with a client error", async () => {
       await localPost(app, "/api/project/new")

@@ -1,6 +1,6 @@
 ---
 title: Alice evidence export workflow
-description: Browser capture, export, and share evidence workflow.
+description: Browser capture, export, and share workflow for Alice runtime evidence.
 last_updated: 2026-06-22
 review_schedule: quarterly
 doc_type: how-to
@@ -13,9 +13,11 @@ The selectors below are the stable contract shared by `src/index.html`,
 `src/main.ts`, tests, and documentation.
 
 Evidence export records what Alice can state safely: product identity,
-runtime identity, project and scene summaries, user-triggered capture entries,
-bounded metadata, validation status, and share details. It must not include
-secrets, tokens, local absolute paths, raw image payloads, or large project
+runtime identity, project and scene summaries, camera/WebXR comfort fallback,
+accessibility/caption evidence, gallery/review evidence, explicit unsupported
+boundaries, user-triggered capture entries, bounded metadata, validation status,
+and share details. It must not include secrets, tokens, local absolute paths, raw
+image payloads, raw transcript text, camera frames, audio, or large project
 blobs.
 
 ## Contents
@@ -66,15 +68,17 @@ controls. Each control must be an explicit user action.
 | Evidence summary | Shows a readable summary using safe text rendering |
 
 Capture entries describe state, not private data. A capture can include scene
-object counts, selected object names, camera summary, lesson or workflow labels,
-validation results, and short notes. It must not include raw image data, request
-headers, tokens, file-system paths from the local machine, or full `.a3p`
-project bytes.
+object counts, selected object names, camera summary, WebXR fallback status,
+reduced-motion support, aria-live/camera/object captions, gallery item prompts,
+rubric criteria, review status, lesson or workflow labels, validation
+results, and short notes. It must not include raw image data, raw user
+transcript text, request headers, tokens, file-system paths from the local
+machine, or full `.a3p` project bytes.
 
 ## Browser UI contract
 
-Implementation must add these stable selectors so browser code, tests, and docs
-share one contract:
+Alice exposes these stable selectors so browser code, tests, and docs share one
+contract:
 
 | Element | `id` | `data-testid` | Notes |
 | --- | --- | --- | --- |
@@ -85,16 +89,28 @@ share one contract:
 | Status element | `evidence-status` | `alice-evidence-status` | Also sets `data-alice-evidence-status` to the current status |
 | Summary element | `evidence-summary` | `alice-evidence-summary` | Uses `textContent` or equivalent safe text APIs |
 | Capture list | `evidence-capture-list` | `alice-evidence-capture-list` | Optional visible list of bounded capture summaries |
+| Camera/VR comfort panel | `camera-vr-comfort-panel` | `alice-camera-vr-comfort-panel` | Shows WebXR fallback, camera comfort, reduced-motion, keyboard movement, and true VR unsupported evidence |
+| Camera/VR comfort status | `camera-vr-comfort-status` | `alice-camera-vr-comfort-status` | Text status for camera/WebXR comfort evidence |
+| True VR unsupported text | `true-vr-unsupported` | `alice-true-vr-unsupported` | Explicitly states true headset/native VR is unsupported |
 
-The first implementation should keep this panel in the existing sidebar next to
-the project export and sharing controls.
+The panel stays in the existing sidebar next to the project export and sharing
+controls. It does not depend on save/import/setup or class-sharing controls.
+
+## Evidence areas
+
+| Area | Required visible evidence | Required artifact evidence |
+| --- | --- | --- |
+| Camera and WebXR comfort | Camera mode/status, keyboard movement status, reduced-motion status, WebXR fallback status, true VR unsupported text | `runtimeReview.cameraVrComfort.browserWebXrStatus`, `desktopCameraAvailable`, `keyboardMovementAvailable`, `reducedMotionRespected`, `trueHeadsetVrSupported: false`, `nativeVrSupported: false` |
+| Accessibility and captions | Evidence artifact and `/api/accessibility/rescue-camera-captions` expose ARIA/live, camera, scene-object, keyboard, and high-contrast caption checks | `runtimeReview.accessibilityRescueCaptions` |
+| Gallery and review | Evidence artifact and `/api/review/gallery-walk-rubric` expose gallery items, review prompts, rubric criteria, and live-studio unsupported status | `runtimeReview.galleryWalkRubric` |
+| Unsupported boundaries | Explicit unsupported statements | `runtimeReview.cameraVrComfort.trueHeadsetVrSupported: false`, `runtimeReview.galleryWalkRubric.liveStudioSupported: false` |
 
 ## Export an evidence file
 
 Use **Export evidence** when a file needs to be attached to a report, test run,
 or curriculum review.
 
-Alice must validate the current artifact before writing the file. If validation
+Alice validates the current artifact before writing the file. If validation
 fails, the page shows the validation error and does not download a file. If the
 artifact is valid, Alice downloads a JSON file named with the evidence id, for
 example:
@@ -112,8 +128,8 @@ Use **Share evidence** when the browser supports sharing files. Alice validates
 the artifact first, prepares share metadata, creates a JSON file, and passes
 that file to the browser share sheet.
 
-When file sharing is not available, Alice must render status
-`share-unavailable`, keep **Export evidence** available for valid artifacts, and
+When file sharing is not available, Alice renders status `share-unavailable`,
+keeps **Export evidence** available for valid artifacts, and
 avoid sending the artifact anywhere. The artifact is not sent without a user
 action.
 
@@ -212,8 +228,8 @@ The exact object count and selected object name depend on the current scene.
 ### 3. Review the summary
 
 Confirm that the summary names Alice, shows `alice-web` as the runtime, includes
-the project name, and lists one capture. Status should be `ready` after the
-artifact validates.
+the project name, and lists one capture. Status is `ready` after the artifact
+validates.
 
 ### 4. Export the file
 
@@ -241,7 +257,7 @@ Server proof files use the existing `--evidence-dir` option:
 | `X-Alice-Local-Api-Token` | Mutating local API calls | Header containing the local API token |
 | `ALICE_LOCAL_API_TOKEN` | Shell examples | Environment variable used to pass the local API token into examples |
 
-Local validation commands should use the repository heap setting:
+Local validation commands use the repository heap setting:
 
 ```bash
 export NODE_OPTIONS=--max-old-space-size=32768
@@ -254,9 +270,13 @@ Evidence export keeps the artifact small and reviewable:
 
 - metadata is explicit and bounded;
 - raw image data is not stored in JSON;
+- raw user transcript text is not stored in JSON;
+- camera frames and audio are not stored in JSON;
 - local absolute file paths are not stored;
 - request headers and tokens are not stored;
 - project bytes are not embedded;
+- true headset/native VR and workshop live studio remain unsupported unless real
+  runtime support and browser evidence are added in a separate feature;
 - generated summaries are rendered as text;
 - export and share require user action.
 

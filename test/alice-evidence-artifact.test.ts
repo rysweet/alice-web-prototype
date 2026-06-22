@@ -169,6 +169,110 @@ describe("Alice evidence artifact", () => {
     expect(validateAliceEvidenceArtifact(artifact).valid).toBe(true);
   });
 
+  it("preserves runtime review evidence for camera comfort, captions, and gallery rubric", () => {
+    const artifact = createAliceEvidenceArtifact({
+      ...baseArtifactInput(),
+      runtimeReview: {
+        cameraVrComfort: {
+          schema_version: "alice.camera-vr-comfort-evidence/v1",
+          status: "partial",
+          trueHeadsetVrSupported: false,
+          nativeVrSupported: false,
+        },
+        accessibilityRescueCaptions: {
+          schema_version: "alice.accessibility-rescue-camera-captions/v1",
+          status: "partial",
+          captionChecks: [{ id: "camera-caption", present: true }],
+        },
+        galleryWalkRubric: {
+          schema_version: "alice.gallery-walk-rubric-evidence/v1",
+          status: "partial",
+          liveStudioSupported: false,
+        },
+      },
+    });
+
+    expect(artifact.runtimeReview?.cameraVrComfort).toMatchObject({
+      trueHeadsetVrSupported: false,
+      nativeVrSupported: false,
+    });
+    expect(artifact.runtimeReview?.accessibilityRescueCaptions).toMatchObject({
+      status: "partial",
+    });
+    expect(artifact.runtimeReview?.galleryWalkRubric).toMatchObject({
+      liveStudioSupported: false,
+    });
+    expect(validateAliceEvidenceArtifact(artifact)).toEqual({ valid: true, errors: [] });
+  });
+
+  it("rejects runtime review evidence that claims unsupported parity is supported", () => {
+    const artifact = createAliceEvidenceArtifact({
+      ...baseArtifactInput(),
+      runtimeReview: {
+        cameraVrComfort: {
+          schema_version: "alice.camera-vr-comfort-evidence/v1",
+          status: "partial",
+          trueHeadsetVrSupported: false,
+          nativeVrSupported: false,
+        },
+        galleryWalkRubric: {
+          schema_version: "alice.gallery-walk-rubric-evidence/v1",
+          status: "partial",
+          liveStudioSupported: false,
+        },
+      },
+    });
+
+    const result = validateAliceEvidenceArtifact({
+      ...artifact,
+      runtimeReview: {
+        ...artifact.runtimeReview,
+        cameraVrComfort: {
+          ...(artifact.runtimeReview?.cameraVrComfort as Record<string, unknown>),
+          trueHeadsetVrSupported: true,
+        },
+        galleryWalkRubric: {
+          ...(artifact.runtimeReview?.galleryWalkRubric as Record<string, unknown>),
+          liveStudioSupported: true,
+        },
+      },
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual(expect.arrayContaining([
+      "runtimeReview.cameraVrComfort.trueHeadsetVrSupported must be false.",
+      "runtimeReview.galleryWalkRubric.liveStudioSupported must be false.",
+    ]));
+  });
+
+  it("sanitizes caller-supplied runtime review evidence to preserve unsupported parity boundaries", () => {
+    const artifact = createAliceEvidenceArtifact({
+      ...baseArtifactInput(),
+      runtimeReview: {
+        cameraVrComfort: {
+          schema_version: "alice.camera-vr-comfort-evidence/v1",
+          status: "partial",
+          trueHeadsetVrSupported: true,
+          nativeVrSupported: true,
+        },
+        galleryWalkRubric: {
+          schema_version: "alice.gallery-walk-rubric-evidence/v1",
+          status: "partial",
+          liveStudioSupported: true,
+        },
+      },
+    });
+
+    expect(artifact.runtimeReview?.cameraVrComfort).toMatchObject({
+      trueHeadsetVrSupported: false,
+      nativeVrSupported: false,
+    });
+    expect(artifact.runtimeReview?.galleryWalkRubric).toMatchObject({
+      liveStudioSupported: false,
+    });
+    expect(validateAliceEvidenceArtifact(artifact)).toEqual({ valid: true, errors: [] });
+  });
+
   it("prepares native share metadata from the pre-share artifact hash", () => {
     const artifact = createAliceEvidenceArtifact(baseArtifactInput());
     const staleSharedArtifact: AliceEvidenceArtifact = {
