@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createMinimalProject } from "../test-utils.js";
 import { projectService } from "../../src/server/project-service.js";
 import {
+  buildCurrentProject,
   createInitialServerState,
   seedDefaultSceneObjects,
 } from "../../src/server/state.js";
@@ -81,6 +82,47 @@ describe("ProjectService.exportTypeScript", () => {
     expect(allText).toContain("parsedOnly");
     expect(allText).toContain("liveOnly");
     expect(allText).toContain("waveFromLiveEdit");
+  });
+
+  it("keeps class-owned methods out of Scene when rebuilding reopened projects", () => {
+    const state = createInitialServerState();
+    state.parsedProject = {
+      version: "3.10",
+      projectName: "Ownership",
+      sceneObjects: [],
+      methods: [],
+      types: [
+        {
+          name: "Scene",
+          superTypeName: "org.lgna.story.SScene",
+          methods: [{
+            name: "sceneOnly",
+            isFunction: false,
+            returnType: "void",
+            parameters: [],
+            statements: [],
+          }],
+        },
+        {
+          name: "ReusableDoor",
+          methods: [{
+            name: "doorOnly",
+            isFunction: false,
+            returnType: "void",
+            parameters: [],
+            statements: [],
+          }],
+        },
+      ],
+    };
+    state.procedures = new Map([["sceneOnly", ["wave"]]]);
+
+    const project = buildCurrentProject(state);
+    const sceneType = project.types?.find((type) => type.name === "Scene");
+    const doorType = project.types?.find((type) => type.name === "ReusableDoor");
+
+    expect(sceneType?.methods?.map((method) => method.name)).toEqual(["sceneOnly"]);
+    expect(doorType?.methods?.map((method) => method.name)).toEqual(["doorOnly"]);
   });
 
   it("rejects export before a current Alice project is launched", async () => {

@@ -214,9 +214,14 @@ export function syncServerSceneObjectsFromProject(state: ServerState, project: A
 }
 
 export function syncServerProceduresFromProject(state: ServerState, project: AliceProject | null): void {
-  state.procedures = project
-    ? new Map(project.methods.map((method) => [method.name, []]))
-    : createDefaultProcedures();
+  if (!project) {
+    state.procedures = createDefaultProcedures();
+    return;
+  }
+
+  const sceneType = project.types?.find((type) => type.superTypeName?.includes("SScene"));
+  const sceneMethods = sceneType?.methods ?? (project.types?.length ? [] : project.methods);
+  state.procedures = new Map(sceneMethods.map((method) => [method.name, []]));
 }
 
 export function parseMethodParams(
