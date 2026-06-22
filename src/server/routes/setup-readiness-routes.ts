@@ -55,8 +55,8 @@ export function registerSetupReadinessRoutes(app: Express, context: ServerContex
       runtime: "alice-web",
       platform: "lookingglass",
       port: context.options.port,
-      evidenceDir: path.resolve(context.evidenceDir),
-      project: context.options.projectPath ? path.resolve(context.options.projectPath) : null,
+      evidenceDirConfigured: context.evidenceDir.trim().length > 0,
+      projectConfigured: context.options.projectPath !== undefined,
       endpoints: {
         health: "/api/health",
         setupPreflight: "/api/setup/preflight",
@@ -121,25 +121,25 @@ function buildSetupPreflight(
         id: "server-health",
         label: "LookingGlass REST server is reachable",
         status: "pass",
-        evidence: "/api/health",
+        evidence: "health route is registered at /api/health",
       },
       {
         id: "config-visible",
-        label: "Resolved web server configuration is visible without exposing secrets",
+        label: "Web server configuration metadata is visible without filesystem paths or secrets",
         status: "pass",
-        evidence: "/api/config",
+        evidence: "configuration route is registered at /api/config",
       },
       {
         id: "create-project",
         label: "Instructor can create a starter web project",
         status: "pass",
-        evidence: "/api/project/templates and /api/project/new",
+        evidence: "project template and create-project routes are registered",
       },
       {
         id: "evidence-handoff",
         label: "Instructor can create a student-facing readiness evidence handoff",
         status: "pass",
-        evidence: "/api/setup/evidence-handoff",
+        evidence: "handoff route writes an artifact when called",
       },
       {
         id: "desktop-java-opengl",
@@ -183,10 +183,10 @@ function buildEvidenceHandoff(
     handoff: {
       audience: "instructor-and-students",
       readinessSignals: [
-        "server health returned running",
-        "configuration endpoint returned resolved evidence and project paths",
-        "project templates and create-project API are available",
-        "web evidence handoff artifact was written",
+        "server health route is registered",
+        "configuration endpoint returns runtime metadata without filesystem paths",
+        "project template and create-project routes are registered",
+        "web evidence handoff artifact was written by this request",
       ],
       studentNextActions: [
         "open the assigned LookingGlass URL",

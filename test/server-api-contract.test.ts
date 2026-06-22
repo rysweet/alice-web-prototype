@@ -106,8 +106,8 @@ describe("server API response contracts", () => {
       "runtime",
       "platform",
       "port",
-      "evidenceDir",
-      "project",
+      "evidenceDirConfigured",
+      "projectConfigured",
       "endpoints",
       "doesNotClaim",
     ]);
@@ -116,8 +116,8 @@ describe("server API response contracts", () => {
       runtime: "alice-web",
       platform: "lookingglass",
       port: 4123,
-      evidenceDir: path.resolve(evidenceDir),
-      project: null,
+      evidenceDirConfigured: true,
+      projectConfigured: false,
     });
     expect(config.body.endpoints).toMatchObject({
       health: "/api/health",
