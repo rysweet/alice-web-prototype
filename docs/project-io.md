@@ -95,9 +95,8 @@ Project IO preserves the existing `.a3p` behavior:
   writing, replacing thumbnails, preserving XML, and handling errors.
 - Use [Project IO configuration](./project-io-configuration.md) for archive
   conventions, size limits, path rules, and thumbnail-generation options.
-- Use [[PLANNED] Imported model and texture assets](./imported-models-and-textures.md)
-  for the issue #221 `project/models/...` and `project/textures/...` identity
-  convention.
+- Use [Imported model and texture assets](./imported-models-and-textures.md)
+  for the `project/models/...` and `project/textures/...` identity convention.
 - Use [Audio](./audio.md) for the `aliceAudio` manifest shape and audio workflow
   API.
 - Follow the [round-trip tutorial](./tutorial-project-io-round-trip.md) to load,

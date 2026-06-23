@@ -100,12 +100,13 @@ Rejected paths throw `ProjectIoError` with code `unsafe-path`.
 
 ## Add imported model and texture assets
 
-Issue #221 imported assets need both project metadata and archive bytes. Store
+Imported assets need both project metadata and archive bytes. Store
 scene-facing IDs under `project/models/` or `project/textures/`, and store bytes
 under the matching `resources/` archive path.
 
 ```typescript
 import { readFile } from "node:fs/promises";
+import { createImportedProjectAsset } from "./src/imported-project-assets.js";
 import { readProject, writeProject } from "./src/project-io.js";
 
 const archive = await readProject(projectBytes);
@@ -113,43 +114,29 @@ const archive = await readProject(projectBytes);
 const modelBytes = await readFile("assets/models/moon-rover.glb");
 const textureBytes = await readFile("assets/textures/checker.png");
 
-archive.project.importedAssets = [
-  ...(archive.project.importedAssets ?? []),
-  {
-    id: "project/models/moon-rover.glb",
-    kind: "model",
-    name: "Moon Rover",
-    fileName: "moon-rover.glb",
-    resourcePath: "resources/models/moon-rover.glb",
-    contentType: "model/gltf-binary",
-    byteLength: modelBytes.byteLength,
-  },
-  {
-    id: "project/textures/checker.png",
-    kind: "texture",
-    name: "Checker",
-    fileName: "checker.png",
-    resourcePath: "resources/textures/checker.png",
-    contentType: "image/png",
-    byteLength: textureBytes.byteLength,
-  },
-];
+const model = createImportedProjectAsset(
+  { kind: "model", fileName: "moon-rover.glb", bytes: new Uint8Array(modelBytes) },
+  archive.project.importedAssets ?? [],
+  archive.resources.keys(),
+);
+archive.project.importedAssets = [...(archive.project.importedAssets ?? []), model.asset];
+archive.resources.set(model.archivePath, model.resourceBytes);
 
-archive.resources.set(
-  "resources/models/moon-rover.glb",
-  new Uint8Array(modelBytes),
+const texture = createImportedProjectAsset(
+  { kind: "texture", fileName: "checker.png", bytes: new Uint8Array(textureBytes) },
+  archive.project.importedAssets,
+  archive.resources.keys(),
 );
-archive.resources.set(
-  "resources/textures/checker.png",
-  new Uint8Array(textureBytes),
-);
+archive.project.importedAssets = [...archive.project.importedAssets, texture.asset];
+archive.resources.set(texture.archivePath, texture.resourceBytes);
 
 const box = archive.project.sceneObjects.find((object) => object.name === "box");
 if (box) {
+  box.modelResourceId = model.projectResourceId;
   box.materialBindings = [
     {
       target: "surface",
-      textureResourceId: "project/textures/checker.png",
+      textureResourceId: texture.projectResourceId,
     },
   ];
 }
@@ -159,6 +146,52 @@ const output = await writeProject(archive);
 
 See [[Imported model and texture assets](./imported-models-and-textures.md)
 for the full asset descriptor and scene binding contract.
+
+## Move modified class behavior between projects
+
+Class portability is bounded to parsed `AliceProject.types` behavior. It exports
+the selected type definition as an `alice-web.reusable-class-behavior` JSON
+package, validates the JSON, then imports it into another project with an
+explicit conflict policy.
+
+```typescript
+import {
+  exportClassBehaviorPackage,
+  importClassBehaviorPackage,
+  serializeClassBehaviorPackage,
+} from "./src/project-io.js";
+
+const exported = exportClassBehaviorPackage(sourceArchive.project, "SpinnerBehavior");
+const portableJson = serializeClassBehaviorPackage(exported);
+
+const result = importClassBehaviorPackage(
+  targetArchive.project,
+  portableJson,
+  { conflictStrategy: "rename" },
+);
+
+console.log(exported.evidence);
+console.log(result.evidence);
+```
+
+The runnable persistence test is:
+
+```text
+npm test -- src/project-io/class-behavior-package.persistence.test.ts
+```
+
+## Alice 2 migration boundary
+
+Project IO does not automatically convert Alice 2 worlds. Versions beginning
+with `2.` are detected as `alice-2-guidance-only`, XML is left unchanged, and
+the migration result records guidance that desktop Alice conversion is required
+before Alice web import.
+
+The runnable boundary test is:
+
+```text
+npm test -- test/project-migration.test.ts
+```
 
 ## Preserve project audio
 

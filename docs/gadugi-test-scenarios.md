@@ -1,9 +1,10 @@
 # Gadugi Test Scenarios
 
-The `gadugi/*.yaml` files are executable end-to-end scenarios for the Alice web
-prototype. They use the installed `gadugi-test` runner to start the local REST
-API server, drive real HTTP user flows with `curl`, assert JSON responses, and
-shut the server down cleanly.
+The `gadugi/*.yaml` files are executable outside-in scenarios for Alice. Server
+flow scenarios start the local REST API server, drive real HTTP user flows with
+`curl`, assert JSON responses, and shut the server down cleanly. CLI-only
+scenarios exercise the built `alice-web` command directly and do not bind a
+port.
 
 The completed scenario set verifies Java Alice parity and Alice web export flows
 from the outside in: project open and rendering, Tweedle world execution, scene
@@ -11,7 +12,8 @@ entity manipulation, event handling, save/export round trips, TypeScript source
 handoff, and web player export/share/validation.
 
 The camera workflow coverage adds browser and REST checks for camera movement,
-presets, markers, and first-person mode.
+presets, markers, and first-person mode. The Alice HowTo parity audit scenario
+adds CLI-only coverage for saved Alice.org HowTo audit evidence.
 
 ## Quick start
 
@@ -25,7 +27,7 @@ NODE_OPTIONS=--max-old-space-size=32768 gadugi-test list -d gadugi
 NODE_OPTIONS=--max-old-space-size=32768 gadugi-test validate -d gadugi
 ```
 
-Run the fixture-independent scenarios first:
+Run the project-file-independent scenarios first:
 
 ```bash
 NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi -s "Scene Entity Manipulation"
@@ -34,7 +36,7 @@ NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi -s "Save / Exp
 ```
 
 Scenarios 01 and 02 need an Alice project file. Run them when
-`.test-roundtrip/modified.a3p` exists or `A3P_FILE` points to another fixture:
+`.test-roundtrip/modified.a3p` exists or `A3P_FILE` points to another project file:
 
 ```bash
 A3P_FILE=.test-roundtrip/modified.a3p \
@@ -46,8 +48,8 @@ NODE_OPTIONS=--max-old-space-size=32768 \
   gadugi-test run -d gadugi -s "Tweedle AST & VM Execution"
 ```
 
-Run the full suite after the fixture-independent scenarios pass and the required
-`.a3p` fixture is available:
+Run the full suite after the project-file-independent scenarios pass and the required
+`.a3p` project file is available:
 
 ```bash
 NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi
@@ -55,21 +57,24 @@ NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi
 
 ## Scenario inventory
 
-| File | Scenario | User flow |
-| --- | --- | --- |
-| `gadugi/01-a3p-open-parse-render.yaml` | `A3P Open / Parse / Render` | Open a `.a3p` project, parse scene objects, capture a render |
-| `gadugi/02-tweedle-ast-vm-execution.yaml` | `Tweedle AST & VM Execution` | Open a `.a3p` project and run the world through the Tweedle VM |
-| `gadugi/03-scene-entity-manipulation.yaml` | `Scene Entity Manipulation` | Launch a blank scene, add entities, reject invalid input, capture a render |
-| `gadugi/04-event-system.yaml` | `Event System` | Register events, fire matching and non-matching events, reject invalid input |
-| `gadugi/05-save-export-roundtrip.yaml` | `Save / Export Round-Trip` | Edit a project, save it, relaunch, and verify the saved project opens |
-| `gadugi/06-typescript-source-export.yaml` | `TypeScript Source Export Handoff` | Create and edit a project, download source, and verify the archive contents |
-| `gadugi/06-web-player-export-share-parity.yaml` | `Web Player Export Share Parity` | Export a web package, validate it, create share metadata, and reject bad package input |
-| `e2e/app-flow.spec.ts` | `Camera Workflow Parity` | Load the browser, move the camera, apply presets, save/restore/delete markers, switch first-person mode |
+| File | Scenario | Scenario type | User flow |
+| --- | --- | --- | --- |
+| `gadugi/01-a3p-open-parse-render.yaml` | `A3P Open / Parse / Render` | server flow | Open a `.a3p` project, parse scene objects, capture a render |
+| `gadugi/02-tweedle-ast-vm-execution.yaml` | `Tweedle AST & VM Execution` | server flow | Open a `.a3p` project and run the world through the Tweedle VM |
+| `gadugi/03-scene-entity-manipulation.yaml` | `Scene Entity Manipulation` | server flow | Start a blank scene, add entities, reject invalid input, capture a render |
+| `gadugi/04-event-system.yaml` | `Event System` | server flow | Register events, fire matching and non-matching events, reject invalid input |
+| `gadugi/05-save-export-roundtrip.yaml` | `Save / Export Round-Trip` | server flow | Edit a project, save it, restart from the saved file, and verify it opens |
+| `gadugi/06-typescript-source-export.yaml` | `TypeScript Source Export Handoff` | server flow | Create and edit a project, download source, and verify the archive contents |
+| `gadugi/06-web-player-export-share-parity.yaml` | `Web Player Export Share Parity` | server flow | Export a web package, validate it, create share metadata, and reject bad package input |
+| `gadugi/07-alice-howto-parity-audit.yaml` | `Alice HowTo parity audit CLI` | CLI-only | Build the CLI, run the saved Alice.org HowTo parity audit, and assert identity, baseline, inventory count, coverage evidence, and wording rules |
+| `e2e/app-flow.spec.ts` | `Camera Workflow Parity` | browser E2E | Load the browser, move the camera, apply presets, save/restore/delete markers, switch first-person mode |
 
-The `gadugi/*.yaml` files are level 3 integration tests. They exercise the
-built server process and REST API rather than importing TypeScript modules
-directly. Any future Gadugi camera scenario should follow the same execute-only
-pattern.
+The `gadugi/*.yaml` files are level 3 integration tests. Server flow scenarios
+exercise the built server process and REST API rather than importing TypeScript
+modules directly. CLI-only scenarios exercise the built command surface without
+starting the server. Any future Gadugi camera scenario should follow the same
+execute-only pattern and be classified as a server flow scenario unless it is a
+pure CLI command.
 
 `gadugi/06-typescript-source-export.yaml` covers TypeScript source export by
 creating/editing a project, downloading the source ZIP, and verifying
@@ -112,7 +117,23 @@ Do not use native runner actions for launch, HTTP calls, response checks,
 stdin/signal handling, exit-code checks, or cleanup. Put those operations inside
 the `action: execute` shell flow so local runs and CI use the same behavior.
 
-Each scenario includes:
+Every current `gadugi/*.yaml` file includes explicit scenario type metadata and
+a matching category tag so static tests can apply the correct requirements.
+Server-flow scenarios get `server-flow`; the audit scenario gets `cli-only`.
+
+```yaml
+scenario:
+  metadata:
+    flow: cli-only
+  tags: [alice, audit, cli-only]
+```
+
+| Scenario type | `scenario.metadata.flow` | Required tag | Required behavior |
+| --- | --- | --- | --- |
+| Server flow | `server-flow` | `server-flow` | Starts `node dist-server/cli.js serve`, polls `/api/health`, drives REST endpoints, and stops only the captured server process. |
+| CLI-only | `cli-only` | `cli-only` | Builds the CLI, runs one `alice-web` command, writes evidence to a temporary path, and does not start the REST API. |
+
+Server flow scenarios include:
 
 1. `set -euo pipefail`.
 2. Quoted `PORT`, `EVIDENCE_DIR`, `A3P_FILE`, URL, and artifact paths.
@@ -124,14 +145,28 @@ Each scenario includes:
 8. A shell `trap` that kills only the captured server PID and safely removes
    the scenario evidence directory.
 
+CLI-only scenarios include:
+
+1. `set -euo pipefail`.
+2. `NODE_OPTIONS=--max-old-space-size=32768`.
+3. `npm run build:server` before invoking the built CLI.
+4. A temporary evidence directory from `mktemp -d`.
+5. A shell `trap` that removes only the temporary evidence directory.
+6. A direct CLI invocation, such as
+   `node dist-server/cli.js alice-howto-parity-audit --output "$AUDIT_JSON"`.
+7. Parsed JSON assertions against the evidence file.
+8. No `PORT`, `SERVER_PID`, `/api/health`, `curl`, browser automation, or open
+   network listener.
+
 ## Configuration
 
 | Variable | Default | Used by | Description |
 | --- | --- | --- | --- |
 | `NODE_OPTIONS` | none | all scenarios | Use `--max-old-space-size=32768` for local and CI parity |
-| `PORT` | scenario-specific `3101`-`3106` | all scenarios | Local REST API port; each scenario has a unique default so full-suite runs can execute in parallel |
-| `EVIDENCE_DIR` | scenario-specific path under `./evidence/` with a shell PID suffix | all scenarios | Temporary response, log, and artifact directory |
-| `A3P_FILE` | `.test-roundtrip/modified.a3p` where applicable | scenarios 01 and 02 | Alice project fixture to open and execute |
+| `PORT` | scenario-specific `3101`-`3106` | server flow scenarios | Local REST API port; each server flow scenario has a unique default so full-suite runs can execute in parallel |
+| `EVIDENCE_DIR` | scenario-specific path under `./evidence/` with a shell PID suffix | server flow scenarios | Temporary response, log, and artifact directory |
+| `AUDIT_DIR` | `mktemp -d` | CLI-only audit scenario | Temporary audit evidence directory outside committed source |
+| `A3P_FILE` | `.test-roundtrip/modified.a3p` where applicable | scenarios 01 and 02 | Alice project file to open and execute |
 
 Use a different port if another local service is already bound to a scenario's
 default port. Prefer overriding `PORT` only for single-scenario runs because the
@@ -199,15 +234,41 @@ steps:
 Keep cleanup inside the shell command. Top-level cleanup blocks are not used
 because the installed runner does not execute the old cleanup action schema.
 
+## CLI-only scenario lifecycle
+
+The Alice HowTo parity audit scenario owns a temporary evidence
+directory and does not start a server:
+
+```yaml
+steps:
+  - name: "Run Alice HowTo parity audit"
+    agent: cli
+    action: execute
+    target: >-
+      bash -lc 'set -euo pipefail;
+      if [ -z "${NODE_OPTIONS:-}" ]; then export NODE_OPTIONS=--max-old-space-size=32768; fi;
+      npm run build:server;
+      AUDIT_DIR="$(mktemp -d)";
+      AUDIT_JSON="$AUDIT_DIR/alice-howto-parity-audit.json";
+      cleanup() { status=$?; rm -rf "$AUDIT_DIR"; exit "$status"; };
+      trap cleanup EXIT;
+      node dist-server/cli.js alice-howto-parity-audit --output "$AUDIT_JSON";
+      node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.product !== \"Alice\") throw new Error(\"product identity drift\"); if (d.runtime !== \"alice-web\") throw new Error(\"runtime identity drift\"); if (d.baseline !== \"rysweet/RabbitHole origin/develop\") throw new Error(\"baseline drift\"); if (d.source?.inventoryCount !== 54) throw new Error(\"inventory count drift\"); if (d.scope?.name !== \"Alice.org HowTo coverage\") throw new Error(\"scope drift\"); for (const id of [\"howto-inventory\", \"scenario-traceability\", \"coverage-evidence\", \"wording\"]) { const check=d.checks?.find((item)=>item.id === id); if (!check || check.status !== \"passed\") throw new Error(`${id} check failed`); }" "$AUDIT_JSON"'
+    timeout: 60000
+```
+
+The scenario writes generated evidence only inside `AUDIT_DIR`. The trap removes
+that directory on success and failure.
+
 ## API coverage
 
-The scenarios cover the server endpoints that the eatme parity harness also
-uses.
+The server flow scenarios cover the server endpoints that the eatme parity
+tests also use. CLI-only scenarios do not add endpoint coverage.
 
 | Endpoint | Method | Covered by |
 | --- | --- | --- |
-| `/api/health` | `GET` | all scenarios |
-| `/api/launch` | `POST` | all scenarios |
+| `/api/health` | `GET` | all server flow scenarios |
+| `/api/launch` | `POST` | all server flow scenarios |
 | `/api/screenshot` | `POST` | 01, 03 |
 | `/api/world/run` | `POST` | 02 |
 | `/api/scene/add-object` | `POST` | 03, 04 |
@@ -223,6 +284,9 @@ The web-package feature contract adds outside-in coverage for
 `/api/project/export/web-package`, `/api/project/share`, and
 `/api/project/validate-web-package` when the matching scenario file lands with
 the route implementation.
+
+The `gadugi/07-alice-howto-parity-audit.yaml` scenario stays absent from this
+table because it covers a CLI command instead of an HTTP endpoint.
 
 Dedicated Gadugi scenarios for camera workflow routes and audio workflow routes
 must be added before this coverage table claims those endpoints.
@@ -387,15 +451,48 @@ Flow:
     `valid: false` and explicit error codes.
 14. Stop the captured server process.
 
-This is not a placeholder for static string checks. It validates the real
-package contract that users rely on when they export an Alice project, open it
-in the browser player, and publish share metadata.
+This validates the real package contract that users rely on when they export an
+Alice project, open it in the browser player, and publish share metadata.
+
+### Alice HowTo parity audit CLI
+
+The Alice HowTo parity audit CLI scenario verifies the command-line audit for
+the saved Alice.org HowTo coverage inventory.
+
+Flow:
+
+1. Build the server CLI with `npm run build:server`.
+2. Create a temporary audit directory with `mktemp -d`.
+3. Run `node dist-server/cli.js alice-howto-parity-audit --output "$AUDIT_JSON"`.
+4. Parse the audit JSON.
+5. Assert `schemaVersion` is `alice-web.howto-parity-audit/v1`.
+6. Assert product identity is `Alice`.
+7. Assert runtime identity is `alice-web`.
+8. Assert the comparison baseline is `rysweet/RabbitHole origin/develop`.
+9. Assert `source.inventoryCount` is `54`.
+10. Assert the scope is `Alice.org HowTo coverage`.
+11. Assert the `howto-inventory`, `scenario-traceability`, `coverage-evidence`, and `wording` checks passed.
+12. Remove the temporary audit directory.
+
+Run it directly:
+
+```bash
+NODE_OPTIONS=--max-old-space-size=32768 \
+  gadugi-test run -d gadugi -s "Alice HowTo parity audit CLI"
+```
 
 ## Writing new scenarios
 
 Use a single `execute` step per end-to-end flow. Add helper shell functions
-inside the command when the scenario needs to start, stop, or poll more than
-once.
+inside the command when the scenario needs to start, stop, poll, or clean up
+more than once.
+
+Choose one scenario category:
+
+| Category | Required metadata | Use when | Required evidence |
+| --- | --- | --- | --- |
+| `server-flow` | `scenario.metadata.flow: server-flow` | The scenario verifies REST API or browser-adjacent behavior through the built server. | Health JSON, API response JSON, server log, captured server PID cleanup. |
+| `cli-only` | `scenario.metadata.flow: cli-only` | The scenario verifies a standalone `alice-web` CLI command. | CLI output file, parsed JSON assertions, temporary evidence cleanup. |
 
 Recommended conventions:
 
@@ -409,6 +506,8 @@ Recommended conventions:
 7. Use only `127.0.0.1` URLs.
 8. Kill only the captured `SERVER_PID`.
 9. Keep all test data local and static; do not add external URLs or secrets.
+10. For CLI-only scenarios, use `mktemp -d` and avoid `PORT`, `curl`, browser
+    automation, and server lifecycle assertions.
 
 ## Troubleshooting
 
@@ -432,7 +531,7 @@ PORT=13579 NODE_OPTIONS=--max-old-space-size=32768 \
   gadugi-test run -d gadugi -s "Scene Entity Manipulation"
 ```
 
-### A3P fixture missing
+### A3P project file missing
 
 Set `A3P_FILE` for scenarios 01 and 02:
 
@@ -451,8 +550,23 @@ outside the trap, remove the directory manually:
 rm -rf ./evidence/
 ```
 
+### Audit scenario fails before writing JSON
+
+Build the server CLI, then run the command
+outside Gadugi with a temporary output path:
+
+```bash
+export NODE_OPTIONS=--max-old-space-size=32768
+npm run build:server
+AUDIT_DIR="$(mktemp -d)"
+node dist-server/cli.js alice-howto-parity-audit \
+  --output "$AUDIT_DIR/alice-howto-parity-audit.json"
+rm -rf "$AUDIT_DIR"
+```
+
 ## Related documentation
 
 - [Testing](./testing.md)
 - [Server API](./server-api.md)
 - [API reference](./api-reference.md)
+- [Alice HowTo parity audit](./alice-howto-parity-audit.md)

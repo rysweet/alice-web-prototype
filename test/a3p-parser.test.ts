@@ -43,6 +43,13 @@ async function createArchiveWithEntries(
   return zip.generateAsync({ type: "uint8array" });
 }
 
+async function createArchiveWithProgramXml(xml: string): Promise<Uint8Array> {
+  return createArchiveWithEntries([
+    { name: "programType.xml", bytes: xml },
+    { name: "version.txt", bytes: "3.10.0.0" },
+  ]);
+}
+
 async function createSyntheticA3P(): Promise<Uint8Array> {
   const xml = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <node key="1" type="org.lgna.project.ast.NamedUserType" uuid="aaa" version="3.10062">
@@ -125,6 +132,19 @@ async function createSyntheticA3P(): Promise<Uint8Array> {
 // ─── Tests ──────────────────────────────────────────────────────────
 
 describe("a3p-parser", () => {
+  it("ignores malformed optional camera workflow metadata", async () => {
+    const bytes = await createArchiveWithProgramXml(`<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<node key="1" type="org.lgna.project.ast.NamedUserType" uuid="aaa" version="3.10.0.0">
+  <property name="name"><value type="java.lang.String">Program</value></property>
+  <camera-workflow>{bad-json</camera-workflow>
+</node>`);
+
+    const project = await parseA3P(bytes);
+
+    expect(project.projectName).toBe("Program");
+    expect(project.cameraWorkflow).toBeUndefined();
+  });
+
   describe("synthetic .a3p", () => {
     let project: AliceProject;
 

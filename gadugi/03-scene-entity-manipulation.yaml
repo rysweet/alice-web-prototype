@@ -12,8 +12,10 @@ scenario:
     Maps to Java Alice's SceneEditor.addModel() pipeline.
   type: cli
   level: 3
+  metadata:
+    flow: server-flow
 
-  tags: [alice, integration, scene, add-object, screenshot, java-parity]
+  tags: [alice, integration, scene, add-object, screenshot, java-parity, server-flow]
 
   agents:
     - name: cli

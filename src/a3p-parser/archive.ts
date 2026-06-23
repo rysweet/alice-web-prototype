@@ -1,7 +1,15 @@
 import JSZip from "jszip";
+import { assertNoDuplicateZipEntries } from "../zip-entry-validation.js";
 import { indexNodes, getProjectName } from "./dom.js";
 import { extractBoundingBoxes, extractJointHierarchy, extractTextureRefs } from "./resources.js";
-import { extractImportedProjectAssets, extractMethods, extractSceneObjects, extractTypes } from "./scene.js";
+import {
+  extractCameraWorkflow,
+  extractImportedProjectAssets,
+  extractMethods,
+  extractSceneObjects,
+  extractTextureAssignments,
+  extractTypes,
+} from "./scene.js";
 import {
   attachA3PSource,
   DEFAULT_A3P_XML_ENTRY,
@@ -36,6 +44,7 @@ export async function parseA3P(
   assertA3PArchiveBytes(data, limits);
 
   try {
+    assertNoDuplicateZipEntries(data);
     const zip = await JSZip.loadAsync(data);
     return parseA3PFromZip(zip, { limits });
   } catch (error) {
@@ -60,6 +69,7 @@ export async function parseA3PFromZip(
   const xmlEntry = await readA3PXmlEntryFromBudget(zip, budget);
   const doc = parseXmlString(xmlEntry.text);
   const nodeIndex = indexNodes(doc.documentElement);
+  const textureAssignments = extractTextureAssignments(doc);
 
   const project: AliceProject = {
     version: version.trim(),
@@ -71,6 +81,8 @@ export async function parseA3PFromZip(
     boundingBoxes: extractBoundingBoxes(nodeIndex.modelResourceInfos),
     textureRefs: extractTextureRefs(nodeIndex.textureReferences, zip),
     importedAssets: extractImportedProjectAssets(doc),
+    ...(textureAssignments.length > 0 ? { textureAssignments } : {}),
+    ...extractCameraWorkflow(doc),
   };
 
   attachA3PSource(project, {

@@ -189,6 +189,10 @@ export/share/validation routes:
 | `POST` | `/api/camera/markers` | `eatme.alice-camera-workflow-state/v1` | saves a camera marker |
 | `POST` | `/api/camera/markers/:id/restore` | `eatme.alice-camera-workflow-state/v1` | restores a camera marker |
 | `DELETE` | `/api/camera/markers/:id` | `eatme.alice-camera-workflow-state/v1` | deletes a camera marker |
+| `GET` | `/api/vr/camera-comfort` | `alice.camera-vr-comfort-evidence/v1` | token-protected runtime parity read; no state change |
+| `GET` | `/api/accessibility/rescue-camera-captions` | `alice.accessibility-rescue-camera-captions/v1` | token-protected runtime parity read; no state change |
+| `GET` | `/api/review/gallery-walk-rubric` | `alice.gallery-walk-rubric-evidence/v1` | token-protected runtime parity read; no state change |
+| `GET` | `/api/review/runtime-parity` | combined runtime parity evidence | token-protected runtime parity read; no state change |
 | `POST` | `/api/events/register` | event registration summary | writes `event-register.json` |
 | `POST` | `/api/events/fire` | triggered handler summary | writes `event-fire.json` |
 
@@ -370,16 +374,17 @@ The active state tracks:
 - the template library used by project creation
 - the active camera workflow state and in-memory camera markers
 
-Issue #221 adds state for imported model and texture asset descriptors,
-one active archive resource map for imported bytes and parsed archive resources,
-and scene object model resource IDs plus surface material bindings. Imported
-bytes should use the same resource map seeded from `readProject()` and passed to
-`writeProject()`; they should not live in a second imported-byte-only map.
+The server state carries imported model and texture asset descriptors, one
+active archive resource map for imported bytes and parsed archive resources, and
+scene object model resource IDs plus surface material bindings. Imported bytes
+use the same resource map seeded from `readProject()` and passed to
+`writeProject()`; they do not live in a second imported-byte-only map.
 
 Launching a project seeds default `ground` and `camera` scene objects when the
-project has no loaded scene objects and resets camera workflow state to the
-default Alice home view. Creating a project from a template replaces the active
-project state, resets camera workflow state, and marks the server launched.
+project has no loaded scene objects and restores saved camera workflow state
+when the project carries it, otherwise it uses the default Alice home view.
+Creating a project from a template replaces the active project state, resets
+camera workflow state, and marks the server launched.
 
 ## Route responsibility map
 
@@ -444,8 +449,8 @@ curl -X POST http://127.0.0.1:3000/api/scene/add-object \
   -d '{"className":"org.lgna.story.SBiped","name":"bunny"}'
 ```
 
-Issue #221 plans texture import and application routes. After that
-implementation lands, import a texture and apply it to an object:
+Use the texture import and application routes to import a texture and apply it to
+an object:
 
 ```bash
 TEXTURE_BASE64="$(base64 -w0 assets/textures/checker.png)"

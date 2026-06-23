@@ -67,6 +67,113 @@ describe("project-migration", () => {
     expect(migration.xmlText).toContain("org.lgna.story.SThing");
   });
 
+  it("keeps Alice 2 conversion bounded and explicit instead of pretending automatic migration", () => {
+    const alice2Xml = `<?xml version="1.0" encoding="UTF-8"?><node version="2.4.3"><element class="edu.cmu.cs.stage3.alice.core.World"/></node>`;
+    const versionInfo = detectProjectVersion("2.4.3", null, alice2Xml);
+    const migration = migrateProjectXml(alice2Xml, versionInfo);
+
+    expect(versionInfo).toMatchObject({
+      originalAliceVersion: "2.4.3",
+      detectedAliceVersion: "2.4.3",
+      versionSource: "version.txt",
+      migrationSupport: "alice-2-guidance-only",
+      unsupportedReason: expect.stringContaining("automatic Alice 2 conversion is not supported"),
+    });
+    expect(migration.xmlText).toBe(alice2Xml);
+    expect(migration.versionInfo.migrated).toBe(false);
+    expect(migration.versionInfo.detectedAliceVersion).toBe("2.4.3");
+    expect(migration.versionInfo.migrationSteps).toEqual([
+      expect.stringContaining("automatic Alice 2 conversion is not supported"),
+    ]);
+  });
+
+  it("detects nested Alice 2 manifest metadata as guidance-only", () => {
+    const alice2Xml = `<?xml version="1.0" encoding="UTF-8"?><node><element class="edu.cmu.cs.stage3.alice.core.World"/></node>`;
+    const versionInfo = detectProjectVersion(null, {
+      project: {
+        createdWith: {
+          version: "2.4.3",
+        },
+      },
+    }, alice2Xml);
+    const migration = migrateProjectXml(alice2Xml, versionInfo);
+
+    expect(versionInfo).toMatchObject({
+      originalAliceVersion: "2.4.3",
+      detectedAliceVersion: "2.4.3",
+      versionSource: "manifest",
+      migrationSupport: "alice-2-guidance-only",
+    });
+    expect(migration.xmlText).toBe(alice2Xml);
+    expect(migration.versionInfo).toMatchObject({
+      detectedAliceVersion: "2.4.3",
+      migrated: false,
+      migrationSupport: "alice-2-guidance-only",
+      unsupportedReason: expect.stringContaining("automatic Alice 2 conversion is not supported"),
+    });
+  });
+
+  it("prefers explicit Alice 3 XML over unrelated nested Alice 2 manifest strings", () => {
+    const alice3Xml = `<?xml version="1.0" encoding="UTF-8"?><node version="3.4.0.0"><element class="org.lgna.story.SScene"/></node>`;
+    const versionInfo = detectProjectVersion(null, {
+      dependencies: [
+        {
+          name: "Unrelated tool",
+          version: "2.4.3",
+        },
+      ],
+    }, alice3Xml);
+    const migration = migrateProjectXml(alice3Xml, versionInfo);
+
+    expect(versionInfo).toMatchObject({
+      originalAliceVersion: "3.4.0.0",
+      detectedAliceVersion: "3.4.0.0",
+      versionSource: "xml",
+      migrationSupport: "alice-3-reader-migration",
+    });
+    expect(migration.versionInfo.migrationSupport).toBe("alice-3-reader-migration");
+    expect(migration.versionInfo.detectedAliceVersion).toBe(CURRENT_VERSION);
+  });
+
+  it("falls through invalid direct manifest metadata to nested Alice 2 guidance", () => {
+    const alice2Xml = `<?xml version="1.0" encoding="UTF-8"?><node></node>`;
+    const versionInfo = detectProjectVersion(null, {
+      aliceVersion: "unknown",
+      project: {
+        createdWith: {
+          version: "2.4.3",
+        },
+      },
+    }, alice2Xml);
+
+    expect(versionInfo).toMatchObject({
+      originalAliceVersion: "2.4.3",
+      detectedAliceVersion: "2.4.3",
+      versionSource: "manifest",
+      migrationSupport: "alice-2-guidance-only",
+    });
+  });
+
+  it("treats caller-supplied Alice 2 version info as guidance-only even without support metadata", () => {
+    const alice2Xml = `<?xml version="1.0" encoding="UTF-8"?><node version="2.4.3"></node>`;
+    const migration = migrateProjectXml(alice2Xml, {
+      originalAliceVersion: "2.4.3",
+      detectedAliceVersion: "2.4.3",
+      manifestVersion: null,
+      xmlVersion: "2.4.3",
+      versionSource: "xml",
+      migrated: false,
+      migrationSteps: [],
+    });
+
+    expect(migration.xmlText).toBe(alice2Xml);
+    expect(migration.versionInfo.detectedAliceVersion).toBe("2.4.3");
+    expect(migration.versionInfo.migrationSupport).toBe("alice-2-guidance-only");
+    expect(migration.versionInfo.migrationSteps).toEqual([
+      expect.stringContaining("automatic Alice 2 conversion is not supported"),
+    ]);
+  });
+
   it("updates nested manifest version metadata when direct version fields are absent", () => {
     const manifest = synchronizeManifestVersion(
       {

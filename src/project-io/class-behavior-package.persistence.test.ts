@@ -102,6 +102,12 @@ describe("project-io/class-behavior-package persistence", () => {
       constructors: [],
     });
     expect(packageData.type.methods?.map((method) => method.name)).toEqual(["hop"]);
+    expect(packageData.evidence).toEqual(expect.arrayContaining([
+      "class-behavior-type-present",
+      "class-behavior-supertype-preserved",
+      "class-behavior-fields-preserved",
+      "class-behavior-methods-preserved",
+    ]));
 
     const importResult = importClassBehaviorPackage(
       targetArchive.project,
@@ -118,6 +124,11 @@ describe("project-io/class-behavior-package persistence", () => {
       renamed: false,
       replaced: false,
       merged: false,
+      evidence: expect.arrayContaining([
+        "class-behavior-package-validated",
+        "class-behavior-type-imported",
+        "class-behavior-name-preserved",
+      ]),
     });
     expect(reopened.project.types?.map((type) => type.name)).toEqual([
       ...existingTypeNames,
@@ -153,6 +164,7 @@ describe("project-io/class-behavior-package persistence", () => {
       renamed: false,
       replaced: false,
       merged: false,
+      evidence: expect.arrayContaining(["class-behavior-type-imported"]),
     });
     expect(reopened.project.types?.find((type) => type.name === "SpinnerBehavior")).toEqual(sourceType);
   });

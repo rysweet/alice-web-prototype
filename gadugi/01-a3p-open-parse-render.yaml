@@ -12,8 +12,10 @@ scenario:
     Maps to Java Alice's ProjectImp.open() → SceneImp.render() pipeline.
   type: cli
   level: 3
+  metadata:
+    flow: server-flow
 
-  tags: [alice, integration, a3p, parse, render, java-parity]
+  tags: [alice, integration, a3p, parse, render, java-parity, server-flow]
 
   agents:
     - name: cli

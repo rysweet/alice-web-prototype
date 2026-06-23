@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import JSZip from "jszip";
 import {
+  parseA3P,
+} from "../src/a3p-parser";
+import {
   readProject,
   writeProject,
   type AliceProjectArchive,
@@ -89,6 +92,53 @@ function createImportedAssetProject(): ImportedAliceProject {
   };
 }
 
+function duplicateCentralDirectoryEntry(bytes: Uint8Array, targetName: string): Buffer {
+  const buffer = Buffer.from(bytes);
+  const eocdOffset = findEndOfCentralDirectory(buffer);
+  const centralDirectoryOffset = buffer.readUInt32LE(eocdOffset + 16);
+  const centralDirectorySize = buffer.readUInt32LE(eocdOffset + 12);
+  const centralDirectoryEnd = centralDirectoryOffset + centralDirectorySize;
+  let offset = centralDirectoryOffset;
+  while (offset < centralDirectoryEnd) {
+    if (buffer.readUInt32LE(offset) !== 0x02014b50) {
+      throw new Error("central directory entry missing");
+    }
+    const nameLength = buffer.readUInt16LE(offset + 28);
+    const extraLength = buffer.readUInt16LE(offset + 30);
+    const commentLength = buffer.readUInt16LE(offset + 32);
+    const nameStart = offset + 46;
+    const nameEnd = nameStart + nameLength;
+    const recordEnd = nameEnd + extraLength + commentLength;
+    const name = buffer.subarray(nameStart, nameEnd).toString("utf8");
+    if (name === targetName) {
+      const duplicate = buffer.subarray(offset, recordEnd);
+      const next = Buffer.concat([
+        buffer.subarray(0, eocdOffset),
+        duplicate,
+        buffer.subarray(eocdOffset),
+      ]);
+      const nextEocdOffset = eocdOffset + duplicate.length;
+      next.writeUInt16LE(next.readUInt16LE(nextEocdOffset + 8) + 1, nextEocdOffset + 8);
+      next.writeUInt16LE(next.readUInt16LE(nextEocdOffset + 10) + 1, nextEocdOffset + 10);
+      next.writeUInt32LE(next.readUInt32LE(nextEocdOffset + 12) + duplicate.length, nextEocdOffset + 12);
+      return next;
+    }
+    offset = recordEnd;
+  }
+  throw new Error(`central directory entry not found: ${targetName}`);
+}
+
+function findEndOfCentralDirectory(buffer: Buffer): number {
+  for (let offset = buffer.length - 22; offset >= 0; offset -= 1) {
+    if (buffer.readUInt32LE(offset) !== 0x06054b50) continue;
+    const commentLength = buffer.readUInt16LE(offset + 20);
+    if (offset + 22 + commentLength === buffer.length) {
+      return offset;
+    }
+  }
+  throw new Error("end of central directory not found");
+}
+
 function createArchive(project = createImportedAssetProject()): AliceProjectArchive {
   return {
     project: project as AliceProject,
@@ -174,5 +224,33 @@ describe("Project IO imported model and texture persistence", () => {
           textureResourceId: "project/textures/checker.png",
         },
       ]);
+  });
+
+  it.each([
+    "programType.xml",
+    "resources/textures/checker.png",
+  ])("rejects duplicate central-directory entry %s before JSZip normalizes it", async (entryName) => {
+    const archive = createArchive();
+    const bytes = await writeProject(archive, { generateThumbnailFromScene: false });
+    const duplicated = duplicateCentralDirectoryEntry(bytes, entryName);
+
+    await expect(readProject(duplicated)).rejects.toThrow(/corrupted|Invalid or truncated/i);
+  });
+
+  it("rejects duplicate manifest central-directory entries before JSZip normalizes them", async () => {
+    const archive = createArchive();
+    archive.manifest = { projectName: "AssetWorkflow" };
+    const bytes = await writeProject(archive, { generateThumbnailFromScene: false });
+    const duplicated = duplicateCentralDirectoryEntry(bytes, "manifest.json");
+
+    await expect(readProject(duplicated)).rejects.toThrow(/corrupted|Invalid or truncated/i);
+  });
+
+  it("rejects duplicate project XML entries in parseA3P before JSZip normalizes them", async () => {
+    const archive = createArchive();
+    const bytes = await writeProject(archive, { generateThumbnailFromScene: false });
+    const duplicated = duplicateCentralDirectoryEntry(bytes, "programType.xml");
+
+    await expect(parseA3P(duplicated)).rejects.toThrow(/duplicate entry|central directory|corrupted ZIP/i);
   });
 });

@@ -24,6 +24,7 @@ export interface SceneObject {
   name: string;
   className: string;
   position: Position;
+  modelResourceId?: string;
 }
 
 export interface MethodParam {
@@ -96,6 +97,7 @@ export function buildCurrentProject(state: ServerState): AliceProject {
     };
 
   baseProject.projectName = state.projectName;
+  baseProject.cameraWorkflow = state.cameraWorkflow;
 
   const sceneObjectsByName = new Map(baseProject.sceneObjects.map((object) => [object.name, object]));
   for (const object of state.sceneObjects.values()) {
@@ -108,6 +110,7 @@ export function buildCurrentProject(state: ServerState): AliceProject {
       position: object.position,
       orientation: existing?.orientation ?? null,
       size: existing?.size ?? null,
+      ...(object.modelResourceId !== undefined ? { modelResourceId: object.modelResourceId } : {}),
     });
   }
   baseProject.sceneObjects = Array.from(sceneObjectsByName.values());
@@ -178,7 +181,7 @@ export function ensureCurrentProject(state: ServerState): AliceProject {
 
 export function addSceneObjectToCurrentProject(
   state: ServerState,
-  input: { name: string; className: string },
+  input: { name: string; className: string; modelResourceId?: string },
 ): void {
   const project = ensureCurrentProject(state);
   if (project.sceneObjects.some((object) => object.name === input.name)) {
@@ -191,6 +194,7 @@ export function addSceneObjectToCurrentProject(
     position: null,
     orientation: null,
     size: null,
+    ...(input.modelResourceId !== undefined ? { modelResourceId: input.modelResourceId } : {}),
   });
 }
 

@@ -256,6 +256,10 @@ LookingGlass repository nickname is appropriate.
 | `/api/project/share` | POST | Web-package feature contract: generate share metadata and package linkage from an exported ZIP |
 | `/api/project/validate-web-package` | POST | Web-package feature contract: validate a runnable `alice-web` ZIP package |
 | `/api/screenshot` | POST | Capture current render |
+| `/api/vr/camera-comfort` | GET | Token-protected browser camera and bounded VR comfort evidence |
+| `/api/accessibility/rescue-camera-captions` | GET | Token-protected accessibility caption evidence for the current scene |
+| `/api/review/gallery-walk-rubric` | GET | Token-protected gallery review and rubric evidence |
+| `/api/review/runtime-parity` | GET | Token-protected combined runtime parity evidence |
 | `/api/events/register` | POST | Register event handler |
 | `/api/events/fire` | POST | Fire an event |
 
@@ -263,7 +267,9 @@ Mutating local API requests must use `Content-Type: application/json`. When
 served from the CLI, set `ALICE_LOCAL_API_TOKEN` before startup, pass it with
 `--api-token "$ALICE_LOCAL_API_TOKEN"`, and include the same value in the
 `X-Alice-Local-Api-Token` header. Browser-originated mutations are accepted only
-from local origins.
+from local origins. Runtime parity read endpoints under `/api/vr`,
+`/api/accessibility`, and `/api/review` also require that header and fail closed
+with `401` when the server has no configured local API token.
 
 ## Testing
 

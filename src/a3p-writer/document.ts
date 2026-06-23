@@ -6,6 +6,7 @@ import {
   type AliceTypeDefinition,
   type ImportedProjectAsset,
   type MaterialBinding,
+  type TextureAssignment,
   getA3PMethodSource,
   getA3PSource,
   snapshotAliceProject,
@@ -81,6 +82,8 @@ export function buildProjectXml(project: AliceProject, baseXmlText: string | nul
   }
 
   syncImportedAssets(doc, root, project.importedAssets ?? []);
+  syncTextureAssignments(doc, root, project.textureAssignments ?? []);
+  syncCameraWorkflow(doc, root, project.cameraWorkflow ?? null);
 
   return preserveXmlDeclaration(baseXmlText, serializeXmlString(doc));
 }
@@ -164,6 +167,32 @@ function syncImportedAssets(doc: Document, root: Element, assets: ImportedProjec
     importedAssetsNode.appendChild(assetNode);
   }
   root.appendChild(importedAssetsNode);
+}
+
+function syncTextureAssignments(doc: Document, root: Element, assignments: TextureAssignment[]): void {
+  removeDirectChildren(root, "texture-assignments");
+  if (assignments.length === 0) return;
+
+  const assignmentsNode = doc.createElement("texture-assignments");
+  for (const assignment of assignments) {
+    const assignmentNode = doc.createElement("assignment");
+    assignmentNode.setAttribute("objectName", assignment.objectName);
+    assignmentNode.setAttribute("texturePath", assignment.texturePath);
+    if (assignment.materialName) {
+      assignmentNode.setAttribute("materialName", assignment.materialName);
+    }
+    assignmentsNode.appendChild(assignmentNode);
+  }
+  root.appendChild(assignmentsNode);
+}
+
+function syncCameraWorkflow(doc: Document, root: Element, cameraWorkflow: AliceProject["cameraWorkflow"] | null): void {
+  removeDirectChildren(root, "camera-workflow");
+  if (!cameraWorkflow) return;
+
+  const cameraNode = doc.createElement("camera-workflow");
+  cameraNode.appendChild(doc.createTextNode(JSON.stringify(cameraWorkflow)));
+  root.appendChild(cameraNode);
 }
 
 function syncSceneObjectMetadata(doc: Document, sceneTypeNode: Element, sceneObjects: AliceObject[]): void {

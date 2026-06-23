@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createHash } from "node:crypto";
 import JSZip from "jszip";
 import { parseA3P } from "../src/a3p-parser";
+import { readProject } from "../src/project-io";
 import { createServer } from "../src/server";
 import * as fs from "fs";
 import * as os from "os";
@@ -38,6 +39,12 @@ function parseBinaryResponse(
   });
   res.on("end", () => callback(null, Buffer.concat(chunks)));
   res.on("error", callback);
+}
+
+function localGet(app: Express, apiPath: string) {
+  return request(app)
+    .get(apiPath)
+    .set(LOCAL_API_TOKEN_HEADER, TEST_LOCAL_API_TOKEN);
 }
 
 function decodeBase64Package(base64: string): Buffer {
@@ -235,6 +242,88 @@ describe("server API", () => {
     });
   });
 
+  describe("runtime parity evidence APIs", () => {
+    it("requires the local API token for runtime parity reads", async () => {
+      const unconfiguredApp = createServer({
+        port: 0,
+        evidenceDir: path.join(evidenceDir, "no-runtime-token"),
+      });
+      for (const endpoint of [
+        "/api/vr/camera-comfort",
+        "/api/accessibility/rescue-camera-captions",
+        "/api/review/gallery-walk-rubric",
+        "/api/review/runtime-parity",
+      ]) {
+        await request(app).get(endpoint).expect(401);
+        await request(app)
+          .get(endpoint)
+          .set(LOCAL_API_TOKEN_HEADER, "wrong-token")
+          .expect(401);
+        await request(unconfiguredApp).get(endpoint).expect(401);
+        await localGet(app, endpoint).expect(200);
+      }
+    });
+
+    it("reports camera comfort evidence without claiming true headset VR", async () => {
+      const res = await localGet(app, "/api/vr/camera-comfort").expect(200);
+
+      expect(res.body.schema_version).toBe("alice.camera-vr-comfort-evidence/v1");
+      expect(res.body.status).toBe("partial");
+      expect(res.body.desktopCameraAvailable).toBe(true);
+      expect(res.body.keyboardMovementAvailable).toBe("unknown");
+      expect(res.body.reducedMotionRespected).toBe("unknown");
+      expect(res.body.trueHeadsetVrSupported).toBe(false);
+      expect(res.body.nativeVrSupported).toBe(false);
+      expect(res.body.unsupportedReason).toContain("true headset/native VR remains unsupported");
+    });
+
+    it("reports accessibility rescue camera captions for current scene review", async () => {
+      await localPost(app, "/api/scene/add-object")
+        .send({ className: "org.lgna.story.SBiped", name: "guide" })
+        .expect(200);
+
+      const res = await request(app)
+        .get("/api/accessibility/rescue-camera-captions")
+        .set(LOCAL_API_TOKEN_HEADER, TEST_LOCAL_API_TOKEN)
+        .expect(200);
+
+      expect(res.body.schema_version).toBe("alice.accessibility-rescue-camera-captions/v1");
+      expect(res.body.status).toBe("partial");
+      expect(res.body.cameraCaption).toContain("Camera");
+      expect(res.body.objectCaption).toContain("guide");
+      expect(res.body.keyboardReviewAvailable).toBe("unknown");
+      expect(res.body.highContrastReviewAvailable).toBe("unknown");
+      expect(res.body.captionChecks.map((check: { id: string }) => check.id)).toEqual(
+        expect.arrayContaining(["aria-live-status", "camera-caption", "scene-object-caption"]),
+      );
+    });
+
+    it("reports gallery walk rubric evidence while live studio remains unsupported", async () => {
+      await localPost(app, "/api/scene/add-object")
+        .send({ className: "org.lgna.story.SProp", name: "checkpoint" })
+        .expect(200);
+
+      const res = await request(app)
+        .get("/api/review/gallery-walk-rubric")
+        .set(LOCAL_API_TOKEN_HEADER, TEST_LOCAL_API_TOKEN)
+        .expect(200);
+
+      expect(res.body.schema_version).toBe("alice.gallery-walk-rubric-evidence/v1");
+      expect(res.body.reviewWorkflowSupported).toBe(false);
+      expect(res.body.rubricRecordingSupported).toBe(false);
+      expect(res.body.liveStudioSupported).toBe(false);
+      expect(res.body.galleryItems.map((item: { title: string }) => item.title)).toContain("checkpoint");
+    });
+
+    it("bundles the runtime parity evidence sections", async () => {
+      const res = await localGet(app, "/api/review/runtime-parity").expect(200);
+
+      expect(res.body.cameraVrComfort.schema_version).toBe("alice.camera-vr-comfort-evidence/v1");
+      expect(res.body.accessibilityRescueCaptions.schema_version).toBe("alice.accessibility-rescue-camera-captions/v1");
+      expect(res.body.galleryWalkRubric.schema_version).toBe("alice.gallery-walk-rubric-evidence/v1");
+    });
+  });
+
   describe("request body parsing", () => {
     it("rejects malformed JSON bodies with a client error", async () => {
       await localPost(app, "/api/project/new")
@@ -296,6 +385,143 @@ describe("server API", () => {
           name: EXCESSIVE_ROUTE_STRING,
         })
         .expect(400);
+    });
+
+    it("attaches imported model resources to newly added scene objects", async () => {
+      await localPost(app, "/api/launch").send({}).expect(200);
+      const imported = await localPost(app, "/api/assets/import-model")
+        .send({
+          fileName: "moon-rover.glb",
+          contentBase64: Buffer.from([1, 2, 3, 4]).toString("base64"),
+        })
+        .expect(200);
+      const modelResourceId = imported.body.asset.id;
+
+      const added = await localPost(app, "/api/scene/add-object")
+        .send({
+          className: "org.lgna.story.SProp",
+          name: "moonRover",
+          modelResourceId,
+        })
+        .expect(200);
+      expect(added.body.modelResourceId).toBe(modelResourceId);
+
+      const save = await localPost(app, "/api/project/save")
+        .send({})
+        .expect(200);
+      const savedProject = await parseA3P(fs.readFileSync(path.join(evidenceDir, "project-save", "saved-project.a3p")));
+      expect(save.body.status).toBe("saved");
+      expect(savedProject.sceneObjects.find((object) => object.name === "moonRover")?.modelResourceId)
+        .toBe(modelResourceId);
+
+      await localPost(app, "/api/scene/add-object")
+        .send({
+          className: "org.lgna.story.SProp",
+          name: "badModel",
+          modelResourceId: "project/models/missing.glb",
+        })
+        .expect(400);
+
+      await localPost(app, "/api/launch").send({}).expect(200);
+      const freshExport = await localPost(app, "/api/project/export/web-package")
+        .send({ title: "Fresh Launch" })
+        .expect(200);
+      const freshZip = await JSZip.loadAsync(decodeBase64Package(freshExport.body.package.base64));
+      const freshProject = JSON.parse(await freshZip.file("project/project.json")!.async("string"));
+      expect(JSON.stringify(freshProject)).not.toContain(modelResourceId);
+      expect(freshZip.file("resources/models/moon-rover.glb")).toBeNull();
+    });
+
+    it("persists applied texture assignments through save and web package export", async () => {
+      await localPost(app, "/api/launch").send({}).expect(200);
+      await localPost(app, "/api/scene/add-object")
+        .send({
+          className: "org.lgna.story.SBiped",
+          name: "bunny",
+        })
+        .expect(200);
+      const importedTexture = await localPost(app, "/api/assets/import-texture")
+        .send({
+          fileName: "moon-rock.png",
+          contentBase64: Buffer.from([137, 80, 78, 71]).toString("base64"),
+        })
+        .expect(200);
+
+      const applied = await localPost(app, "/api/scene/apply-texture")
+        .send({
+          objectName: "bunny",
+          textureResourceId: importedTexture.body.asset.id,
+        })
+        .expect(200);
+      expect(applied.body.materialBindings).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          target: "surface",
+          textureResourceId: importedTexture.body.asset.id,
+        }),
+      ]));
+
+      await localPost(app, "/api/project/save").send({}).expect(200);
+      const savedProject = await parseA3P(fs.readFileSync(path.join(evidenceDir, "project-save", "saved-project.a3p")));
+      expect(savedProject.textureAssignments).toEqual([
+        { objectName: "bunny", texturePath: importedTexture.body.asset.resourcePath },
+      ]);
+
+      const exportRes = await localPost(app, "/api/project/export/web-package")
+        .send({ title: "Texture Assignment" })
+        .expect(200);
+      const zip = await JSZip.loadAsync(decodeBase64Package(exportRes.body.package.base64));
+      const projectJson = JSON.parse(await zip.file("project/project.json")!.async("string"));
+      expect(projectJson.textureAssignments).toEqual([
+        { objectName: "bunny", texturePath: importedTexture.body.asset.resourcePath },
+      ]);
+
+      await localPost(app, "/api/project/new")
+        .send({ templateId: "blank", projectName: "Fresh Project" })
+        .expect(200);
+      const freshExport = await localPost(app, "/api/project/export/web-package")
+        .send({ title: "Fresh Project" })
+        .expect(200);
+      const freshZip = await JSZip.loadAsync(decodeBase64Package(freshExport.body.package.base64));
+      expect(freshZip.file(importedTexture.body.asset.resourcePath)).toBeNull();
+      expect(await freshZip.file("index.html")!.async("string")).not.toContain(importedTexture.body.asset.resourcePath);
+    });
+
+    it("clears stale audio metadata and resources when creating a replacement project", async () => {
+      await localPost(app, "/api/launch").send({}).expect(200);
+      await localPost(app, "/api/audio/assets")
+        .send({
+          fileName: "theme.mp3",
+          dataBase64: Buffer.from([1, 2, 3, 4]).toString("base64"),
+          durationSeconds: 1,
+        })
+        .expect(200);
+      await localPost(app, "/api/audio/resources")
+        .send({
+          id: "project-audio-theme",
+          name: "Theme",
+          path: "resources/audio/theme.mp3",
+          format: "mp3",
+          bytesBase64: Buffer.from([1, 2, 3, 4]).toString("base64"),
+          duration: 1,
+        })
+        .expect(200);
+
+      await localPost(app, "/api/project/new")
+        .send({ templateId: "blank", projectName: "Fresh Audio Free Project" })
+        .expect(200);
+
+      const audioState = await request(app)
+        .get("/api/audio/state")
+        .set(LOCAL_API_TOKEN_HEADER, TEST_LOCAL_API_TOKEN)
+        .expect(200);
+      expect(audioState.body.assets).toEqual([]);
+      expect(audioState.body.audio.resources).toEqual([]);
+
+      await localPost(app, "/api/project/save").send({}).expect(200);
+      const savedBytes = fs.readFileSync(path.join(evidenceDir, "project-save", "saved-project.a3p"));
+      const savedArchive = await readProject(savedBytes);
+      expect(savedArchive.aliceAudio).toBeUndefined();
+      expect(savedArchive.resources.has("resources/audio/theme.mp3")).toBe(false);
     });
   });
 
@@ -566,7 +792,15 @@ describe("server API", () => {
         .send({
           title: "Winter Story",
           description: "A snow scene with a bunny.",
-          canonicalUrl: "https://example.edu/alice/winter-story",
+          canonicalUrl: "https://example.edu",
+          teacher: {
+            audience: "Middle school",
+            lessonFocus: "Winter story sharing",
+            remix: "with-attribution",
+            attribution: "Alice Teacher",
+            tags: ["winter", "story"],
+            standards: ["CSTA 2-AP-10"],
+          },
         })
         .expect(200);
 
@@ -644,6 +878,7 @@ describe("server API", () => {
         "safe-zip-paths",
         "alice-web-identity",
         "entrypoint-playable",
+        "teacher-share-metadata",
       ]));
 
       const shareRes = await localPost(app, "/api/project/share")
@@ -651,7 +886,14 @@ describe("server API", () => {
           packageBase64: exportRes.body.package.base64,
           title: "Shared Winter Story",
           description: "Shared package description.",
-          canonicalUrl: "https://example.edu/alice/shared-winter-story",
+          canonicalUrl: "https://example.edu",
+          teacher: {
+            audience: "After-school club",
+            lessonFocus: "Community remix",
+            remix: "allowed",
+            tags: ["gallery"],
+            standards: ["CSTA 2-CS-01"],
+          },
         })
         .expect(200);
       expect(shareRes.body).toMatchObject({
@@ -664,7 +906,7 @@ describe("server API", () => {
           runtimeIdentity: "alice-web-player",
           title: "Shared Winter Story",
           description: "Shared package description.",
-          canonicalUrl: "https://example.edu/alice/shared-winter-story",
+          canonicalUrl: "https://example.edu",
           package: {
             filename: exportRes.body.package.filename,
             mimeType: "application/zip",
@@ -675,6 +917,14 @@ describe("server API", () => {
             html: "index.html",
             package: exportRes.body.package.filename,
             preview: "preview.png",
+          },
+          teacher: {
+            schemaVersion: "alice-web.teacher-share/v1",
+            audience: "After-school club",
+            lessonFocus: "Community remix",
+            remix: "allowed",
+            tags: ["gallery"],
+            standards: ["CSTA 2-CS-01"],
           },
         },
         artifacts: {
@@ -694,6 +944,28 @@ describe("server API", () => {
       await localPost(app, "/api/project/export/web-package")
         .send({ canonicalUrl: "javascript:alert(1)" })
         .expect(400);
+      await localPost(app, "/api/project/export/web-package")
+        .send({ canonicalUrl: "https://example.edu\n.evil/path" })
+        .expect(400);
+      for (const canonicalUrl of ["http:example.com", "http:///example.com", "https:\\\\example.edu\\alice"]) {
+        await localPost(app, "/api/project/export/web-package")
+          .send({ canonicalUrl })
+          .expect(400);
+      }
+      await localPost(app, "/api/project/export/web-package")
+        .send({ canonicalUrl: "https://user:pass@example.edu/alice/project" })
+        .expect(400);
+      await localPost(app, "/api/project/share")
+        .send({
+          packageBase64: "UEsDBAo=",
+          canonicalUrl: "https://user:pass@example.edu/alice/project",
+        })
+        .expect(400);
+
+      const malformedTeacher = await localPost(app, "/api/project/export/web-package")
+        .send({ teacher: { audience: 42 } })
+        .expect(400);
+      expect(malformedTeacher.body.error).toMatch(/teacher\.audience/i);
 
       const invalidValidation = await localPost(app, "/api/project/validate-web-package")
         .send({ packageBase64: "not base64!!" })

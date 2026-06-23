@@ -80,6 +80,13 @@ function createPackage(type = createReusableDoorType()): AliceClassBehaviorPacka
     kind: CLASS_BEHAVIOR_PACKAGE_KIND,
     version: CLASS_BEHAVIOR_PACKAGE_VERSION,
     exportedBy: "alice-web",
+    evidence: [
+      "class-behavior-type-present",
+      "class-behavior-supertype-preserved",
+      "class-behavior-fields-preserved",
+      "class-behavior-constructors-preserved",
+      "class-behavior-methods-preserved",
+    ],
     type,
   };
 }
@@ -107,7 +114,7 @@ describe("project-io/class-behavior-package", () => {
 
     expect(packageData).toEqual(createPackage(type));
     expect(packageData.type).not.toBe(type);
-    expect(Object.keys(packageData).sort()).toEqual(["exportedBy", "kind", "type", "version"]);
+    expect(Object.keys(packageData).sort()).toEqual(["evidence", "exportedBy", "kind", "type", "version"]);
     expect(JSON.stringify(packageData)).not.toContain("projectOnlyMethod");
     expect(JSON.stringify(packageData)).not.toContain("HelperDoor");
   });
@@ -364,6 +371,11 @@ describe("project-io/class-behavior-package", () => {
     expect(result).toEqual({
       schema_version: "alice-web.class-behavior-import-result/v1",
       status: "imported",
+      evidence: [
+        "class-behavior-package-validated",
+        "class-behavior-type-imported",
+        "class-behavior-name-preserved",
+      ],
       originalName: "ReusableDoor",
       importedName: "ReusableDoor",
       conflictStrategy: "rename",
@@ -374,17 +386,31 @@ describe("project-io/class-behavior-package", () => {
     expect(target.types).toEqual([createReusableDoorType()]);
   });
 
-  it("renames same-name imports by default and only updates constructor identity", () => {
+  it("renames same-name imports by default and updates self type references", () => {
     const target = createProject([createReusableDoorType()]);
     const packageData = createPackage({
       ...createReusableDoorType(),
+      fields: [
+        { name: "sibling", typeName: "ReusableDoor" },
+      ],
       methods: [
         {
           name: "describeSelf",
           isFunction: true,
-          returnType: "java.lang.String",
-          parameters: [],
-          statements: [{ kind: "return", expression: '"ReusableDoor"' }],
+          returnType: "ReusableDoor",
+          parameters: [{ name: "other", type: "ReusableDoor" }],
+          statements: [{
+            kind: "EachInArrayTogether",
+            itemType: "ReusableDoor",
+            body: [{
+              kind: "LocalDeclarationStatement",
+              varType: "ReusableDoor",
+              tryBody: [{
+                kind: "CatchWrapper",
+                catchType: "ReusableDoor",
+              }],
+            }],
+          }],
         },
       ],
     });
@@ -405,7 +431,23 @@ describe("project-io/class-behavior-package", () => {
       name: "ReusableDoor2",
       returnType: "ReusableDoor2",
     });
-    expect(renamed?.methods?.[0]?.statements).toEqual([{ kind: "return", expression: '"ReusableDoor"' }]);
+    expect(renamed?.fields?.[0]).toMatchObject({ typeName: "ReusableDoor2" });
+    expect(renamed?.methods?.[0]).toMatchObject({
+      returnType: "ReusableDoor2",
+      parameters: [{ name: "other", type: "ReusableDoor2" }],
+    });
+    expect(renamed?.methods?.[0]?.statements).toEqual([{
+      kind: "EachInArrayTogether",
+      itemType: "ReusableDoor2",
+      body: [{
+        kind: "LocalDeclarationStatement",
+        varType: "ReusableDoor2",
+        tryBody: [{
+          kind: "CatchWrapper",
+          catchType: "ReusableDoor2",
+        }],
+      }],
+    }]);
   });
 
   it("skips existing numeric rename suffixes when importing a duplicate behavior", () => {

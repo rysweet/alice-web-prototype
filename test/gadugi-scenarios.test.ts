@@ -7,22 +7,17 @@ import { describe, expect, it } from "vitest";
 type ScenarioSpec = {
   file: string;
   name: string;
+  flow: "server-flow" | "cli-only";
   flowTokens: string[];
 };
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const gadugiDir = resolve(repoRoot, "gadugi");
-const gadugiTestBin = resolve(
-  repoRoot,
-  "node_modules",
-  ".bin",
-  process.platform === "win32" ? "gadugi-test.cmd" : "gadugi-test",
-);
-
 const scenarioSpecs: ScenarioSpec[] = [
   {
     file: "01-a3p-open-parse-render.yaml",
     name: "A3P Open / Parse / Render",
+    flow: "server-flow",
     flowTokens: [
       "A3P_FILE",
       "--project",
@@ -36,6 +31,7 @@ const scenarioSpecs: ScenarioSpec[] = [
   {
     file: "02-tweedle-ast-vm-execution.yaml",
     name: "Tweedle AST & VM Execution",
+    flow: "server-flow",
     flowTokens: [
       "A3P_FILE",
       "/api/launch",
@@ -48,6 +44,7 @@ const scenarioSpecs: ScenarioSpec[] = [
   {
     file: "03-scene-entity-manipulation.yaml",
     name: "Scene Entity Manipulation",
+    flow: "server-flow",
     flowTokens: [
       "/api/launch",
       "/api/scene/add-object",
@@ -62,6 +59,7 @@ const scenarioSpecs: ScenarioSpec[] = [
   {
     file: "04-event-system.yaml",
     name: "Event System",
+    flow: "server-flow",
     flowTokens: [
       "/api/launch",
       "/api/events/register",
@@ -76,6 +74,7 @@ const scenarioSpecs: ScenarioSpec[] = [
   {
     file: "05-save-export-roundtrip.yaml",
     name: "Save / Export Round-Trip",
+    flow: "server-flow",
     flowTokens: [
       "/api/launch",
       "/api/code/edit-procedure",
@@ -89,6 +88,7 @@ const scenarioSpecs: ScenarioSpec[] = [
   {
     file: "06-typescript-source-export.yaml",
     name: "TypeScript Source Export Handoff",
+    flow: "server-flow",
     flowTokens: [
       "/api/launch",
       "/api/scene/add-object",
@@ -103,6 +103,7 @@ const scenarioSpecs: ScenarioSpec[] = [
   {
     file: "06-web-player-export-share-parity.yaml",
     name: "Web Player Export Share Parity",
+    flow: "server-flow",
     flowTokens: [
       "/api/project/new",
       "/api/project/export/web-package",
@@ -123,7 +124,31 @@ const scenarioSpecs: ScenarioSpec[] = [
       "invalid-base64",
     ],
   },
+  {
+    file: "07-alice-howto-parity-audit.yaml",
+    name: "Alice HowTo parity audit CLI",
+    flow: "cli-only",
+    flowTokens: [
+      "NODE_OPTIONS=--max-old-space-size=32768",
+      "npm run build:server",
+      "mktemp -d",
+      "alice-howto-parity-audit",
+      "--output \"$AUDIT_JSON\"",
+      "Alice",
+      "alice-web",
+      "rysweet/RabbitHole origin/develop",
+      "Alice.org HowTo coverage",
+      "source?.inventoryCount",
+      "howto-inventory",
+      "scenario-traceability",
+      "coverage-evidence",
+      "wording",
+    ],
+  },
 ];
+
+const serverScenarioSpecs = scenarioSpecs.filter((spec) => spec.flow === "server-flow");
+const cliOnlyScenarioSpecs = scenarioSpecs.filter((spec) => spec.flow === "cli-only");
 
 const unsupportedActions = [
   "launch",
@@ -146,6 +171,18 @@ function readScenario(file: string): string {
 
 function actionNames(yaml: string): string[] {
   return [...yaml.matchAll(/^\s*(?:-\s*)?action:\s*["']?([^"'\s#]+)["']?/gm)].map((match) => match[1]);
+}
+
+function metadataFlow(yaml: string): string | undefined {
+  return yaml.match(/^\s{2}metadata:\s*\n(?:^\s{4,}.*\n)*?^\s{4}flow:\s*["']?([^"'\s#]+)["']?/m)?.[1];
+}
+
+function tags(yaml: string): string[] {
+  const rawTags = yaml.match(/^\s*tags:\s*\[([^\]]*)\]/m)?.[1] ?? "";
+  return rawTags
+    .split(",")
+    .map((tag) => tag.trim().replace(/^["']|["']$/g, ""))
+    .filter(Boolean);
 }
 
 function executeTargets(yaml: string): string[] {
@@ -193,7 +230,7 @@ function executeTargets(yaml: string): string[] {
 }
 
 function runGadugi(args: string[]) {
-  return spawnSync(gadugiTestBin, args, {
+  return spawnSync("npm", ["exec", "--", "gadugi-test", ...args], {
     cwd: repoRoot,
     encoding: "utf8",
     env: { ...process.env, NODE_OPTIONS: "--max-old-space-size=32768" },
@@ -242,8 +279,17 @@ describe("Gadugi scenario runner contract", () => {
     }
   });
 
-  it("wraps every scenario in one explicit server lifecycle shell flow", () => {
+  it("declares explicit scenario flow metadata and matching category tags", () => {
     for (const spec of scenarioSpecs) {
+      const yaml = readScenario(spec.file);
+
+      expect(metadataFlow(yaml), `${spec.file} should declare scenario.metadata.flow`).toBe(spec.flow);
+      expect(tags(yaml), `${spec.file} should include the ${spec.flow} tag`).toContain(spec.flow);
+    }
+  });
+
+  it("wraps server-flow scenarios in one explicit server lifecycle shell flow", () => {
+    for (const spec of serverScenarioSpecs) {
       const targets = executeTargets(readScenario(spec.file));
       const command = targets.join("\n");
 
@@ -257,6 +303,41 @@ describe("Gadugi scenario runner contract", () => {
       expect(command, `${spec.file} should terminate only the captured server pid`).toContain('kill "$SERVER_PID"');
       expect(command, `${spec.file} must not use broad process killing`).not.toMatch(/\b(?:pkill|killall)\b/);
     }
+  });
+
+  it("wraps CLI-only scenarios in one temporary-evidence command flow without starting the server", () => {
+    for (const spec of cliOnlyScenarioSpecs) {
+      const targets = executeTargets(readScenario(spec.file));
+      const command = targets.join("\n");
+
+      expect(targets, `${spec.file} should have one execute target`).toHaveLength(1);
+      expect(command, `${spec.file} should use a strict shell`).toContain("bash -lc 'set -euo pipefail;");
+      expect(command, `${spec.file} should set the configured Node heap`).toContain(
+        "NODE_OPTIONS=--max-old-space-size=32768",
+      );
+      expect(command, `${spec.file} should build the server CLI`).toContain("npm run build:server");
+      expect(command, `${spec.file} should create temporary evidence outside source`).toContain("mktemp -d");
+      expect(command, `${spec.file} should remove only the audit temp directory`).toContain('rm -rf "$AUDIT_DIR"');
+      expect(command, `${spec.file} should run the built audit CLI`).toContain(
+        'node dist-server/cli.js alice-howto-parity-audit --output "$AUDIT_JSON"',
+      );
+      expect(command, `${spec.file} should assert parsed JSON evidence`).toContain("JSON.parse");
+      expect(command, `${spec.file} must not start the REST server`).not.toContain("node dist-server/cli.js serve");
+      expect(command, `${spec.file} must not allocate a server pid`).not.toContain("SERVER_PID");
+      expect(command, `${spec.file} must not use PORT`).not.toMatch(/\bPORT=/);
+      expect(command, `${spec.file} must not poll health`).not.toContain("/api/health");
+      expect(command, `${spec.file} must not use curl`).not.toContain("curl -fsS");
+    }
+  });
+
+  it("includes the CLI-only audit scenario in the package Gadugi script", () => {
+    const packageJson = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8")) as {
+      scripts?: Record<string, string>;
+    };
+
+    expect(packageJson.scripts?.["test:gadugi"]).toContain(
+      'gadugi-test run -d gadugi -s "Alice HowTo parity audit CLI"',
+    );
   });
 
   it("preserves the user-visible flow coverage inside execute commands", () => {

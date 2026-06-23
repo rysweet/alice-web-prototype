@@ -482,6 +482,7 @@ Artifact shape:
   "timestamp": 1710000000000,
   "source": "alice-web",
   "status": "proved",
+  "support_level": "metadata-and-playback-bridge",
   "supported_formats": [".mp3", ".wav", ".ogg", ".m4a"],
   "asset_count": 1,
   "asset_names": ["intro.wav"],
@@ -490,14 +491,24 @@ Artifact shape:
   "cue_ids": ["intro-cue"],
   "saved_project_artifact": "saved-project.a3p",
   "reloaded": true,
+  "playback": {
+    "mode": "simulated-output-bridge",
+    "native_audio_playback": false,
+    "background_music_started": true,
+    "triggered_cue_ids": ["intro-cue"],
+    "synchronized_animation_ids": ["scene.myFirstMethod"]
+  },
   "doesNotClaim": [
-    "audible speaker output in the test environment",
+    "native audio playback",
+    "real speaker output in the browser or operating system",
+    "full audio authoring pipeline",
     "native desktop audio stack coverage",
     "visible rendering correctness"
   ]
 }
 ```
 
-The evidence proves the workflow state and project persistence contract. It does
-not claim that CI or a headless server emitted audible speaker output.
+The evidence is bounded to workflow metadata, project persistence, and simulated
+playback-bridge synchronization. It does not claim native audio playback,
+speaker output, full authoring coverage, or desktop audio stack coverage.
 `timestamp` is a dynamic runtime value.

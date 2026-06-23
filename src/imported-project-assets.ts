@@ -26,6 +26,8 @@ type SceneObjectWithMaterialBindings = {
 
 const MODEL_EXTENSIONS = new Set([".gltf", ".glb"]);
 const TEXTURE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".webp"]);
+const ENCODED_PATH_CONTROL_RE = /%(?:2e|2f|5c)/i;
+const WINDOWS_DRIVE_PREFIX_RE = /^[A-Za-z]:/;
 
 const CONTENT_TYPES: Record<string, string> = {
   ".gltf": "model/gltf+json",
@@ -39,6 +41,7 @@ const CONTENT_TYPES: Record<string, string> = {
 export function createImportedProjectAsset(
   upload: ImportedAssetUpload,
   existingAssets: ImportedProjectAsset[] = [],
+  existingArchivePaths: Iterable<string> = [],
 ): ImportedAssetCreation {
   if (upload.bytes.byteLength === 0) {
     throw new Error("Imported asset payload must not be empty");
@@ -57,6 +60,7 @@ export function createImportedProjectAsset(
     parsed.extension,
     upload.kind,
     existingAssets,
+    existingArchivePaths,
   );
   const projectResourceId = projectResourceIdFor(upload.kind, fileName);
   const archivePath = projectResourceIdToArchivePath(projectResourceId);
@@ -138,8 +142,16 @@ function parseSafeFilename(fileName: string): { baseName: string; extension: str
     throw new Error("Imported asset filename must not be empty");
   }
 
+  if (ENCODED_PATH_CONTROL_RE.test(trimmed)) {
+    throw new Error("Imported asset filename must not contain encoded path traversal or separators");
+  }
+
   if (trimmed.includes("/") || trimmed.includes("\\") || trimmed.includes("..")) {
     throw new Error("Imported asset filename must not contain path traversal or separators");
+  }
+
+  if (WINDOWS_DRIVE_PREFIX_RE.test(trimmed)) {
+    throw new Error("Imported asset filename must not be an absolute path");
   }
 
   const extensionStart = trimmed.lastIndexOf(".");
@@ -179,12 +191,17 @@ function dedupeFileName(
   extension: string,
   kind: ImportedProjectAssetKind,
   existingAssets: ImportedProjectAsset[],
+  existingArchivePaths: Iterable<string>,
 ): string {
   const existingIds = new Set(existingAssets.map((asset) => asset.id));
+  const existingPaths = new Set(existingArchivePaths);
   let suffix = 1;
   let candidate = `${baseSlug}${extension}`;
 
-  while (existingIds.has(projectResourceIdFor(kind, candidate))) {
+  while (
+    existingIds.has(projectResourceIdFor(kind, candidate))
+    || existingPaths.has(projectResourceIdToArchivePath(projectResourceIdFor(kind, candidate)))
+  ) {
     suffix += 1;
     candidate = `${baseSlug}-${suffix}${extension}`;
   }

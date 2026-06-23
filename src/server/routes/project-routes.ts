@@ -1,5 +1,9 @@
 import type { Express, Response } from "express";
-import { InvalidWebPackageError, WebPackageInputError } from "../../project-export.js";
+import {
+  InvalidWebPackageError,
+  type TeacherShareMetadata,
+  WebPackageInputError,
+} from "../../project-export.js";
 import {
   ClassBehaviorPackageError,
   type ClassBehaviorConflictStrategy,
@@ -298,7 +302,7 @@ export function registerProjectRoutes(app: Express, context: ServerContext): voi
 }
 
 function readWebPackageOptions(body: Record<string, unknown>):
-  | { ok: true; value: { title?: string; description?: string; canonicalUrl?: string } }
+  | { ok: true; value: { title?: string; description?: string; canonicalUrl?: string; teacher?: TeacherShareMetadata } }
   | { ok: false; error: string } {
   const title = readOptionalStringField(body, "title");
   if (!title.ok) return title;
@@ -313,27 +317,105 @@ function readWebPackageOptions(body: Record<string, unknown>):
     if (!url.ok) return url;
   }
 
+  const teacher = readTeacherShareMetadata(body.teacher);
+  if (!teacher.ok) return teacher;
+
   return {
     ok: true,
     value: {
       ...(title.value !== undefined ? { title: title.value } : {}),
       ...(description.value !== undefined ? { description: description.value } : {}),
       ...(canonicalUrl.value !== undefined ? { canonicalUrl: canonicalUrl.value } : {}),
+      ...(teacher.value !== undefined ? { teacher: teacher.value } : {}),
     },
   };
 }
 
+function readTeacherShareMetadata(value: unknown):
+  | { ok: true; value?: TeacherShareMetadata }
+  | { ok: false; error: string } {
+  if (value === undefined) return { ok: true };
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return { ok: false, error: "teacher must be a JSON object" };
+  }
+
+  const teacher = value as Record<string, unknown>;
+  const audience = readOptionalStringField(teacher, "audience");
+  if (!audience.ok) return { ok: false, error: `teacher.${audience.error}` };
+  const lessonFocus = readOptionalStringField(teacher, "lessonFocus");
+  if (!lessonFocus.ok) return { ok: false, error: `teacher.${lessonFocus.error}` };
+  const attribution = readOptionalStringField(teacher, "attribution");
+  if (!attribution.ok) return { ok: false, error: `teacher.${attribution.error}` };
+  const remix = readRemixPolicy(teacher.remix);
+  if (!remix.ok) return remix;
+  const tags = readStringArrayField(teacher.tags, "teacher.tags");
+  if (!tags.ok) return tags;
+  const standards = readStringArrayField(teacher.standards, "teacher.standards");
+  if (!standards.ok) return standards;
+
+  return {
+    ok: true,
+    value: {
+      ...(audience.value !== undefined ? { audience: audience.value } : {}),
+      ...(lessonFocus.value !== undefined ? { lessonFocus: lessonFocus.value } : {}),
+      ...(remix.value !== undefined ? { remix: remix.value } : {}),
+      ...(attribution.value !== undefined ? { attribution: attribution.value } : {}),
+      ...(tags.value !== undefined ? { tags: tags.value } : {}),
+      ...(standards.value !== undefined ? { standards: standards.value } : {}),
+    },
+  };
+}
+
+function readRemixPolicy(value: unknown):
+  | { ok: true; value?: TeacherShareMetadata["remix"] }
+  | { ok: false; error: string } {
+  if (value === undefined) return { ok: true };
+  if (value === "allowed" || value === "with-attribution" || value === "not-allowed") {
+    return { ok: true, value };
+  }
+  return {
+    ok: false,
+    error: "teacher.remix must be allowed, with-attribution, or not-allowed",
+  };
+}
+
+function readStringArrayField(value: unknown, fieldName: string):
+  | { ok: true; value?: string[] }
+  | { ok: false; error: string } {
+  if (value === undefined) return { ok: true };
+  if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
+    return { ok: false, error: `${fieldName} must be an array of strings` };
+  }
+  return { ok: true, value };
+}
+
 function validateShareUrl(value: string): { ok: true } | { ok: false; error: string } {
+  if (/[\u0000-\u0020\u007f]/u.test(value)) {
+    return { ok: false, error: "canonicalUrl must be a valid http or https URL" };
+  }
   let parsed: URL;
   try {
     parsed = new URL(value);
   } catch {
     return { ok: false, error: "canonicalUrl must be a valid http or https URL" };
   }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+  if (
+    (parsed.protocol !== "http:" && parsed.protocol !== "https:")
+    || parsed.username !== ""
+    || parsed.password !== ""
+    || (parsed.href !== value && !isHostOnlyHttpUrlWithoutSlash(parsed, value))
+  ) {
     return { ok: false, error: "canonicalUrl must be a valid http or https URL" };
   }
   return { ok: true };
+}
+
+function isHostOnlyHttpUrlWithoutSlash(parsed: URL, value: string): boolean {
+  return parsed.href === `${value}/`
+    && parsed.pathname === "/"
+    && parsed.search === ""
+    && parsed.hash === ""
+    && !value.endsWith("/");
 }
 
 function readRequiredPackageBase64(body: Record<string, unknown>):

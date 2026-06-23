@@ -33,6 +33,9 @@ test("runs an Alice world, exports visible-behavior evidence, and verifies metad
 
   await page.getByTestId("camera-move-forward").click();
   await expect(page.getByTestId("camera-status")).toContainText(/camera moved forward/i);
+  await expect(page.getByTestId("alice-camera-vr-comfort-panel")).toBeVisible();
+  await expect(page.getByTestId("alice-camera-keyboard-movement")).toContainText(/keyboard camera movement/i);
+  await expect(page.getByTestId("alice-true-vr-unsupported")).toContainText(/true headset\/native VR remains unsupported/i);
 
   await page.getByTestId("alice-evidence-capture-button").click();
   await expect(page.getByTestId("alice-evidence-status")).toContainText(/visible behavior captured/i);
@@ -86,6 +89,18 @@ test("runs an Alice world, exports visible-behavior evidence, and verifies metad
   expect(expectString(firstObject.name, "visibleBehavior.objects[0].name")).not.toHaveLength(0);
   expect(expectString(firstObject.typeName, "visibleBehavior.objects[0].typeName")).not.toHaveLength(0);
   expect(typeof firstObject.visible, "visibleBehavior.objects[0].visible must be boolean").toBe("boolean");
+
+  const runtimeReview = expectRecord(artifact.runtimeReview, "runtimeReview");
+  const cameraVrComfort = expectRecord(runtimeReview.cameraVrComfort, "runtimeReview.cameraVrComfort");
+  expect(cameraVrComfort.trueHeadsetVrSupported).toBe(false);
+  expect(cameraVrComfort.nativeVrSupported).toBe(false);
+  expect(cameraVrComfort.desktopCameraAvailable).toBe(true);
+  const accessibilityCaptions = expectRecord(runtimeReview.accessibilityRescueCaptions, "runtimeReview.accessibilityRescueCaptions");
+  expect(expectString(accessibilityCaptions.cameraCaption, "runtimeReview.accessibilityRescueCaptions.cameraCaption")).toContain("Camera");
+  const galleryReview = expectRecord(runtimeReview.galleryWalkRubric, "runtimeReview.galleryWalkRubric");
+  expect(galleryReview.reviewWorkflowSupported).toBe(false);
+  expect(Number(galleryReview.galleryItemCount)).toBeGreaterThan(0);
+  expect(galleryReview.liveStudioSupported).toBe(false);
 
   const serialized = JSON.stringify(artifact);
   expect(serialized).toContain("Alice");

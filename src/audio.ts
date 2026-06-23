@@ -6,6 +6,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import JSZip from "jszip";
+import { assertNoDuplicateZipEntries } from "./zip-entry-validation.js";
 import type { Vec3 } from "./story-api/types";
 
 export type AudioDecodeStatus = "decoded" | "decode-unavailable" | "decode-failed";
@@ -375,6 +376,7 @@ export async function loadAudioFromA3P(
   resourcePath: string,
   options: LoadAudioOptions = {},
 ): Promise<AudioResource> {
+  assertNoDuplicateZipEntries(data);
   const zip = await JSZip.loadAsync(data);
   const entry = zip.file(resourcePath);
   if (!entry) {

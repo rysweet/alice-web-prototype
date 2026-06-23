@@ -37,8 +37,8 @@ not render a replacement.
 | `version.txt` | Alice project version text at the ZIP root |
 | `thumbnail.png` | Optional thumbnail PNG bytes at the ZIP root |
 | `resources/...` | Typical location for project resources, though Project IO accepts any safe non-special archive-relative path |
-| `resources/models/<assetId>` | [PLANNED] Imported `.gltf` and `.glb` model bytes for issue #221 |
-| `resources/textures/<assetId>` | [PLANNED] Imported `.png`, `.jpg`, `.jpeg`, and `.webp` texture bytes for issue #221 |
+| `resources/models/<assetId>` | Imported `.gltf` and `.glb` model bytes addressed by `project/models/<assetId>` project state values |
+| `resources/textures/<assetId>` | Imported `.png`, `.jpg`, `.jpeg`, and `.webp` texture bytes addressed by `project/textures/<assetId>` project state values |
 | `resources/audio/...` | Audio assets registered through Alice project audio workflows |
 | `__original_xml__` | Internal resource-map marker used by Project IO, not a ZIP entry and not a normal resource callers should create manually |
 
@@ -115,10 +115,9 @@ limit protects callers from ZIP bombs and unexpectedly large projects.
 
 Archives that exceed the limit throw `ProjectIoError` with code `zip-bomb`.
 
-Package validation also enforces decoded package size and file-count limits for
-`packageBase64` inputs. Oversized packages, malformed ZIP data, traversal paths,
-duplicate required files, and missing required files are explicit validation
-errors.
+Package validation rejects malformed ZIP data, traversal paths, duplicate
+required files, missing required files, unsafe package filenames, and mismatched
+share/package links with explicit validation errors.
 
 ## Manifest version synchronization
 
@@ -174,16 +173,17 @@ Project IO treats these paths as special and does not expose them as normal
 All other safe non-directory entries are extracted as resources and classified
 as `image`, `audio`, `model`, or `other`.
 
-[PLANNED] Issue #221 imported project assets use fixed project-to-archive path
-mapping:
+Imported project assets use fixed project-to-archive path mapping:
 
 | Project state value | Archive resource |
 | --- | --- |
 | `project/models/<assetId>` | `resources/models/<assetId>` |
 | `project/textures/<assetId>` | `resources/textures/<assetId>` |
 
-Project IO must preserve both the project state references and the archive
-resource bytes through save/load/export/import when issue #221 lands.
+Project IO preserves both the project state references and the archive resource
+bytes through save/load/export/import. Server-side model and texture imports use
+the same mapping, so web-package export and reopened `.a3p` projects retain the
+project-owned resources and texture assignments.
 
 ## Audio manifest policy
 

@@ -71,6 +71,10 @@ export function registerAssetRoutes(app: Express, context: ServerContext): void 
 
     const updated = applySurfaceTextureBinding(object, textureResourceId.value);
     Object.assign(object, updated);
+    project.textureAssignments = [
+      ...(project.textureAssignments ?? []).filter((assignment) => assignment.objectName !== object.name),
+      { objectName: object.name, texturePath: textureAsset.resourcePath },
+    ];
 
     res.json({
       status: "applied",
@@ -118,7 +122,7 @@ function handleAssetImport(
       fileName: fileName.value,
       ...(displayName.value !== undefined ? { displayName: displayName.value } : {}),
       bytes: Buffer.from(contentBase64.value, "base64"),
-    }, project.importedAssets ?? []);
+    }, project.importedAssets ?? [], context.state.resources.keys());
 
     project.importedAssets = [...(project.importedAssets ?? []), creation.asset];
     context.state.resources.set(creation.archivePath, creation.resourceBytes);

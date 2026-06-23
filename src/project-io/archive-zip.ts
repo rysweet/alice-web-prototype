@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { assertNoDuplicateZipEntries } from "../zip-entry-validation.js";
 import {
   A3PArchiveLimitError,
   type A3PArchiveReadBudget,
@@ -29,6 +30,7 @@ export async function loadProjectZip(
   assertA3PArchiveBytes(data, limits);
 
   try {
+    assertNoDuplicateZipEntries(data);
     const zip = await JSZip.loadAsync(data);
     ZIP_READ_BUDGETS.set(zip, createA3PArchiveReadBudget(zip, limits));
     return zip;

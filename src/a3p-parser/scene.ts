@@ -7,6 +7,10 @@ import {
   directChild,
   resolve,
 } from "./dom.js";
+import {
+  validateCameraWorkflowState,
+  type CameraWorkflowState,
+} from "../camera-workflow.js";
 import { extractStatements } from "./statements.js";
 import type {
   AliceFieldDefinition,
@@ -16,6 +20,7 @@ import type {
   MaterialBinding,
   AliceObject,
   AliceTypeDefinition,
+  TextureAssignment,
 } from "./types.js";
 import { attachA3PMethodSource, snapshotAliceStatements } from "./types.js";
 
@@ -245,6 +250,42 @@ export function extractImportedProjectAssets(doc: Document): ImportedProjectAsse
   }
 
   return assets;
+}
+
+export function extractTextureAssignments(doc: Document): TextureAssignment[] {
+  const assignmentsElement = firstElementByTagName(doc, "texture-assignments");
+  if (!assignmentsElement) return [];
+
+  const assignments: TextureAssignment[] = [];
+  for (const child of directElementChildren(assignmentsElement)) {
+    if (child.tagName !== "assignment") continue;
+    const objectName = child.getAttribute("objectName");
+    const texturePath = child.getAttribute("texturePath");
+    const materialName = child.getAttribute("materialName");
+    if (!objectName || !texturePath) continue;
+
+    assignments.push({
+      objectName,
+      texturePath,
+      ...(materialName ? { materialName } : {}),
+    });
+  }
+  return assignments;
+}
+
+export function extractCameraWorkflow(doc: Document): { cameraWorkflow?: CameraWorkflowState } {
+  const cameraElement = firstElementByTagName(doc, "camera-workflow");
+  if (!cameraElement) return {};
+  const text = cameraElement.textContent?.trim();
+  if (!text) return {};
+
+  try {
+    return {
+      cameraWorkflow: validateCameraWorkflowState(JSON.parse(text) as CameraWorkflowState),
+    };
+  } catch {
+    return {};
+  }
 }
 
 function readAssetKind(kind: string | null): ImportedProjectAssetKind | null {

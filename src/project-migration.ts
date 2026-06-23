@@ -1,6 +1,10 @@
 export type ProjectVersionSource = "version.txt" | "manifest" | "xml" | "default";
 
 export type ProjectResourceKind = "image" | "audio" | "model" | "other";
+export type ProjectMigrationSupport =
+  | "alice-3-reader-migration"
+  | "alice-2-guidance-only"
+  | "unknown-version";
 
 export interface ProjectVersionInfo {
   originalAliceVersion: string | null;
@@ -10,6 +14,8 @@ export interface ProjectVersionInfo {
   versionSource: ProjectVersionSource;
   migrated: boolean;
   migrationSteps: string[];
+  migrationSupport?: ProjectMigrationSupport;
+  unsupportedReason?: string | null;
 }
 
 const CURRENT_ALICE_VERSION = "3.10.0.0";
@@ -25,6 +31,8 @@ const RESOURCE_SUFFIX_PACKAGES = [
   "transport",
   "vehicle",
 ] as const;
+const ALICE_2_UNSUPPORTED_REASON =
+  "Alice 2 projects require desktop Alice conversion before Alice web import; automatic Alice 2 conversion is not supported.";
 
 interface MigrationRule {
   readonly toVersion: string;
@@ -97,59 +105,167 @@ export function detectProjectVersion(
 ): ProjectVersionInfo {
   const normalizedVersionText = normalizeCandidate(versionText);
   const xmlVersion = extractXmlVersion(xmlText);
-  const manifestVersion = extractManifestVersion(manifest);
+  const explicitManifestVersion = extractExplicitManifestVersion(manifest);
+  const genericManifestVersion = extractGenericManifestVersion(manifest);
+  const supportedExplicitManifestVersion = isSupportedAliceVersion(explicitManifestVersion ?? "")
+    ? explicitManifestVersion
+    : null;
+  const supportedGenericManifestVersion = isSupportedAliceVersion(genericManifestVersion ?? "")
+    ? genericManifestVersion
+    : null;
+  const nestedManifestVersion = supportedExplicitManifestVersion
+    ?? supportedGenericManifestVersion
+    ?? findNestedAliceVersion(manifest);
+  const manifestVersion = supportedExplicitManifestVersion
+    ?? supportedGenericManifestVersion
+    ?? nestedManifestVersion
+    ?? explicitManifestVersion
+    ?? genericManifestVersion;
 
   if (normalizedVersionText && isAliceProjectVersion(normalizedVersionText)) {
-    return {
+    return buildVersionInfo({
       originalAliceVersion: normalizedVersionText,
       detectedAliceVersion: normalizedVersionText,
       manifestVersion,
       xmlVersion,
       versionSource: "version.txt",
-      migrated: false,
-      migrationSteps: [],
-    };
+    });
   }
 
-  if (manifestVersion && isAliceProjectVersion(manifestVersion)) {
-    return {
-      originalAliceVersion: manifestVersion,
-      detectedAliceVersion: manifestVersion,
+  if (normalizedVersionText && isAlice2ProjectVersion(normalizedVersionText)) {
+    return buildVersionInfo({
+      originalAliceVersion: normalizedVersionText,
+      detectedAliceVersion: normalizedVersionText,
+      manifestVersion,
+      xmlVersion,
+      versionSource: "version.txt",
+      migrationSupport: "alice-2-guidance-only",
+      unsupportedReason: ALICE_2_UNSUPPORTED_REASON,
+    });
+  }
+
+  if (supportedExplicitManifestVersion && isAliceProjectVersion(supportedExplicitManifestVersion)) {
+    return buildVersionInfo({
+      originalAliceVersion: supportedExplicitManifestVersion,
+      detectedAliceVersion: supportedExplicitManifestVersion,
       manifestVersion,
       xmlVersion,
       versionSource: "manifest",
-      migrated: false,
-      migrationSteps: [],
-    };
+    });
+  }
+
+  if (supportedExplicitManifestVersion && isAlice2ProjectVersion(supportedExplicitManifestVersion)) {
+    return buildVersionInfo({
+      originalAliceVersion: supportedExplicitManifestVersion,
+      detectedAliceVersion: supportedExplicitManifestVersion,
+      manifestVersion,
+      xmlVersion,
+      versionSource: "manifest",
+      migrationSupport: "alice-2-guidance-only",
+      unsupportedReason: ALICE_2_UNSUPPORTED_REASON,
+    });
   }
 
   if (xmlVersion && isAliceProjectVersion(xmlVersion)) {
-    return {
+    return buildVersionInfo({
       originalAliceVersion: xmlVersion,
       detectedAliceVersion: xmlVersion,
       manifestVersion,
       xmlVersion,
       versionSource: "xml",
-      migrated: false,
-      migrationSteps: [],
-    };
+    });
   }
 
-  return {
+  if (xmlVersion && isAlice2ProjectVersion(xmlVersion)) {
+    return buildVersionInfo({
+      originalAliceVersion: xmlVersion,
+      detectedAliceVersion: xmlVersion,
+      manifestVersion,
+      xmlVersion,
+      versionSource: "xml",
+      migrationSupport: "alice-2-guidance-only",
+      unsupportedReason: ALICE_2_UNSUPPORTED_REASON,
+    });
+  }
+
+  if (supportedGenericManifestVersion && isAliceProjectVersion(supportedGenericManifestVersion)) {
+    return buildVersionInfo({
+      originalAliceVersion: supportedGenericManifestVersion,
+      detectedAliceVersion: supportedGenericManifestVersion,
+      manifestVersion,
+      xmlVersion,
+      versionSource: "manifest",
+    });
+  }
+
+  if (supportedGenericManifestVersion && isAlice2ProjectVersion(supportedGenericManifestVersion)) {
+    return buildVersionInfo({
+      originalAliceVersion: supportedGenericManifestVersion,
+      detectedAliceVersion: supportedGenericManifestVersion,
+      manifestVersion,
+      xmlVersion,
+      versionSource: "manifest",
+      migrationSupport: "alice-2-guidance-only",
+      unsupportedReason: ALICE_2_UNSUPPORTED_REASON,
+    });
+  }
+
+  if (nestedManifestVersion && isAliceProjectVersion(nestedManifestVersion)) {
+    return buildVersionInfo({
+      originalAliceVersion: nestedManifestVersion,
+      detectedAliceVersion: nestedManifestVersion,
+      manifestVersion,
+      xmlVersion,
+      versionSource: "manifest",
+    });
+  }
+
+  if (nestedManifestVersion && isAlice2ProjectVersion(nestedManifestVersion)) {
+    return buildVersionInfo({
+      originalAliceVersion: nestedManifestVersion,
+      detectedAliceVersion: nestedManifestVersion,
+      manifestVersion,
+      xmlVersion,
+      versionSource: "manifest",
+      migrationSupport: "alice-2-guidance-only",
+      unsupportedReason: ALICE_2_UNSUPPORTED_REASON,
+    });
+  }
+
+  return buildVersionInfo({
     originalAliceVersion: normalizedVersionText ?? manifestVersion ?? xmlVersion,
     detectedAliceVersion: CURRENT_ALICE_VERSION,
     manifestVersion,
     xmlVersion,
     versionSource: "default",
-    migrated: false,
-    migrationSteps: [],
-  };
+    migrationSupport: "unknown-version",
+  });
 }
 
 export function migrateProjectXml(
   xmlText: string,
   versionInfo: ProjectVersionInfo,
 ): { xmlText: string; versionInfo: ProjectVersionInfo } {
+  if (
+    versionInfo.migrationSupport === "alice-2-guidance-only" ||
+    isAlice2ProjectVersion(versionInfo.originalAliceVersion ?? "") ||
+    isAlice2ProjectVersion(versionInfo.detectedAliceVersion)
+  ) {
+    return {
+      xmlText,
+      versionInfo: {
+        ...versionInfo,
+        migrationSupport: "alice-2-guidance-only",
+        migrated: false,
+        migrationSteps: [
+          ...versionInfo.migrationSteps,
+          ALICE_2_UNSUPPORTED_REASON,
+        ],
+        unsupportedReason: versionInfo.unsupportedReason ?? ALICE_2_UNSUPPORTED_REASON,
+      },
+    };
+  }
+
   let migratedXml = xmlText;
   let workingVersion = versionInfo.originalAliceVersion ?? versionInfo.detectedAliceVersion;
   const migrationSteps = [...versionInfo.migrationSteps];
@@ -260,7 +376,7 @@ function extractXmlVersion(xmlText: string): string | null {
   return normalizeCandidate(match?.[1]);
 }
 
-function extractManifestVersion(manifest: Record<string, unknown> | null): string | null {
+function extractExplicitManifestVersion(manifest: Record<string, unknown> | null): string | null {
   if (!manifest) {
     return null;
   }
@@ -268,7 +384,6 @@ function extractManifestVersion(manifest: Record<string, unknown> | null): strin
   const directCandidates = [
     manifest.aliceVersion,
     manifest.projectVersion,
-    manifest.version,
     isRecord(manifest.createdWith) ? manifest.createdWith.version : undefined,
   ];
 
@@ -279,7 +394,11 @@ function extractManifestVersion(manifest: Record<string, unknown> | null): strin
     }
   }
 
-  return findNestedAliceVersion(manifest);
+  return null;
+}
+
+function extractGenericManifestVersion(manifest: Record<string, unknown> | null): string | null {
+  return normalizeCandidate(typeof manifest?.version === "string" ? manifest.version : null);
 }
 
 function findNestedAliceVersion(value: unknown, depth = 0): string | null {
@@ -287,7 +406,7 @@ function findNestedAliceVersion(value: unknown, depth = 0): string | null {
     return null;
   }
   if (typeof value === "string") {
-    return isAliceProjectVersion(value) ? value.trim() : null;
+    return isSupportedAliceVersion(value) ? value.trim() : null;
   }
   if (Array.isArray(value)) {
     for (const entry of value) {
@@ -312,6 +431,27 @@ function findNestedAliceVersion(value: unknown, depth = 0): string | null {
 
 function isAliceProjectVersion(value: string): boolean {
   return /^3(?:\.\d+){2,4}$/.test(value.trim());
+}
+
+function isAlice2ProjectVersion(value: string): boolean {
+  return /^2(?:\.\d+){1,4}$/.test(value.trim());
+}
+
+function isSupportedAliceVersion(value: string): boolean {
+  return isAliceProjectVersion(value) || isAlice2ProjectVersion(value);
+}
+
+function buildVersionInfo(options: Omit<ProjectVersionInfo, "migrated" | "migrationSteps"> & {
+  migrated?: boolean;
+  migrationSteps?: string[];
+}): ProjectVersionInfo {
+  return {
+    migrated: false,
+    migrationSteps: [],
+    migrationSupport: "alice-3-reader-migration",
+    unsupportedReason: null,
+    ...options,
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

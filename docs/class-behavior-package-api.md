@@ -52,6 +52,7 @@ interface AliceClassBehaviorPackage {
   version: 1;
   exportedBy: "alice-web";
   type: AliceTypeDefinition;
+  evidence: string[];
 }
 ```
 
@@ -227,6 +228,7 @@ type ClassBehaviorConflictStrategy =
 interface ClassBehaviorImportResult {
   schema_version: "alice-web.class-behavior-import-result/v1";
   status: "imported";
+  evidence: string[];
   originalName: string;
   importedName: string;
   conflictStrategy: ClassBehaviorConflictStrategy;
@@ -310,6 +312,11 @@ Required successful response:
 {
   "schema_version": "alice-web.class-behavior-import-result/v1",
   "status": "imported",
+  "evidence": [
+    "class-behavior-package-validated",
+    "class-behavior-type-imported",
+    "class-behavior-name-preserved"
+  ],
   "originalName": "SpinnerBehavior",
   "importedName": "SpinnerBehavior",
   "conflictStrategy": "rename",
@@ -344,10 +351,12 @@ Cache-Control: no-store
 | `merge` | no | Combines the package type with the existing type using the member matching rules below. |
 | `reject` | no | Returns `409` and leaves the project unchanged when the type name already exists. |
 
-For renamed imports, only `type.name`, constructor `name`, and constructor
-`returnType` values are updated to the imported class name. Method bodies, field
-initializers, superclass names, parameter types, return types, resource
-references, and other statement data are preserved exactly and are not rewritten.
+For renamed imports, self-type references equal to the original class name are
+rewritten to the imported class name in `type.name`, field `typeName`, method
+return types, method parameter types, constructor names, constructor return
+types, constructor parameter types, and nested statement type fields (`varType`,
+`itemType`, and `catchType`). Resource references and non-type statement data are
+preserved.
 
 Merge uses these member keys:
 

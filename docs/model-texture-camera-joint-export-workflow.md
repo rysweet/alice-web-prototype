@@ -1,6 +1,6 @@
 ---
 title: Model, texture, camera, joint, and export workflow
-description: Planned browser workflow contract for importing Alice assets, framing scenes, managing joints, and exporting shareable packages.
+description: Browser workflow contract for importing Alice assets, framing scenes, managing joints, and exporting shareable packages.
 last_updated: 2026-06-21
 review_schedule: quarterly
 doc_type: reference
@@ -8,11 +8,9 @@ doc_type: reference
 
 # Model, texture, camera, joint, and export workflow
 
-**[PLANNED - Implementation Pending]**
-
-This document describes the intended Alice browser workflow for importing a
-model, attaching texture resources, saving camera state, managing joints, and
-exporting or sharing the finished project.
+This document describes the Alice browser workflow for importing a model,
+attaching texture resources, saving camera state, managing joints, and exporting
+or sharing the finished project.
 
 The package identity remains **`alice-web`**. The current `package.json` package
 name is `alice-web`, and the public TypeScript boundary is `src/index.ts`.
@@ -32,7 +30,7 @@ route the root package export through the same public barrel contract.
 
 ## User workflow
 
-The planned browser workflow is:
+The browser workflow is:
 
 1. Import an Alice project or model asset.
 2. Import one or more image resources for textures.
@@ -54,8 +52,8 @@ and invalid package data must not partially mutate the project.
 | --- | --- | --- |
 | Alice project | `.a3p` | Full project archive handled by `ProjectIo.readProject()` and `ProjectIo.writeProject()`. |
 | Authored model import | `.glb`, `.gltf` | Uses the open asset pipeline conversion path. `.fbx` and `.obj` should be converted to glTF/GLB before browser import. |
-| Project model resources | `.a3r`, `.a3t`, `.dae`, `.fbx`, `.glb`, `.gltf`, `.obj`, `.ply`, `.stl` | Project IO can classify these as model resources in an existing archive, but browser runtime loading is only planned for `.glb` and `.gltf` first. |
-| Texture/image resources | `.png`, `.jpg`, `.jpeg`, `.gif`, `.bmp`, `.webp`, `.svg` | Imported as image resources. Material texture assignment should prefer browser-decodable raster formats such as PNG, JPEG, WebP, BMP, and GIF. |
+| Project model resources | `.a3r`, `.a3t`, `.dae`, `.fbx`, `.glb`, `.gltf`, `.obj`, `.ply`, `.stl` | Project IO can classify these as model resources in an existing archive. Browser import and runtime loading support `.glb` and `.gltf`. |
+| Texture/image resources | `.png`, `.jpg`, `.jpeg`, `.webp` | Imported as image resources. Material texture assignment uses browser-decodable raster formats supported by the import helper. |
 
 Unsupported extensions are rejected before the active project changes.
 
@@ -90,28 +88,34 @@ import {
 ### Import project and attach resources
 
 ```typescript
-import { ProjectIo } from "alice-web";
+import { ModelTextureCameraJointExportWorkflow, ProjectIo } from "alice-web";
 
 const archive = await ProjectIo.readProject(await projectFile.arrayBuffer());
+let workflow = ModelTextureCameraJointExportWorkflow.createWorkflowState({
+  project: archive.project,
+});
 
 const modelBytes = new Uint8Array(await modelFile.arrayBuffer());
 const textureBytes = new Uint8Array(await textureFile.arrayBuffer());
 
-archive.resources.set("resources/models/robot.glb", modelBytes);
-archive.resources.set("resources/textures/robot.png", textureBytes);
-archive.project.textureRefs = [
-  ...(archive.project.textureRefs ?? []),
-  "resources/textures/robot.png",
-];
+workflow = await ModelTextureCameraJointExportWorkflow.importModelAsset(workflow, {
+  fileName: modelFile.name,
+  bytes: modelBytes,
+  objectName: "robot",
+});
+workflow = await ModelTextureCameraJointExportWorkflow.importTextureAsset(workflow, {
+  fileName: textureFile.name,
+  bytes: textureBytes,
+});
 
-const savedProjectBytes = await ProjectIo.writeProject(archive);
+const savedProjectBytes =
+  await ModelTextureCameraJointExportWorkflow.exportA3pArchive(workflow);
 console.log(savedProjectBytes.byteLength);
 ```
 
 `ProjectIo.readProject()` and `ProjectIo.writeProject()` own `.a3p` archive
-round-tripping. The browser wrapper for this planned workflow should call these
-APIs instead of duplicating ZIP, XML, manifest, thumbnail, or resource-path
-handling.
+round-tripping. Browser and server workflows call these APIs instead of
+duplicating ZIP, XML, manifest, thumbnail, or resource-path handling.
 
 ### Save camera state
 
@@ -134,9 +138,9 @@ const validatedCameraState =
 console.log(validatedCameraState.markers.map((marker) => marker.name));
 ```
 
-The planned project state should persist `CameraWorkflow.CameraWorkflowState`
-with the exported project so reopening the project restores the same position,
-target, mode, field of view, active preset, and marker list.
+Project state persists `CameraWorkflow.CameraWorkflowState` with the exported
+project so reopening the project restores the same position, target, mode, field
+of view, active preset, and marker list.
 
 ### Manage joints
 
@@ -191,10 +195,10 @@ const exportedJointState = jointState.toJSON();
 console.log(exportedJointState.objects.robotArm.jointArrays.arm);
 ```
 
-The planned export path should include this joint snapshot or an equivalent
-project metadata representation. Current joint sidecar evidence is useful for
-server verification, but the browser export feature must not depend on an
-external sidecar to restore exported joint data.
+The export path includes this joint snapshot or an equivalent project metadata
+representation. Joint sidecar evidence is useful for server verification, but
+browser export must not depend on an external sidecar to restore exported joint
+data.
 
 ### Export and share a web package
 
@@ -204,6 +208,13 @@ import { ProjectExport } from "alice-web";
 const webPackage = await ProjectExport.exportWebPackage(archive.project, {
   title: archive.project.projectName,
   description: "Robot arm scene with a saved camera view.",
+  teacher: {
+    audience: "Middle school creative coding",
+    lessonFocus: "Reusable camera and joint-state lesson",
+    remix: "with-attribution",
+    tags: ["classroom", "remix"],
+    standards: ["CSTA 2-AP-10"],
+  },
 });
 
 const validation = await ProjectExport.validateWebPackage({
@@ -219,20 +230,28 @@ if (!validation.valid) {
 const shareArtifacts = await ProjectExport.generateShareArtifacts({
   packageBase64: webPackage.package.base64,
   title: archive.project.projectName,
+  teacher: {
+    audience: "Middle school creative coding",
+    lessonFocus: "Reusable camera and joint-state lesson",
+    remix: "with-attribution",
+  },
 });
 console.log(shareArtifacts.share.links.html);
 ```
 
 `ProjectExport.exportWebPackage()` creates the runnable `alice-web` ZIP package.
 `ProjectExport.generateShareArtifacts()` only accepts a package that validates.
+When `teacher` metadata is provided, `share.json` contains
+`alice-web.teacher-share/v1` metadata and validation evidence includes
+`teacher-share-metadata`.
 The existing `exportWebPackage(project)` function receives an `AliceProject`.
-The planned browser workflow must place imported resources, camera state, and
-joint state into the project payload or an explicit wrapper before export so the
-web package is self-contained.
+The browser workflow places imported resources, camera state, and joint state
+into the project payload or an explicit wrapper before export so the web package
+is self-contained.
 
 ## Data included in exports
 
-The planned workflow has two export targets.
+The workflow has two export targets.
 
 | Export target | Data that must be included |
 | --- | --- |
@@ -252,10 +271,9 @@ ProjectName.alice-web/
 `-- validation.json
 ```
 
-The planned browser workflow should keep that structure and ensure
-`project/project.json` contains enough project state to reopen the model,
-textures, camera view, and joints without reading local files outside the
-package.
+The browser workflow keeps that structure and ensures `project/project.json`
+contains enough project state to reopen the model, textures, camera view, and
+joints without reading local files outside the package.
 
 ## Server route compatibility
 

@@ -54,6 +54,15 @@ export {
   type WriteProjectOptions,
 };
 export { generateThumbnailFromProjectScene };
+export {
+  exportClassBehaviorPackage,
+  importClassBehaviorPackage,
+  parseClassBehaviorPackage,
+  serializeClassBehaviorPackage,
+  type AliceClassBehaviorPackage,
+  type ClassBehaviorConflictStrategy,
+  type ClassBehaviorImportResult,
+} from "./project-io/class-behavior-package.js";
 
 /**
  * Read an .a3p archive and return the parsed project, manifest, resources, thumbnail,

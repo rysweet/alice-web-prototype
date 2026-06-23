@@ -263,6 +263,34 @@ describe("ProjectService.exportTypeScript", () => {
     }
   });
 
+  it("exports web packages with project resources but without internal source XML", async () => {
+    const state = createInitialServerState();
+    state.launched = true;
+    state.projectName = "Web Package Resources";
+    seedDefaultSceneObjects(state);
+    state.resources.set("__original_xml__", new TextEncoder().encode("<node />"));
+    state.resources.set("resources/models/robot.glb", new Uint8Array([1, 2, 3]));
+    state.resources.set("resources/textures/paint.webp", new Uint8Array([7, 8, 9]));
+    state.resources.set("preview.png", new Uint8Array([9, 9, 9]));
+
+    const result = await projectService.exportWebPackage(state, {
+      title: "Resource Package",
+      resources: [{ path: "resources/textures/paint.png", bytes: new Uint8Array([4, 5, 6]) }],
+    });
+    const zip = await JSZip.loadAsync(Buffer.from(result.package.base64, "base64"));
+
+    expect(zip.file("__original_xml__")).toBeNull();
+    expect(await zip.file("resources/models/robot.glb")?.async("uint8array")).toEqual(new Uint8Array([1, 2, 3]));
+    expect(await zip.file("resources/textures/paint.webp")?.async("uint8array")).toEqual(new Uint8Array([7, 8, 9]));
+    expect(await zip.file("resources/textures/paint.png")?.async("uint8array")).toEqual(new Uint8Array([4, 5, 6]));
+    expect(await zip.file("preview.png")?.async("uint8array")).not.toEqual(new Uint8Array([9, 9, 9]));
+    const html = await zip.file("index.html")!.async("string");
+    expect(html).toContain("alice-export-resources");
+    expect(html).toContain("resources/textures/paint.png");
+    expect(html).toContain("resources/textures/paint.webp");
+    expect(html).toContain("data:image/webp;base64");
+  });
+
   it("rejects export before a current Alice project is launched", async () => {
     const state = createInitialServerState();
 

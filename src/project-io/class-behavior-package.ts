@@ -28,6 +28,7 @@ export interface AliceClassBehaviorPackage {
   version: typeof CLASS_BEHAVIOR_PACKAGE_VERSION;
   exportedBy: "alice-web";
   type: AliceTypeDefinition;
+  evidence?: string[];
 }
 
 export interface ImportClassBehaviorPackageOptions {
@@ -43,6 +44,7 @@ export interface ClassBehaviorImportResult {
   renamed: boolean;
   replaced: boolean;
   merged: boolean;
+  evidence: string[];
 }
 
 export type ClassBehaviorPackageErrorCode =
@@ -86,6 +88,7 @@ export function exportClassBehaviorPackage(project: AliceProject, typeName: stri
     version: CLASS_BEHAVIOR_PACKAGE_VERSION,
     exportedBy: "alice-web",
     type: cloneType(type),
+    evidence: buildPackageEvidence(type),
   };
   validatePackage(packageData);
   return packageData;
@@ -183,6 +186,13 @@ function importResult(
     renamed: flags.renamed,
     replaced: flags.replaced,
     merged: flags.merged,
+    evidence: [
+      "class-behavior-package-validated",
+      "class-behavior-type-imported",
+      flags.renamed ? "class-behavior-conflict-renamed" : "class-behavior-name-preserved",
+      ...(flags.replaced ? ["class-behavior-conflict-replaced"] : []),
+      ...(flags.merged ? ["class-behavior-conflict-merged"] : []),
+    ],
   };
 }
 
@@ -291,6 +301,7 @@ function validatePackage(value: unknown): asserts value is AliceClassBehaviorPac
     throw invalidPackage("Class behavior package exporter must be alice-web.");
   }
   validateTypeDefinition(value.type);
+  validateStringArray(value.evidence, "evidence");
 }
 
 function validateTypeDefinition(value: unknown): asserts value is AliceTypeDefinition {
@@ -466,6 +477,16 @@ function cloneType(type: AliceTypeDefinition): AliceTypeDefinition {
   return JSON.parse(JSON.stringify(type)) as AliceTypeDefinition;
 }
 
+function buildPackageEvidence(type: AliceTypeDefinition): string[] {
+  return [
+    "class-behavior-type-present",
+    ...(type.superTypeName ? ["class-behavior-supertype-preserved"] : []),
+    ...((type.fields?.length ?? 0) > 0 ? ["class-behavior-fields-preserved"] : []),
+    ...((type.constructors?.length ?? 0) > 0 ? ["class-behavior-constructors-preserved"] : []),
+    ...((type.methods?.length ?? 0) > 0 ? ["class-behavior-methods-preserved"] : []),
+  ];
+}
+
 function cloneMethod(method: AliceMethod): AliceMethod {
   return JSON.parse(JSON.stringify(method)) as AliceMethod;
 }
@@ -520,10 +541,80 @@ function renameTypeDefinition(type: AliceTypeDefinition, nextName: string): Alic
   const originalName = type.name;
   const renamed = cloneType(type);
   renamed.name = nextName;
+  renamed.fields = renamed.fields?.map((field) => ({
+    ...field,
+    typeName: field.typeName === originalName ? nextName : field.typeName,
+  }));
+  renamed.methods = renamed.methods?.map((method) => renameMethodTypeReferences(method, originalName, nextName));
   renamed.constructors = renamed.constructors?.map((constructorMethod) => ({
-    ...constructorMethod,
+    ...renameMethodTypeReferences(constructorMethod, originalName, nextName),
     name: constructorMethod.name === originalName ? nextName : constructorMethod.name,
-    returnType: constructorMethod.returnType === originalName ? nextName : constructorMethod.returnType,
   }));
   return renamed;
+}
+
+function renameMethodTypeReferences(
+  method: AliceMethod,
+  originalName: string,
+  nextName: string,
+): AliceMethod {
+  return {
+    ...method,
+    returnType: method.returnType === originalName ? nextName : method.returnType,
+    parameters: method.parameters.map((parameter) => ({
+      ...parameter,
+      type: parameter.type === originalName ? nextName : parameter.type,
+    })),
+    statements: method.statements.map((statement) =>
+      renameStatementTypeReferences(statement, originalName, nextName)
+    ),
+  };
+}
+
+function renameStatementTypeReferences(
+  statement: AliceStatement,
+  originalName: string,
+  nextName: string,
+): AliceStatement {
+  const renamed: AliceStatement = {
+    ...statement,
+    ...(statement.varType === originalName ? { varType: nextName } : {}),
+    ...(statement.itemType === originalName ? { itemType: nextName } : {}),
+    ...(statement.catchType === originalName ? { catchType: nextName } : {}),
+  };
+  if (statement.body) {
+    renamed.body = renameStatementList(statement.body, originalName, nextName);
+  }
+  if (statement.ifBody) {
+    renamed.ifBody = renameStatementList(statement.ifBody, originalName, nextName);
+  }
+  if (statement.elseBody) {
+    renamed.elseBody = renameStatementList(statement.elseBody, originalName, nextName);
+  }
+  if (statement.tryBody) {
+    renamed.tryBody = renameStatementList(statement.tryBody, originalName, nextName);
+  }
+  if (statement.catchBody) {
+    renamed.catchBody = renameStatementList(statement.catchBody, originalName, nextName);
+  }
+  if (statement.cases) {
+    renamed.cases = statement.cases.map((entry) => ({
+      ...entry,
+      body: renameStatementList(entry.body, originalName, nextName),
+    }));
+  }
+  if (statement.defaultCase) {
+    renamed.defaultCase = renameStatementList(statement.defaultCase, originalName, nextName);
+  }
+  return renamed;
+}
+
+function renameStatementList(
+  statements: AliceStatement[],
+  originalName: string,
+  nextName: string,
+): AliceStatement[] {
+  return statements.map((statement) =>
+    renameStatementTypeReferences(statement, originalName, nextName)
+  );
 }

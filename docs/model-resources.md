@@ -285,8 +285,8 @@ The `JointNode` type in the parser is richer than the existing `JointId` in
 A future integration step will populate `SJointedModel` joint data from
 `JointNode` trees.
 
-[PLANNED] Issue #221 imported model assets use `modelResourceId` scene bindings
-and the open-asset pipeline to resolve project-owned model bytes at render time.
+Imported model assets use `modelResourceId` scene bindings and the open-asset
+pipeline to resolve project-owned model bytes at render time.
 
 ## Limitations
 
@@ -303,7 +303,7 @@ and the open-asset pipeline to resolve project-owned model bytes at render time.
 - **Texture discovery is best-effort.** Textures embedded in binary model
   formats (not as separate ZIP entries or XML references) are not discovered.
 
-## [PLANNED] Imported project assets
+## Imported project assets
 
 Project-owned imports use resource IDs in Alice state and archive paths in
 Project IO:
@@ -313,8 +313,8 @@ Project IO:
 | Model | `project/models/<assetId>` | `resources/models/<assetId>` |
 | Texture | `project/textures/<assetId>` | `resources/textures/<assetId>` |
 
-Scene objects will reference imported models with `modelResourceId` and textures
-with `materialBindings[{ target: "surface", textureResourceId }]`.
+Scene objects reference imported models with `modelResourceId` and textures with
+`materialBindings[{ target: "surface", textureResourceId }]`.
 
-See [[PLANNED] Imported model and texture assets](./imported-models-and-textures.md)
-for the complete contract.
+See [Imported model and texture assets](./imported-models-and-textures.md) for
+the complete contract.

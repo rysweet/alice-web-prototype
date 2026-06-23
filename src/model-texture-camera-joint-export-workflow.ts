@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-import JSZip from "jszip";
 import type { AliceProject } from "./a3p-parser.js";
 import {
   createDefaultCameraWorkflowState,
@@ -47,11 +45,14 @@ export const SUPPORTED_MODEL_EXTENSIONS = [".glb", ".gltf"] as const;
 export const SUPPORTED_TEXTURE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"] as const;
 
 export function createWorkflowState(input: { readonly project: AliceProject }): WorkflowState {
+  const project = cloneProject(input.project);
   return {
-    project: cloneProject(input.project),
+    project,
     resources: [],
-    textureAssignments: [],
-    cameraWorkflow: createDefaultCameraWorkflowState(),
+    textureAssignments: (project.textureAssignments ?? []).map((assignment) => ({ ...assignment })),
+    cameraWorkflow: project.cameraWorkflow
+      ? validateCameraWorkflowState(project.cameraWorkflow)
+      : createDefaultCameraWorkflowState(),
   };
 }
 
@@ -63,7 +64,7 @@ export async function importModelAsset(
     kind: "model",
     fileName: input.fileName,
     bytes: copyBytes(input.bytes),
-  }, state.project.importedAssets ?? []);
+  }, state.project.importedAssets ?? [], state.resources.map((resource) => resource.path));
   const project = cloneProject(state.project);
   project.importedAssets = [...(project.importedAssets ?? []), creation.asset];
 
@@ -99,7 +100,7 @@ export async function importTextureAsset(
     kind: "texture",
     fileName: input.fileName,
     bytes: copyBytes(input.bytes),
-  }, state.project.importedAssets ?? []);
+  }, state.project.importedAssets ?? [], state.resources.map((resource) => resource.path));
   const project = cloneProject(state.project);
   project.importedAssets = [...(project.importedAssets ?? []), creation.asset];
 
@@ -228,26 +229,17 @@ export async function exportWebPackage(
   options: ProjectExport.WebPackageOptions = {},
 ): Promise<ProjectExport.ExportedWebPackage> {
   const project = projectPayload(state);
-  const exported = await ProjectExport.exportWebPackage(project, options);
-  const zip = await JSZip.loadAsync(Buffer.from(exported.package.base64, "base64"));
-  for (const resource of state.resources) {
-    zip.file(resource.path, copyBytes(resource.bytes));
-  }
-  zip.file("project/project.json", JSON.stringify(project, null, 2));
-  const archive = await zip.generateAsync({
-    type: "uint8array",
-    compression: "DEFLATE",
-    compressionOptions: { level: 9 },
+  return ProjectExport.exportWebPackage(project, {
+    ...options,
+    resources: [
+      ...(options.resources ?? []),
+      ...state.resources.map((resource) => ({
+        path: resource.path,
+        bytes: copyBytes(resource.bytes),
+        mimeType: resource.mimeType,
+      })),
+    ],
   });
-  return {
-    ...exported,
-    package: {
-      ...exported.package,
-      base64: Buffer.from(archive).toString("base64"),
-      sizeBytes: archive.byteLength,
-      sha256: createHash("sha256").update(archive).digest("hex"),
-    },
-  };
 }
 
 export async function generateShareArtifacts(

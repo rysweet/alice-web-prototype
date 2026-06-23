@@ -1,0 +1,40 @@
+# Level 3: Alice HowTo parity audit CLI
+# Tests the standalone audit command without starting the REST API server.
+
+scenario:
+  name: "Alice HowTo parity audit CLI"
+  description: |
+    Verifies the alice-web CLI can build and run the saved Alice.org HowTo
+    parity audit, write temporary JSON evidence, and preserve Alice identity,
+    the exact comparison baseline, HowTo coverage scope, and wording rules.
+  metadata:
+    flow: cli-only
+  type: cli
+  level: 3
+
+  tags: [alice, audit, howto, cli-only]
+
+  agents:
+    - name: cli
+      type: cli
+
+  prerequisites:
+    - "npm dependencies have been installed"
+
+  steps:
+    - name: "Run Alice HowTo parity audit CLI"
+      agent: cli
+      action: execute
+      target: >-
+        bash -lc 'set -euo pipefail;
+        if [ -z "${NODE_OPTIONS:-}" ]; then export NODE_OPTIONS=--max-old-space-size=32768; fi;
+        npm run build:server;
+        AUDIT_DIR="$(mktemp -d)";
+        case "$AUDIT_DIR" in (""|"/"|".") echo "unsafe AUDIT_DIR: $AUDIT_DIR" >&2; exit 2;; esac;
+        AUDIT_JSON="$AUDIT_DIR/alice-howto-parity-audit.json";
+        cleanup() { status=$?; rm -rf "$AUDIT_DIR"; exit "$status"; };
+        trap cleanup EXIT;
+        node dist-server/cli.js alice-howto-parity-audit --output "$AUDIT_JSON";
+        node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); const text=JSON.stringify(d); if (d.schemaVersion !== \"alice-web.howto-parity-audit/v1\") throw new Error(\"schemaVersion drift\"); if (d.command !== \"alice-howto-parity-audit\") throw new Error(\"command drift\"); if (d.product !== \"Alice\") throw new Error(\"product identity drift\"); if (d.runtime !== \"alice-web\") throw new Error(\"runtime identity drift\"); if (d.baseline !== \"rysweet/RabbitHole origin/develop\") throw new Error(\"baseline drift\"); if ((text.match(/RabbitHole/g) || []).length !== 1) throw new Error(\"baseline token must appear exactly once\"); if (d.source?.inventory !== \"src/server/alice-howto-parity-inventory.ts\") throw new Error(\"inventory source drift\"); if (d.source?.inventoryCount !== 54) throw new Error(\"inventory count drift\"); if (d.scope?.name !== \"Alice.org HowTo coverage\") throw new Error(\"scope drift\"); if (!Array.isArray(d.scope?.included) || d.scope.included.length === 0) throw new Error(\"scope inclusions missing\"); if (!Array.isArray(d.scope?.excluded)) throw new Error(\"scope exclusions missing\"); const checks=Array.isArray(d.checks) ? d.checks : []; for (const id of [\"alice-identity\", \"baseline-only\", \"howto-inventory\", \"scenario-traceability\", \"coverage-evidence\", \"wording\"]) { const check=checks.find((item)=>item.id === id); if (!check || check.status !== \"passed\") throw new Error(id + \" check failed\"); } if (d.summary?.status !== \"passed\" || d.summary?.failed !== 0) throw new Error(\"audit summary failed\"); for (const term of [\"LookingGlass\", \"alice-web-prototype\", \"launch-only\", \"launch only\", \"server parity\", \"browser parity\", \"full Alice parity\", \"retcon\", \"merge-ready\", \"quality-audit\", \"agentic\", \"L3\", \"harness\", \"fixture\"]) { if (text.includes(term)) throw new Error(\"forbidden audit evidence term: \" + term); }" "$AUDIT_JSON"'
+      timeout: 60000
+      expected: ""

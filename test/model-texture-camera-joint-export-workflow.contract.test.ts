@@ -191,6 +191,45 @@ describe("model, texture, camera, joint, and export workflow contract", () => {
     expect(initial.cameraWorkflow).toEqual(CameraWorkflow.createDefaultCameraWorkflowState());
   });
 
+  it("initializes workflow camera state from saved projects", () => {
+    const api = getWorkflowApi();
+    const project = createRobotProject();
+    const savedCamera = CameraWorkflow.applyCameraPreset(
+      CameraWorkflow.createDefaultCameraWorkflowState(),
+      "isometric",
+    );
+    project.cameraWorkflow = CameraWorkflow.saveCameraMarker(savedCamera, { name: "Saved authoring view" });
+
+    const initial = api.createWorkflowState({ project });
+
+    expect(initial.cameraWorkflow.camera.activePreset).toBe("isometric");
+    expect(initial.cameraWorkflow.markers).toEqual([
+      expect.objectContaining({ name: "Saved authoring view" }),
+    ]);
+  });
+
+  it("initializes workflow texture assignments from saved projects", () => {
+    const api = getWorkflowApi();
+    const project = createRobotProject();
+    project.textureAssignments = [
+      {
+        objectName: "robot",
+        texturePath: "resources/textures/saved-robot.png",
+        materialName: "body",
+      },
+    ];
+
+    const initial = api.createWorkflowState({ project });
+
+    expect(initial.textureAssignments).toEqual([
+      {
+        objectName: "robot",
+        texturePath: "resources/textures/saved-robot.png",
+        materialName: "body",
+      },
+    ]);
+  });
+
   it("imports model and texture assets immutably under safe archive paths", async () => {
     const api = getWorkflowApi();
     const initial = api.createWorkflowState({ project: createRobotProject() });
@@ -230,6 +269,44 @@ describe("model, texture, camera, joint, and export workflow contract", () => {
         materialName: "body",
       },
     ]);
+  });
+
+  it("deduplicates imports against descriptor-less workflow resources", async () => {
+    const api = getWorkflowApi();
+    const initial: WorkflowState = {
+      ...api.createWorkflowState({ project: createRobotProject() }),
+      resources: [
+        {
+          kind: "model",
+          path: "resources/models/robot.gltf",
+          fileName: "robot.gltf",
+          mimeType: "model/gltf+json",
+          bytes: createTriangleGltfBytes(),
+        },
+        {
+          kind: "texture",
+          path: "resources/textures/robot.png",
+          fileName: "robot.png",
+          mimeType: "image/png",
+          bytes: createPngBytes(),
+        },
+      ],
+    };
+
+    const withModel = await api.importModelAsset(initial, {
+      fileName: "robot.gltf",
+      bytes: createTriangleGltfBytes(),
+      objectName: "robot",
+    });
+    const withTexture = await api.importTextureAsset(withModel, {
+      fileName: "robot.png",
+      bytes: createPngBytes(),
+    });
+
+    expect(withModel.resources.map((resource) => resource.path)).toContain("resources/models/robot-2.gltf");
+    expect(withModel.project.sceneObjects.find((object) => object.name === "robot")?.modelResourceId)
+      .toBe("project/models/robot-2.gltf");
+    expect(withTexture.resources.map((resource) => resource.path)).toContain("resources/textures/robot-2.png");
   });
 
   it("keeps the active project unchanged when import validation fails", async () => {
@@ -321,6 +398,10 @@ describe("model, texture, camera, joint, and export workflow contract", () => {
       "share.json",
       "validation.json",
     ]));
+    const html = await zip.file("index.html")!.async("string");
+    expect(html).toContain("alice-export-resources");
+    expect(html).toContain("resources/models/robot.gltf");
+    expect(html).toContain("resources/textures/robot.png");
 
     const projectPayload = JSON.parse(await zip.file("project/project.json")!.async("string")) as Record<string, unknown>;
     expect(projectPayload).toMatchObject({

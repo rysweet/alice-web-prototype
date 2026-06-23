@@ -12,8 +12,10 @@ scenario:
     ProjectImp.save() and modifyAndWriteA3P pipeline.
   type: cli
   level: 3
+  metadata:
+    flow: server-flow
 
-  tags: [alice, integration, save, export, roundtrip, java-parity]
+  tags: [alice, integration, save, export, roundtrip, java-parity, server-flow]
 
   agents:
     - name: cli

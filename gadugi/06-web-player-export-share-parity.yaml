@@ -10,8 +10,10 @@ scenario:
     the package, and confirm invalid package input fails explicitly.
   type: cli
   level: 3
+  metadata:
+    flow: server-flow
 
-  tags: [alice, integration, web-player, export, share, validation]
+  tags: [alice, integration, web-player, export, share, validation, server-flow]
 
   agents:
     - name: cli

@@ -34,8 +34,9 @@ The `<assetId>` segment is derived from the uploaded filename:
 3. Lowercase the stem, replace runs outside `[a-z0-9]` with `-`, collapse
    repeated `-`, and trim leading or trailing `-`.
 4. Reject the upload if the sanitized stem is empty.
-5. If the project already contains the generated ID, append `-2`, `-3`, and so
-   on before the extension.
+5. If the project already contains the generated ID or archive resource path,
+   append `-2`, `-3`, and so on before the extension. This protects older
+   projects that have resource bytes but no `importedAssets` descriptor yet.
 
 Examples:
 
@@ -96,11 +97,19 @@ object. Unsupported material targets return a validation error.
 
 ## Archive and XML persistence
 
-Project IO stores binary bytes in the archive resource map:
+Project IO stores binary bytes in the archive resource map. Use
+`createImportedProjectAsset(upload, importedAssets, archive.resources.keys())`
+or equivalent server/workflow helpers so descriptor-less archive resources are
+included in filename dedupe:
 
 ```typescript
-archive.resources.set("resources/models/moon-rover.glb", modelBytes);
-archive.resources.set("resources/textures/checker.png", textureBytes);
+const model = createImportedProjectAsset(
+  { kind: "model", fileName: "moon-rover.glb", bytes: modelBytes },
+  archive.project.importedAssets ?? [],
+  archive.resources.keys(),
+);
+archive.project.importedAssets = [...(archive.project.importedAssets ?? []), model.asset];
+archive.resources.set(model.archivePath, model.resourceBytes);
 ```
 
 `programType.xml` carries the project metadata and scene bindings:
@@ -186,7 +195,8 @@ The local server exposes JSON base64 upload routes for issue #221.
 Asset import endpoints need a body limit larger than the current general JSON
 limit; the route limit is 25 MiB for
 `/api/assets/import-model` and `/api/assets/import-texture`. Project IO's archive
-size limit still applies after decoding.
+size limit applies when reading `.a3p` archives, not as an additional decoded
+payload limit on these upload routes.
 
 Mutating requests use the same local authentication boundary as the rest of the
 API:
@@ -288,7 +298,7 @@ Response:
 | `400` | `textureResourceId` or `modelResourceId` does not exist in `importedAssets` |
 | `400` | `target` is not `"surface"` |
 | `404` | `objectName` does not match a scene object |
-| `413` | Encoded request body exceeds the asset-route body limit, or decoded resources exceed the Project IO archive limit |
+| `413` | Encoded request body exceeds the asset-route body limit |
 
 ## Configuration
 

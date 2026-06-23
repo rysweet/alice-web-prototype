@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import JSZip from "jszip";
+import { assertNoDuplicateZipEntries } from "../zip-entry-validation.js";
 import { ProjectIoError } from "../project-io.js";
 import {
   MAX_EXTRACT_SIZE,
@@ -51,6 +52,26 @@ describe("project-io/archive-zip", () => {
       "programType.xml",
       "resources/data/config.json",
     ]);
+  });
+
+  it("validates ZIP central-directory entries without relying on Node Buffer globals", async () => {
+    const data = await createZip({
+      "programType.xml": "<node />",
+      "resources/data/config.json": new Uint8Array([1, 2, 3]),
+    });
+    const originalBuffer = globalThis.Buffer;
+    try {
+      Reflect.deleteProperty(globalThis, "Buffer");
+
+      expect(() => assertNoDuplicateZipEntries(data)).not.toThrow();
+    } finally {
+      Object.defineProperty(globalThis, "Buffer", {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: originalBuffer,
+      });
+    }
   });
 
   it("rejects unsafe archive entries during safe enumeration", async () => {

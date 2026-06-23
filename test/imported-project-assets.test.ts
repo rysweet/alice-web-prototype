@@ -42,6 +42,7 @@ interface ImportedProjectAssetsModule {
   createImportedProjectAsset(
     upload: ImportedAssetUpload,
     existingAssets?: ImportedProjectAsset[],
+    existingArchivePaths?: Iterable<string>,
   ): ImportedAssetCreation;
   projectResourceIdToArchivePath(projectResourceId: string): string;
   applySurfaceTextureBinding<T extends SceneObjectLike>(
@@ -113,6 +114,20 @@ describe("imported project asset records", () => {
       contentType: "image/png",
       byteLength: PNG_BYTES.byteLength,
     });
+  });
+
+  it("deduplicates against existing archive resources without imported asset descriptors", async () => {
+    const { createImportedProjectAsset } = await loadImportedProjectAssetsModule();
+
+    const result = createImportedProjectAsset({
+      kind: "texture",
+      fileName: "checker.png",
+      bytes: PNG_BYTES,
+    }, [], ["resources/textures/checker.png"]);
+
+    expect(result.projectResourceId).toBe("project/textures/checker-2.png");
+    expect(result.archivePath).toBe("resources/textures/checker-2.png");
+    expect(result.asset.resourcePath).toBe("resources/textures/checker-2.png");
   });
 
   it("maps project resource IDs to archive resource paths", async () => {

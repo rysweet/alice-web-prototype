@@ -23,7 +23,11 @@ same value as `X-Alice-Local-Api-Token`.
 
 Read-only `GET /api/audio/formats` does not require launch or the local API
 token. `GET /api/audio/state` uses the same local API token as the camera state
-routes when the server is started with `--api-token`.
+routes when the server is started with `--api-token`. Runtime parity read routes
+(`/api/vr/camera-comfort`, `/api/accessibility/rescue-camera-captions`,
+`/api/review/gallery-walk-rubric`, and `/api/review/runtime-parity`) always
+require `X-Alice-Local-Api-Token` and fail closed with `401` if no token is
+configured.
 
 ## Endpoint summary
 
@@ -59,7 +63,7 @@ implemented export/share routes. `/api/audio/*` exposes the audio workflow; see
 | `/api/audio/assets` | `POST` | Register a base64-encoded audio asset |
 | `/api/audio/background` | `POST` | Select a registered asset as background music |
 | `/api/audio/cues` | `POST` | Add an animation-timed audio cue |
-| `/api/audio/evidence` | `POST` | Write audio workflow proof evidence |
+| `/api/audio/evidence` | `POST` | Write bounded audio workflow evidence |
 | `/api/world/run` | `POST` | Run the cached project through the Tweedle VM |
 | `/api/screenshot` | `POST` | Render the current scene to a PNG file |
 | `/api/camera/state` | `GET` | Read the active camera workflow state |
@@ -74,6 +78,10 @@ implemented export/share routes. `/api/audio/*` exposes the audio workflow; see
 | `/api/camera/markers` | `POST` | Save a camera marker |
 | `/api/camera/markers/:id/restore` | `POST` | Restore a camera marker |
 | `/api/camera/markers/:id` | `DELETE` | Delete a camera marker |
+| `/api/vr/camera-comfort` | `GET` | Read token-protected browser camera and bounded VR comfort evidence |
+| `/api/accessibility/rescue-camera-captions` | `GET` | Read token-protected accessibility caption evidence for the current scene |
+| `/api/review/gallery-walk-rubric` | `GET` | Read token-protected gallery review and rubric evidence |
+| `/api/review/runtime-parity` | `GET` | Read token-protected combined runtime parity evidence |
 | `/api/events/register` | `POST` | Register an event handler |
 | `/api/events/fire` | `POST` | Fire an event and report which handlers ran |
 
@@ -297,9 +305,9 @@ Example response:
 ```
 
 Validation rejects missing fields, invalid base64, empty decoded bytes, unsafe
-filenames, unsupported extensions, and decoded resources that exceed Project
-IO's archive size limit. Duplicate asset IDs get `-2`, `-3`, and later suffixes
-before the extension.
+filenames, and unsupported extensions. The route rejects encoded request bodies
+over its JSON upload limit. Duplicate asset IDs or existing descriptor-less
+archive resource paths get `-2`, `-3`, and later suffixes before the extension.
 
 ## `POST /api/assets/import-texture`
 
@@ -341,9 +349,9 @@ Example response:
 ```
 
 Validation rejects missing fields, invalid base64, empty decoded bytes, unsafe
-filenames, unsupported extensions, and decoded resources that exceed Project
-IO's archive size limit. Duplicate asset IDs get `-2`, `-3`, and later suffixes
-before the extension.
+filenames, and unsupported extensions. The route rejects encoded request bodies
+over its JSON upload limit. Duplicate asset IDs or existing descriptor-less
+archive resource paths get `-2`, `-3`, and later suffixes before the extension.
 
 ## `POST /api/scene/apply-texture`
 
@@ -605,6 +613,7 @@ Request body:
 | `title` | `string` | no | Human-readable title for manifest, player metadata, and share metadata |
 | `description` | `string` | no | Human-readable project summary |
 | `canonicalUrl` | `string` | no | Public `http` or `https` URL for the shared project page |
+| `teacher` | `object` | no | Teacher sharing metadata. Optional fields: `audience`, `lessonFocus`, `attribution`, `remix` (`allowed`, `with-attribution`, `not-allowed`), `tags`, and `standards` |
 
 Example response:
 
@@ -614,7 +623,7 @@ Example response:
   "status": "exported",
   "runtime": "alice-web",
   "package": {
-    "filename": "WinterStory.alice-web.zip",
+    "filename": "winter-story.alice-web.zip",
     "mimeType": "application/zip",
     "sizeBytes": 24576,
     "sha256": "8ad0e9b4f5d8f2d3b30f6d3f6f0f4e6d4f3b2a1900e4c4a1f03f7c2cb72f47cc",
@@ -628,7 +637,12 @@ Example response:
     "entrypoint": "index.html",
     "preview": "preview.png",
     "share": "share.json",
-    "validation": "validation.json"
+    "validation": "validation.json",
+    "project": "project/project.json",
+    "package": {
+      "filename": "winter-story.alice-web.zip",
+      "mimeType": "application/zip"
+    }
   },
   "artifacts": {
     "entrypoint": "index.html",
@@ -670,6 +684,8 @@ runtime, API, player, manifest, share, or validation metadata.
 Web-package feature contract: create share artifacts from an exported package.
 The server validates `packageBase64` before generating the share response, then
 links the package by filename, byte size, and SHA-256 digest.
+Package filenames are accepted only when the validated package manifest contains
+a safe filename without directory traversal.
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/project/share \
@@ -686,6 +702,7 @@ Request body:
 | `title` | `string` | no | Share title override |
 | `description` | `string` | no | Share description override |
 | `canonicalUrl` | `string` | no | Public `http` or `https` URL for the share page |
+| `teacher` | `object` | no | Teacher sharing metadata override. Optional fields: `audience`, `lessonFocus`, `attribution`, `remix` (`allowed`, `with-attribution`, `not-allowed`), `tags`, and `standards` |
 
 Example response:
 
@@ -700,15 +717,21 @@ Example response:
     "runtimeIdentity": "alice-web-player",
     "title": "Winter Story",
     "description": "A snow scene with a bunny.",
+    "preview": "preview.png",
     "package": {
-      "filename": "WinterStory.alice-web.zip",
+      "filename": "winter-story.alice-web.zip",
       "mimeType": "application/zip",
       "sizeBytes": 24576,
       "sha256": "8ad0e9b4f5d8f2d3b30f6d3f6f0f4e6d4f3b2a1900e4c4a1f03f7c2cb72f47cc"
     },
+    "delivery": {
+      "mode": "browser-download-fallback",
+      "nativeWebShare": false,
+      "requiresUserDownload": true
+    },
     "links": {
       "html": "index.html",
-      "package": "WinterStory.alice-web.zip",
+      "package": "winter-story.alice-web.zip",
       "preview": "preview.png"
     }
   },
@@ -716,7 +739,7 @@ Example response:
     "share": "share.json",
     "preview": "preview.png",
     "entrypoint": "index.html",
-    "package": "WinterStory.alice-web.zip"
+    "package": "winter-story.alice-web.zip"
   },
   "validation": {
     "valid": true,
@@ -755,15 +778,25 @@ Valid response:
   "valid": true,
   "runtime": "alice-web",
   "package": {
-    "filename": "WinterStory.alice-web.zip",
+    "filename": "winter-story.alice-web.zip",
     "mimeType": "application/zip",
     "sizeBytes": 24576,
     "sha256": "8ad0e9b4f5d8f2d3b30f6d3f6f0f4e6d4f3b2a1900e4c4a1f03f7c2cb72f47cc"
   },
   "manifest": {
     "schemaVersion": "alice-web.package/v1",
+    "product": "Alice",
+    "packageName": "alice-web",
     "runtimeIdentity": "alice-web-player",
-    "entrypoint": "index.html"
+    "entrypoint": "index.html",
+    "preview": "preview.png",
+    "share": "share.json",
+    "validation": "validation.json",
+    "project": "project/project.json",
+    "package": {
+      "filename": "winter-story.alice-web.zip",
+      "mimeType": "application/zip"
+    }
   },
   "evidence": [
     "base64-decodes",
@@ -788,7 +821,7 @@ Invalid packages return HTTP `400` with explicit validation errors:
   "errors": [
     {
       "code": "missing-required-file",
-      "message": "Package is missing index.html.",
+      "message": "index.html is required",
       "path": "index.html"
     }
   ],
@@ -798,8 +831,9 @@ Invalid packages return HTTP `400` with explicit validation errors:
 
 Validation rejects malformed base64, empty packages, unreadable ZIP data,
 absolute paths, parent traversal, backslash traversal, duplicate required
-entries, excessive package size, excessive file count, missing required files,
-wrong schema identity, wrong runtime identity, unsafe `canonicalUrl` values, and
+entries, encoded path controls, missing required files, unsafe package
+filenames, wrong schema identity, wrong runtime identity, package/share link
+mismatches, unsupported share delivery modes, unsafe `canonicalUrl` values, and
 generated metadata that uses repository nickname identity.
 
 ## `GET /api/projects/current/export/typescript`
@@ -1025,7 +1059,7 @@ once when the named animation timeline reaches or crosses the configured time.
 
 ## `POST /api/audio/evidence`
 
-Write the audio workflow proof artifact.
+Write the bounded audio workflow evidence artifact.
 
 ```bash
 curl -X POST http://127.0.0.1:3000/api/audio/evidence \
@@ -1039,7 +1073,7 @@ Request body:
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | `savedProjectArtifact` | `string` | no | Saved project artifact name to record in evidence |
-| `reloaded` | `boolean` | no | Whether the proof was collected after reloading a saved project |
+| `reloaded` | `boolean` | no | Whether the evidence was collected after reloading a saved project |
 
 Example response:
 
@@ -1059,6 +1093,7 @@ Evidence artifact shape:
   "timestamp": 1710000000000,
   "source": "alice-web",
   "status": "proved",
+  "support_level": "metadata-and-playback-bridge",
   "supported_formats": [".mp3", ".wav", ".ogg", ".m4a"],
   "asset_count": 1,
   "asset_names": ["intro.wav"],
@@ -1067,8 +1102,17 @@ Evidence artifact shape:
   "cue_ids": ["intro-cue"],
   "saved_project_artifact": "saved-project.a3p",
   "reloaded": true,
+  "playback": {
+    "mode": "simulated-output-bridge",
+    "native_audio_playback": false,
+    "background_music_started": true,
+    "triggered_cue_ids": ["intro-cue"],
+    "synchronized_animation_ids": ["scene.myFirstMethod"]
+  },
   "doesNotClaim": [
-    "audible speaker output in the test environment",
+    "native audio playback",
+    "real speaker output in the browser or operating system",
+    "full audio authoring pipeline",
     "native desktop audio stack coverage",
     "visible rendering correctness"
   ]
