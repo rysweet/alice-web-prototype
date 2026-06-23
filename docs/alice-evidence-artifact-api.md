@@ -180,31 +180,31 @@ Share outcomes are `prepared`, `completed`, or `unavailable`.
 interface AliceCameraVrComfortEvidence {
   schema_version: "alice.camera-vr-comfort-evidence/v1";
   status: "partial";
-  browserWebXrStatus: "supported" | "degraded" | "unsupported" | "unknown";
-  desktopCameraAvailable: boolean;
-  keyboardMovementAvailable: boolean;
-  reducedMotionRespected: boolean;
+  browserWebXrStatus?: "supported" | "degraded" | "unsupported" | "unknown";
+  desktopCameraAvailable?: boolean;
+  keyboardMovementAvailable?: boolean;
+  reducedMotionRespected?: boolean;
   trueHeadsetVrSupported: false;
   nativeVrSupported: false;
-  cameraMode: string;
-  evidenceCodes: string[];
-  comfortChecks: {
-    discreteMovementStep: boolean;
-    stableHorizon: boolean;
-    noForcedHeadset: boolean;
+  cameraMode?: string;
+  evidenceCodes?: string[];
+  comfortChecks?: {
+    discreteMovementStep?: boolean;
+    stableHorizon?: boolean;
+    noForcedHeadset?: boolean;
   };
-  unsupportedReason: string;
+  unsupportedReason?: string;
 }
 
 interface AliceAccessibilityCaptionsEvidence {
   schema_version: "alice.accessibility-rescue-camera-captions/v1";
   status: "partial";
-  ariaLiveCaption: string;
-  cameraCaption: string;
-  objectCaption: string;
-  keyboardReviewAvailable: boolean;
-  highContrastReviewAvailable: boolean;
-  captionChecks: {
+  ariaLiveCaption?: string;
+  cameraCaption?: string;
+  objectCaption?: string;
+  keyboardReviewAvailable?: boolean;
+  highContrastReviewAvailable?: boolean;
+  captionChecks?: {
     id: string;
     present: boolean;
     channel: "aria-live" | "visible-text";
@@ -215,19 +215,19 @@ interface AliceAccessibilityCaptionsEvidence {
 interface AliceGalleryReviewEvidence {
   schema_version: "alice.gallery-walk-rubric-evidence/v1";
   status: "partial";
-  projectName: string;
-  galleryItemCount: number;
-  reviewWorkflowSupported: boolean;
-  rubricRecordingSupported: boolean;
+  projectName?: string;
+  galleryItemCount?: number;
+  reviewWorkflowSupported?: boolean;
+  rubricRecordingSupported?: boolean;
   liveStudioSupported: false;
-  unsupportedLiveStudioReason: string;
-  rubric: {
+  unsupportedLiveStudioReason?: string;
+  rubric?: {
     id: string;
     label: string;
     maxScore: number;
     evidenceRequired: string;
   }[];
-  galleryItems: {
+  galleryItems?: {
     id: string;
     title: string;
     reviewPrompt: string;
@@ -241,10 +241,13 @@ interface AliceEvidenceRuntimeReview {
 }
 ```
 
-These fields are deterministic and browser-safe. They record availability,
-counts, fixed labels, selected gallery names, and review prompts. They do not
-record camera frames, audio, raw user transcript text, tokens, local paths,
-permission internals, cookies, or backend data.
+These fields are deterministic and browser-safe. Runtime review sections are
+optional, sanitized, and bounded: parse/serialize helpers drop undocumented
+nested fields, known arrays are capped by implementation constants, and known
+strings are truncated. They record availability, counts, fixed labels, selected
+gallery names, and review prompts. They do not record camera frames, audio, raw
+user transcript text, tokens, local paths, permission internals, cookies, or
+backend data.
 
 ## Validation rules
 
@@ -256,7 +259,7 @@ permission internals, cookies, or backend data.
 | Run | ID is non-empty; capture time parses as a timestamp |
 | Visible behavior | Status, viewport, camera, and at least one object are required |
 | Objects | Name, type name, visibility, and finite position values are required |
-| Runtime review | Optional `runtimeReview` sections are objects when present |
+| Runtime review | Optional `runtimeReview` sections are sanitized to documented fields when present |
 | Camera/VR comfort | `runtimeReview.cameraVrComfort` records browser camera evidence; `trueHeadsetVrSupported` and `nativeVrSupported` are always `false` |
 | Accessibility/captions | `runtimeReview.accessibilityRescueCaptions` records aria-live, camera, and scene-object captions plus keyboard/high-contrast review booleans |
 | Gallery/review | `runtimeReview.galleryWalkRubric` records gallery item count, rubric support, and `liveStudioSupported: false` |

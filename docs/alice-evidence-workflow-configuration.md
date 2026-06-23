@@ -70,7 +70,8 @@ Alice uses safe defaults when browser capability information is missing:
 
 | Capability | Default evidence |
 | --- | --- |
-| `navigator.xr` missing or unsupported | `runtimeReview.cameraVrComfort.browserWebXrStatus: "unsupported"` and visible desktop camera fallback |
+| No browser WebXR report is available to the server route | `runtimeReview.cameraVrComfort.browserWebXrStatus: "unknown"` and visible desktop camera fallback |
+| Browser WebXR detection runs and finds `navigator.xr` missing or unsupported | `runtimeReview.cameraVrComfort.browserWebXrStatus: "unsupported"` and visible desktop camera fallback |
 | Reduced-motion media query unavailable | `reducedMotionRespected: true` when Alice avoids motion-heavy auto-start behavior |
 | Keyboard camera controls unavailable | `keyboardMovementAvailable: false` with visible status text |
 | Captions unavailable | `runtimeReview.accessibilityRescueCaptions.status: "partial"` with visible caption text |
