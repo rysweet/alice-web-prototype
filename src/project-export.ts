@@ -31,8 +31,9 @@ const WEB_PACKAGE_ARTIFACTS = {
 } as const;
 
 const REQUIRED_WEB_PACKAGE_FILES = Object.values(WEB_PACKAGE_ARTIFACTS);
-const FORBIDDEN_IDENTITY_RE = /LookingGlass|lookingglass|alice-standalone-player/;
+const FORBIDDEN_IDENTITY_RE = /LookingGlass|alice-standalone-player/i;
 const URL_CONTROL_OR_SPACE_RE = /[\u0000-\u0020\u007f]/u;
+const SAFE_PACKAGE_FILENAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*\.alice-web\.zip$/;
 
 export interface ProjectExportResource {
   path: string;
@@ -524,12 +525,44 @@ export async function validateWebPackage(input: ValidateWebPackageInput): Promis
     }
   }
 
-  const filename = manifest?.package?.filename ?? `${manifest?.packageName ?? ALICE_WEB_PACKAGE}.zip`;
-  if (!manifest?.package || manifest.package.filename !== filename || manifest.package.mimeType !== ZIP_MIME_TYPE) {
+  const manifestPackageFilename = manifest?.package?.filename;
+  const hasSafeManifestPackageFilename = typeof manifestPackageFilename === "string"
+    && isSafePackageFilename(manifestPackageFilename);
+  const filename = hasSafeManifestPackageFilename
+    ? manifestPackageFilename
+    : `${ALICE_WEB_PACKAGE}.zip`;
+  if (
+    !manifest?.package
+    || !hasSafeManifestPackageFilename
+    || manifest.package.filename !== filename
+    || manifest.package.mimeType !== ZIP_MIME_TYPE
+    || manifest.entrypoint !== WEB_PACKAGE_ARTIFACTS.entrypoint
+    || manifest.preview !== WEB_PACKAGE_ARTIFACTS.preview
+    || manifest.share !== WEB_PACKAGE_ARTIFACTS.share
+    || manifest.validation !== WEB_PACKAGE_ARTIFACTS.validation
+    || manifest.project !== WEB_PACKAGE_ARTIFACTS.project
+  ) {
     errors.push({
       code: "invalid-package-reference",
       message: "manifest package must include the validated ZIP filename and application/zip MIME type",
       path: WEB_PACKAGE_ARTIFACTS.manifest,
+    });
+  }
+  if (
+    share
+    && (
+      share.package?.filename !== filename
+      || share.package?.mimeType !== ZIP_MIME_TYPE
+      || share.links?.package !== filename
+      || share.links?.html !== WEB_PACKAGE_ARTIFACTS.entrypoint
+      || share.links?.preview !== WEB_PACKAGE_ARTIFACTS.preview
+      || share.preview !== WEB_PACKAGE_ARTIFACTS.preview
+    )
+  ) {
+    errors.push({
+      code: "invalid-share-package-reference",
+      message: "share package links must match the manifest package filename and fixed artifact paths",
+      path: WEB_PACKAGE_ARTIFACTS.share,
     });
   }
   return buildValidationResult(evidence, errors, {
@@ -923,7 +956,31 @@ function isSafeHttpUrl(value: string): boolean {
   if (URL_CONTROL_OR_SPACE_RE.test(value)) return false;
   try {
     const parsed = new URL(value);
-    return parsed.href === value && (parsed.protocol === "http:" || parsed.protocol === "https:");
+    return (parsed.protocol === "http:" || parsed.protocol === "https:")
+      && parsed.username === ""
+      && parsed.password === ""
+      && (parsed.href === value || isHostOnlyHttpUrlWithoutSlash(parsed, value));
+  } catch {
+    return false;
+  }
+}
+
+function isHostOnlyHttpUrlWithoutSlash(parsed: URL, value: string): boolean {
+  return parsed.href === `${value}/`
+    && parsed.pathname === "/"
+    && parsed.search === ""
+    && parsed.hash === ""
+    && !value.endsWith("/");
+}
+
+function isSafePackageFilename(value: string): boolean {
+  try {
+    const safe = assertSafeWritablePath(value);
+    return safe === value
+      && SAFE_PACKAGE_FILENAME_RE.test(value)
+      && !value.includes("/")
+      && !value.includes("\\")
+      && !URL_CONTROL_OR_SPACE_RE.test(value);
   } catch {
     return false;
   }

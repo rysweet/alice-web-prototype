@@ -341,10 +341,23 @@ function validateShareUrl(value: string): { ok: true } | { ok: false; error: str
   } catch {
     return { ok: false, error: "canonicalUrl must be a valid http or https URL" };
   }
-  if (parsed.href !== value || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
+  if (
+    (parsed.protocol !== "http:" && parsed.protocol !== "https:")
+    || parsed.username !== ""
+    || parsed.password !== ""
+    || (parsed.href !== value && !isHostOnlyHttpUrlWithoutSlash(parsed, value))
+  ) {
     return { ok: false, error: "canonicalUrl must be a valid http or https URL" };
   }
   return { ok: true };
+}
+
+function isHostOnlyHttpUrlWithoutSlash(parsed: URL, value: string): boolean {
+  return parsed.href === `${value}/`
+    && parsed.pathname === "/"
+    && parsed.search === ""
+    && parsed.hash === ""
+    && !value.endsWith("/");
 }
 
 function readRequiredPackageBase64(body: Record<string, unknown>):

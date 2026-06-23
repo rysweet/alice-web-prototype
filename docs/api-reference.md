@@ -592,7 +592,7 @@ Example response:
   "status": "exported",
   "runtime": "alice-web",
   "package": {
-    "filename": "WinterStory.alice-web.zip",
+    "filename": "winter-story.alice-web.zip",
     "mimeType": "application/zip",
     "sizeBytes": 24576,
     "sha256": "8ad0e9b4f5d8f2d3b30f6d3f6f0f4e6d4f3b2a1900e4c4a1f03f7c2cb72f47cc",
@@ -607,8 +607,9 @@ Example response:
     "preview": "preview.png",
     "share": "share.json",
     "validation": "validation.json",
+    "project": "project/project.json",
     "package": {
-      "filename": "WinterStory.alice-web.zip",
+      "filename": "winter-story.alice-web.zip",
       "mimeType": "application/zip"
     }
   },
@@ -683,15 +684,16 @@ Example response:
     "runtimeIdentity": "alice-web-player",
     "title": "Winter Story",
     "description": "A snow scene with a bunny.",
+    "preview": "preview.png",
     "package": {
-      "filename": "WinterStory.alice-web.zip",
+      "filename": "winter-story.alice-web.zip",
       "mimeType": "application/zip",
       "sizeBytes": 24576,
       "sha256": "8ad0e9b4f5d8f2d3b30f6d3f6f0f4e6d4f3b2a1900e4c4a1f03f7c2cb72f47cc"
     },
     "links": {
       "html": "index.html",
-      "package": "WinterStory.alice-web.zip",
+      "package": "winter-story.alice-web.zip",
       "preview": "preview.png"
     }
   },
@@ -699,7 +701,7 @@ Example response:
     "share": "share.json",
     "preview": "preview.png",
     "entrypoint": "index.html",
-    "package": "WinterStory.alice-web.zip"
+    "package": "winter-story.alice-web.zip"
   },
   "validation": {
     "valid": true,
@@ -738,17 +740,23 @@ Valid response:
   "valid": true,
   "runtime": "alice-web",
   "package": {
-    "filename": "WinterStory.alice-web.zip",
+    "filename": "winter-story.alice-web.zip",
     "mimeType": "application/zip",
     "sizeBytes": 24576,
     "sha256": "8ad0e9b4f5d8f2d3b30f6d3f6f0f4e6d4f3b2a1900e4c4a1f03f7c2cb72f47cc"
   },
   "manifest": {
     "schemaVersion": "alice-web.package/v1",
+    "product": "Alice",
+    "packageName": "alice-web",
     "runtimeIdentity": "alice-web-player",
     "entrypoint": "index.html",
+    "preview": "preview.png",
+    "share": "share.json",
+    "validation": "validation.json",
+    "project": "project/project.json",
     "package": {
-      "filename": "WinterStory.alice-web.zip",
+      "filename": "winter-story.alice-web.zip",
       "mimeType": "application/zip"
     }
   },
@@ -775,7 +783,7 @@ Invalid packages return HTTP `400` with explicit validation errors:
   "errors": [
     {
       "code": "missing-required-file",
-      "message": "Package is missing index.html.",
+      "message": "index.html is required",
       "path": "index.html"
     }
   ],
@@ -785,9 +793,9 @@ Invalid packages return HTTP `400` with explicit validation errors:
 
 Validation rejects malformed base64, empty packages, unreadable ZIP data,
 absolute paths, parent traversal, backslash traversal, duplicate required
-entries, excessive package size, excessive file count, missing required files,
-wrong schema identity, wrong runtime identity, unsafe `canonicalUrl` values, and
-generated metadata that uses repository nickname identity.
+entries, missing required files, wrong schema identity, wrong runtime identity,
+unsafe package filenames, package/share link mismatches, unsafe `canonicalUrl`
+values, and generated metadata that uses repository nickname identity.
 
 ## `GET /api/projects/current/export/typescript`
 
