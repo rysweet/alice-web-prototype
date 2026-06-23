@@ -28,16 +28,32 @@ export function registerSceneRoutes(app: Express, context: ServerContext): void 
       return;
     }
 
+    const modelResourceId = readOptionalStringField(body.body, "modelResourceId");
+    if (!modelResourceId.ok) {
+      res.status(400).json({ error: modelResourceId.error });
+      return;
+    }
+    if (modelResourceId.value !== undefined) {
+      const modelAsset = context.state.parsedProject?.importedAssets
+        ?.find((asset) => asset.id === modelResourceId.value);
+      if (!modelAsset || modelAsset.kind !== "model") {
+        res.status(400).json({ error: `Unknown modelResourceId: ${modelResourceId.value}` });
+        return;
+      }
+    }
+
     const objectName =
       name.value ?? className.value.split(".").pop()?.toLowerCase() ?? "object";
     context.state.sceneObjects.set(objectName, {
       name: objectName,
       className: className.value,
       position: { ...DEFAULT_POSITION },
+      ...(modelResourceId.value !== undefined ? { modelResourceId: modelResourceId.value } : {}),
     });
     addSceneObjectToCurrentProject(context.state, {
       name: objectName,
       className: className.value,
+      ...(modelResourceId.value !== undefined ? { modelResourceId: modelResourceId.value } : {}),
     });
 
     try {
@@ -57,6 +73,7 @@ export function registerSceneRoutes(app: Express, context: ServerContext): void 
       status: "added",
       objectName,
       className: className.value,
+      ...(modelResourceId.value !== undefined ? { modelResourceId: modelResourceId.value } : {}),
       sceneFieldCountAfter: context.state.sceneObjects.size,
       evidenceArtifact: artifactPath,
     });

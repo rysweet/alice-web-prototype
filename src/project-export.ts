@@ -36,7 +36,13 @@ const FORBIDDEN_IDENTITY_RE = /LookingGlass|lookingglass|alice-standalone-player
 const ENCODED_PATH_CONTROL_RE = /%(?:2e|2f|5c)/i;
 
 export function isReservedWebPackagePath(path: string): boolean {
-  return RESERVED_WEB_PACKAGE_PATHS.has(path);
+  return [...RESERVED_WEB_PACKAGE_PATHS].some((reserved) =>
+    path === reserved || path.startsWith(`${reserved}/`)
+  );
+}
+
+function isReservedWebPackageDescendant(path: string): boolean {
+  return [...RESERVED_WEB_PACKAGE_PATHS].some((reserved) => path.startsWith(`${reserved}/`));
 }
 
 export interface ProjectExportResource {
@@ -405,7 +411,7 @@ export async function exportWebPackage(
   addZipFile(zip, WEB_PACKAGE_ARTIFACTS.project, JSON.stringify(project, null, 2));
   addZipFile(zip, WEB_PACKAGE_ARTIFACTS.validation, JSON.stringify(validation, null, 2));
   for (const resource of resources) {
-    if (RESERVED_WEB_PACKAGE_PATHS.has(resource.path)) {
+    if (isReservedWebPackagePath(resource.path)) {
       throw new WebPackageInputError(`resource path conflicts with web package artifact: ${resource.path}`);
     }
     addZipFile(zip, resource.path, normalizeResourceBytes(resource.bytes));
@@ -508,6 +514,16 @@ export async function validateWebPackage(input: ValidateWebPackageInput): Promis
 
   if (preview && Array.from(preview.slice(0, 4)).join(",") !== "137,80,78,71") {
     errors.push({ code: "invalid-preview", message: "preview.png must be a PNG image", path: WEB_PACKAGE_ARTIFACTS.preview });
+  }
+  if (share && Object.prototype.hasOwnProperty.call(share, "canonicalUrl")) {
+    const canonicalUrl = (share as { canonicalUrl?: unknown }).canonicalUrl;
+    if (typeof canonicalUrl !== "string" || !isSafeHttpUrl(canonicalUrl)) {
+      errors.push({
+        code: "invalid-canonical-url",
+        message: "share canonicalUrl must be a valid http or https URL",
+        path: WEB_PACKAGE_ARTIFACTS.share,
+      });
+    }
   }
 
   const filename = validatedPackageFilename(manifest, errors);
@@ -799,6 +815,15 @@ function escapeScriptText(value: string): string {
   return value.replace(/<\//g, "<\\/");
 }
 
+function isSafeHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.href === value;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeWebPackageOptions(
   project: Pick<AliceProject, "projectName">,
   options: WebPackageOptions,
@@ -812,6 +837,15 @@ function normalizeWebPackageOptions(
       parsed = new URL(canonicalUrl);
     } catch {
       throw new WebPackageInputError("canonicalUrl must be a valid http or https URL");
+    }
+
+    function isSafeHttpUrl(value: string): boolean {
+      try {
+        const parsed = new URL(value);
+        return (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.href === value;
+      } catch {
+        return false;
+      }
     }
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       throw new WebPackageInputError("canonicalUrl must be a valid http or https URL");
@@ -981,7 +1015,12 @@ function containsForbiddenRepositoryIdentity(values: unknown[]): boolean {
 function zipPathsAreSafe(zip: JSZip): boolean {
   for (const [path, file] of Object.entries(zip.files)) {
     const originalName = readUnsafeOriginalName(file) ?? path;
-    if (ENCODED_PATH_CONTROL_RE.test(originalName) || ENCODED_PATH_CONTROL_RE.test(path)) {
+    if (
+      ENCODED_PATH_CONTROL_RE.test(originalName)
+      || ENCODED_PATH_CONTROL_RE.test(path)
+      || isReservedWebPackageDescendant(path)
+      || isReservedWebPackageDescendant(originalName)
+    ) {
       return false;
     }
     try {
