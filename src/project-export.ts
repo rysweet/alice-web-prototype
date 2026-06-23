@@ -844,6 +844,9 @@ function normalizeResourceBytes(bytes: Uint8Array | string): Uint8Array {
 function inferMimeType(path: string): string {
   if (path.endsWith(".png")) return "image/png";
   if (path.endsWith(".jpg") || path.endsWith(".jpeg")) return "image/jpeg";
+  if (path.endsWith(".webp")) return "image/webp";
+  if (path.endsWith(".gltf")) return "model/gltf+json";
+  if (path.endsWith(".glb")) return "model/gltf-binary";
   if (path.endsWith(".json")) return "application/json";
   if (path.endsWith(".txt")) return "text/plain;charset=utf-8";
   return "application/octet-stream";
