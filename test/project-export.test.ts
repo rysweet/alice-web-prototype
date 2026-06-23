@@ -613,6 +613,52 @@ describe("project-export", () => {
     ]));
   });
 
+  it.each([
+    "bad?download=.alice-web.zip",
+    "bad#fragment.alice-web.zip",
+    "<img.alice-web.zip",
+    "\"quote.alice-web.zip",
+    "bad%2fname.alice-web.zip",
+  ])("rejects unsafe package filename metacharacters even when share links match: %s", async (filename) => {
+    expect(projectExportApi.validateWebPackage).toBeTypeOf("function");
+
+    const validation = await projectExportApi.validateWebPackage!({
+      packageBase64: await makeZip({
+        "index.html": "<!doctype html><script>window.AlicePlayer={runtimeIdentity:'alice-web-player'}</script>",
+        "manifest.json": JSON.stringify({
+          schemaVersion: "alice-web.package/v1",
+          product: "Alice",
+          packageName: "alice-web",
+          runtimeIdentity: "alice-web-player",
+          entrypoint: "index.html",
+          preview: "preview.png",
+          share: "share.json",
+          validation: "validation.json",
+          project: "project/project.json",
+          package: { filename, mimeType: "application/zip" },
+        }),
+        "share.json": JSON.stringify({
+          schemaVersion: "alice-web.share/v1",
+          product: "Alice",
+          runtimeIdentity: "alice-web-player",
+          preview: "preview.png",
+          package: { filename, mimeType: "application/zip" },
+          links: { html: "index.html", package: filename, preview: "preview.png" },
+        }),
+        "preview.png": new Uint8Array([137, 80, 78, 71]),
+        "project/project.json": "{}",
+        "validation.json": JSON.stringify({ schemaVersion: "alice-web.validation/v1" }),
+      }),
+    });
+
+    expect(validation.valid).toBe(false);
+    expect(validation.package?.filename).toBe("alice-web.zip");
+    expect(validation.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "invalid-package-reference" }),
+      expect.objectContaining({ code: "invalid-share-package-reference" }),
+    ]));
+  });
+
   it("carries teacher community-sharing metadata through package export, validation, and share artifacts", async () => {
     expect(projectExportApi.exportWebPackage).toBeTypeOf("function");
     expect(projectExportApi.validateWebPackage).toBeTypeOf("function");

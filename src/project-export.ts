@@ -33,6 +33,7 @@ const WEB_PACKAGE_ARTIFACTS = {
 const REQUIRED_WEB_PACKAGE_FILES = Object.values(WEB_PACKAGE_ARTIFACTS);
 const FORBIDDEN_IDENTITY_RE = /LookingGlass|lookingglass|alice-standalone-player/;
 const URL_CONTROL_OR_SPACE_RE = /[\u0000-\u0020\u007f]/u;
+const SAFE_PACKAGE_FILENAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*\.alice-web\.zip$/;
 
 export interface ProjectExportResource {
   path: string;
@@ -962,10 +963,10 @@ function isSafePackageFilename(value: string): boolean {
   try {
     const safe = assertSafeWritablePath(value);
     return safe === value
+      && SAFE_PACKAGE_FILENAME_RE.test(value)
       && !value.includes("/")
       && !value.includes("\\")
-      && !URL_CONTROL_OR_SPACE_RE.test(value)
-      && value.endsWith(".alice-web.zip");
+      && !URL_CONTROL_OR_SPACE_RE.test(value);
   } catch {
     return false;
   }
