@@ -127,7 +127,7 @@ describe("renderWebXRStatus", () => {
           stableHorizon: true,
           noForcedHeadset: true,
         },
-        unsupportedReason: "LookingGlass records browser WebXR and desktop camera comfort evidence only; true headset/native VR remains unsupported.",
+        unsupportedReason: "Alice web records browser WebXR and desktop camera comfort evidence only; true headset/native VR remains unsupported.",
       },
     });
 

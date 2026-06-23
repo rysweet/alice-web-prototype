@@ -104,7 +104,7 @@ browser-specific permission prompt wording.
 
 ## Unsupported capabilities
 
-Alice reports unsupported capabilities honestly:
+Alice reports unsupported capabilities explicitly:
 
 | Capability | Artifact field | Required value | Rationale |
 | --- | --- | --- | --- |
