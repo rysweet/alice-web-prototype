@@ -199,12 +199,11 @@ const script = generateBlenderExportScript({
 // Write script to disk, then run with Blender
 ```
 
-## Option D: [PLANNED] Import a model into an Alice project
+## Option D: Import a model into an Alice project
 
 Use the browser or local REST API when the model belongs to a specific project
 instead of the shared gallery. Alice stores the imported bytes in the `.a3p`
-archive and records a project resource ID on the scene object. This option is
-the target issue #221 workflow and requires the matching implementation.
+archive and records a project resource ID on the scene object.
 
 ```text
 project/models/moon-rover.glb      # project resource ID
@@ -218,7 +217,7 @@ In the browser:
 3. Add or select the scene object that should use the model.
 4. Save the project.
 
-The same flow is planned over HTTP:
+The same flow is available over HTTP:
 
 ```bash
 MODEL_BASE64="$(base64 -w0 assets/models/moon-rover.glb)"
@@ -229,7 +228,7 @@ curl -X POST http://127.0.0.1:3000/api/assets/import-model \
   -d "{\"fileName\":\"moon-rover.glb\",\"displayName\":\"Moon Rover\",\"contentBase64\":\"$MODEL_BASE64\"}"
 ```
 
-See [[PLANNED] Import a model and apply a custom texture](./tutorial-import-model-and-apply-texture.md)
+See [Import a model and apply a custom texture](./tutorial-import-model-and-apply-texture.md)
 for the complete target save/load workflow.
 
 ## Adding Models to the Gallery
@@ -278,7 +277,7 @@ facing the wrong direction.
 ## What's Next
 
 - [Open-Asset Pipeline reference](./open-asset-pipeline.md) — full API docs
-- [[PLANNED] Imported model and texture assets](./imported-models-and-textures.md) —
+- [Imported model and texture assets](./imported-models-and-textures.md) —
   project asset, texture binding, API, and persistence contract
 - [Open-Source 3D Alternatives](./open-source-3d-alternatives.md) — research
   on available tools and model repositories

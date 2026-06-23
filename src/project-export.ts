@@ -10,6 +10,7 @@ import {
   type HtmlExportOptions,
 } from "./export-html.js";
 import { assertSafeWritablePath, validateArchivePath } from "./project-io/path-security.js";
+import { assertNoDuplicateZipEntries } from "./zip-entry-validation.js";
 import {
   generateTypeScriptSource,
   type TypeScriptSource,
@@ -486,9 +487,14 @@ export async function validateWebPackage(input: ValidateWebPackageInput): Promis
 
   let zip: JSZip;
   try {
+    assertNoDuplicateZipEntries(decoded.bytes);
     zip = await JSZip.loadAsync(decoded.bytes);
     evidence.push("zip-readable");
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && /duplicate entry|central directory/i.test(error.message)) {
+      errors.push({ code: "duplicate-zip-entry", message: error.message });
+      return buildValidationResult(evidence, errors);
+    }
     errors.push({ code: "invalid-zip", message: "packageBase64 must decode to a readable ZIP package" });
     return buildValidationResult(evidence, errors);
   }

@@ -576,7 +576,7 @@ describe("project-export", () => {
     });
     expect(trailingBytes.evidence).not.toContain("no-duplicate-required-files");
     expect(trailingBytes.errors).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: "duplicate-check-inconclusive" }),
+      expect.objectContaining({ code: "duplicate-zip-entry" }),
     ]));
 
     const identityDrift = await projectExportApi.validateWebPackage!({
