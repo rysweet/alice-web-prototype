@@ -878,6 +878,7 @@ describe("project-export", () => {
     expect(legacyShareWithoutDelivery.errors).not.toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "invalid-share-delivery" }),
     ]));
+    expect(legacyShareWithoutDelivery.evidence).not.toContain("browser-download-fallback");
 
     const mismatchedSharePackage = await projectExportApi.validateWebPackage!({
       packageBase64: await makeZip({

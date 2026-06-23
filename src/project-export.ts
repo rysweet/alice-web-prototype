@@ -609,7 +609,7 @@ export async function validateWebPackage(input: ValidateWebPackageInput): Promis
   if (share) {
     const deliveryErrors = validateShareDelivery(share);
     errors.push(...deliveryErrors);
-    if (deliveryErrors.length === 0) {
+    if (deliveryErrors.length === 0 && share.delivery !== undefined) {
       evidence.push("browser-download-fallback");
     }
     const shareLinkErrors = validateSharePackageLinks(share, filename);
