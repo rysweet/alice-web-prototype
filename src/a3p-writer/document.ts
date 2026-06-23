@@ -103,18 +103,13 @@ function buildDesiredSceneFields(project: AliceProject, sceneType: AliceTypeDefi
 
 function buildDesiredSceneMethods(project: AliceProject, sceneType: AliceTypeDefinition | null): AliceMethod[] {
   const methods = [...(sceneType?.methods ?? [])];
-  const sceneMethods = sceneType?.methods ?? [];
-  const nonSceneMethods = sceneType
-    ? (project.types ?? [])
-      .filter((type) => type !== sceneType)
+  const ownedTypeMethodKeys = sceneType
+    ? new Set((project.types ?? [])
       .flatMap((type) => type.methods ?? [])
-    : [];
+      .map(methodOwnerKey))
+    : new Set<string>();
   const seen = new Set(methods.map((method) => method.name));
-  for (const method of project.methods.filter((candidate) =>
-    !sceneType
-    || sceneMethods.some((sceneMethod) => sameOwnerMethod(candidate, sceneMethod))
-    || !nonSceneMethods.some((nonSceneMethod) => sameOwnerMethod(candidate, nonSceneMethod)),
-  )) {
+  for (const method of project.methods.filter((candidate) => !ownedTypeMethodKeys.has(methodOwnerKey(candidate)))) {
     if (!seen.has(method.name)) {
       methods.push(method);
       seen.add(method.name);
@@ -123,9 +118,8 @@ function buildDesiredSceneMethods(project: AliceProject, sceneType: AliceTypeDef
   return methods;
 }
 
-function sameOwnerMethod(left: AliceMethod, right: AliceMethod): boolean {
-  return left.name === right.name
-    && snapshotAliceStatements(left.statements) === snapshotAliceStatements(right.statements);
+function methodOwnerKey(method: AliceMethod): string {
+  return `${method.name}\u0000${snapshotAliceStatements(method.statements)}`;
 }
 
 function fieldFromSceneObject(object: AliceObject): AliceFieldDefinition {

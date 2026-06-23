@@ -116,7 +116,7 @@ export function buildCurrentProject(state: ServerState): AliceProject {
   baseProject.sceneObjects = Array.from(sceneObjectsByName.values());
 
   const sceneType = baseProject.types?.find((type) => type.superTypeName?.includes("SScene"));
-  const rootSceneMethods = rootSceneOwnedMethods(baseProject, sceneType);
+  const rootSceneMethods = rootLegacySceneMethods(baseProject, sceneType);
   const sourceMethods = mergeMethodsByName(sceneType ? (sceneType.methods ?? []) : [], rootSceneMethods);
   const rootMethodsByName = new Map(rootSceneMethods.map((method) => [method.name, method]));
   const methodsByName = new Map(sourceMethods.map((method) => [
@@ -277,19 +277,17 @@ export function syncServerMethodDefinitionsFromProject(state: ServerState, proje
 
 function getServerOwnedProjectMethods(project: AliceProject): AliceMethod[] {
   const sceneType = project.types?.find((type) => type.superTypeName?.includes("SScene"));
-  return mergeMethodsByName(sceneType ? (sceneType.methods ?? []) : [], rootSceneOwnedMethods(project, sceneType));
+  return mergeMethodsByName(sceneType ? (sceneType.methods ?? []) : [], rootLegacySceneMethods(project, sceneType));
 }
 
-function rootSceneOwnedMethods(project: AliceProject, sceneType: AliceTypeDefinition | undefined): AliceMethod[] {
+function rootLegacySceneMethods(project: AliceProject, sceneType: AliceTypeDefinition | undefined): AliceMethod[] {
   if (!sceneType) return project.methods;
-  const sceneMethods = sceneType.methods ?? [];
-  const nonSceneMethods = (project.types ?? [])
-    .filter((type) => type !== sceneType)
-    .flatMap((type) => type.methods ?? []);
-  return project.methods.filter((method) =>
-    sceneMethods.some((sceneMethod) => sameOwnerMethod(method, sceneMethod))
-    || !nonSceneMethods.some((nonSceneMethod) => sameOwnerMethod(method, nonSceneMethod)),
+  const ownedTypeMethodKeys = new Set(
+    (project.types ?? [])
+      .flatMap((type) => type.methods ?? [])
+      .map(methodOwnerKey),
   );
+  return project.methods.filter((method) => !ownedTypeMethodKeys.has(methodOwnerKey(method)));
 }
 
 function mergeMethodsByName(primary: AliceMethod[], secondary: AliceMethod[]): AliceMethod[] {
@@ -304,9 +302,8 @@ function mergeMethodsByName(primary: AliceMethod[], secondary: AliceMethod[]): A
   return merged;
 }
 
-function sameOwnerMethod(left: AliceMethod, right: AliceMethod): boolean {
-  return left.name === right.name
-    && snapshotAliceStatements(left.statements) === snapshotAliceStatements(right.statements);
+function methodOwnerKey(method: AliceMethod): string {
+  return `${method.name}\u0000${snapshotAliceStatements(method.statements)}`;
 }
 
 export function parseMethodParams(
