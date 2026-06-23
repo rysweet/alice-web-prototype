@@ -326,6 +326,11 @@ describe("project-export", () => {
 
     await expect(projectExportApi.exportWebPackage!(createProjectFixture(), {
       title: "Directory Collision",
+      resources: [{ path: "project", bytes: "owned" }],
+    })).rejects.toThrow(/resource path conflicts with web package artifact/);
+
+    await expect(projectExportApi.exportWebPackage!(createProjectFixture(), {
+      title: "Directory Collision",
       resources: [{ path: "index.html/foo.txt", bytes: "owned" }],
     })).rejects.toThrow(/resource path conflicts with web package artifact/);
   });
@@ -454,7 +459,7 @@ describe("project-export", () => {
       ]));
     }
 
-    for (const reservedDescendant of ["index.html/foo.txt", "manifest.json/foo.txt", "project/project.json/foo.txt"]) {
+    for (const reservedDescendant of ["index.html/foo.txt", "manifest.json/foo.txt", "project/project.json/foo.txt", "project"]) {
       const directoryCollision = await projectExportApi.validateWebPackage!({
         packageBase64: await makeZip({
           [reservedDescendant]: "owned",

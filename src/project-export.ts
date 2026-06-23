@@ -38,12 +38,16 @@ const URL_CONTROL_OR_SPACE_RE = /[\u0000-\u0020\u007f]/u;
 
 export function isReservedWebPackagePath(path: string): boolean {
   return [...RESERVED_WEB_PACKAGE_PATHS].some((reserved) =>
-    path === reserved || path.startsWith(`${reserved}/`)
+    path === reserved || path.startsWith(`${reserved}/`) || reserved.startsWith(`${path}/`)
   );
 }
 
 function isReservedWebPackageDescendant(path: string): boolean {
   return [...RESERVED_WEB_PACKAGE_PATHS].some((reserved) => path.startsWith(`${reserved}/`));
+}
+
+function isReservedWebPackageAncestor(path: string): boolean {
+  return [...RESERVED_WEB_PACKAGE_PATHS].some((reserved) => reserved.startsWith(`${path}/`));
 }
 
 export interface ProjectExportResource {
@@ -1178,6 +1182,8 @@ function zipPathsAreSafe(zip: JSZip): boolean {
       || ENCODED_PATH_CONTROL_RE.test(path)
       || isReservedWebPackageDescendant(path)
       || isReservedWebPackageDescendant(originalName)
+      || isReservedWebPackageAncestor(path)
+      || isReservedWebPackageAncestor(originalName)
     ) {
       return false;
     }
