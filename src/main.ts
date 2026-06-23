@@ -230,6 +230,20 @@ function ensureArchive(): AliceProjectArchive {
   return lastArchive;
 }
 
+function markWebPackageStale(): void {
+  lastWebPackageBase64 = null;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.byteLength; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, offset + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
 function describeObject(obj: AliceObject): string {
   const shortType = obj.typeName.split(".").pop() ?? obj.typeName;
   const resource = obj.resourceType ? ` [${obj.resourceType.split(".").pop()}]` : "";
@@ -618,6 +632,7 @@ async function handleFileSelection(): Promise<void> {
     const archive = await loadProjectFromFile(file);
     lastArchive = archive;
     lastProject = archive.project;
+    markWebPackageStale();
     aliceWorkflow = archive.aliceWorkflow ?? createDefaultAliceWorkflowState();
     workflowScoreValues = createInitialScoreValues(aliceWorkflow);
     workflowElapsedSeconds = 0;
@@ -646,6 +661,7 @@ async function handleModelImport(): Promise<void> {
       archive.project.importedAssets = [...(archive.project.importedAssets ?? []), creation.asset];
       archive.resources.set(creation.archivePath, creation.resourceBytes);
       addImportedModelObject(archive.project, creation.asset);
+      markWebPackageStale();
       renderProject(archive.project);
       setStatusMessage("Imported model");
     } catch (error) {
@@ -671,6 +687,7 @@ async function handleTextureImport(): Promise<void> {
       archive.project.importedAssets = [...(archive.project.importedAssets ?? []), creation.asset];
       archive.resources.set(creation.archivePath, creation.resourceBytes);
       selectedTextureResourceId = creation.asset.id;
+      markWebPackageStale();
       renderProject(archive.project);
       setStatusMessage("Imported texture");
     } catch (error) {
@@ -693,6 +710,7 @@ function handleCreateShape(): void {
       size: null,
     });
     selectedObjectName = name;
+    markWebPackageStale();
     renderProject(archive.project);
     setStatusMessage(`Created ${name}`);
 }
@@ -716,6 +734,7 @@ function handleApplyTexture(): void {
     }
 
     Object.assign(object, applySurfaceTextureBinding(object, textureResourceId));
+    markWebPackageStale();
     renderProject(project);
     setStatusMessage(`Applied texture to ${object.name}`);
 }
@@ -756,6 +775,7 @@ function handleMoveSelectedObject(): void {
       y: position.y + MOVE_SELECTED_OBJECT_DELTA.y,
       z: position.z + MOVE_SELECTED_OBJECT_DELTA.z,
     };
+    markWebPackageStale();
     renderProject(project);
     setStatusMessage(`Moved ${object.name}`);
 }
@@ -771,6 +791,7 @@ function handleTurnSelectedObject(): void {
       object.orientation ?? { x: 0, y: 0, z: 0, w: 1 },
       yawQuaternion(TURN_SELECTED_OBJECT_RADIANS),
     );
+    markWebPackageStale();
     renderProject(project);
     setStatusMessage(`Turned ${object.name}`);
 }
@@ -788,6 +809,7 @@ function handleResizeSelectedObject(): void {
       height: size.height * RESIZE_SELECTED_OBJECT_SCALE,
       depth: size.depth * RESIZE_SELECTED_OBJECT_SCALE,
     };
+    markWebPackageStale();
     renderProject(project);
     setStatusMessage(`Resized ${object.name}`);
 }
@@ -1092,11 +1114,16 @@ async function handleShareEvidence(): Promise<void> {
 
 async function exportWebPackage(): Promise<void> {
       try {
-        const project = ensureArchive().project;
+        const archive = ensureArchive();
+        const project = archive.project;
+        const archiveBytes = await ProjectIo.writeProject(archive, { generateThumbnailFromScene: false });
         const response = await fetch("/api/project/export/web-package", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: project.projectName || "Alice Project" }),
+          body: JSON.stringify({
+            title: project.projectName || "Alice Project",
+            archiveBase64: bytesToBase64(archiveBytes),
+          }),
         });
         if (!response.ok) {
           throw new Error(await response.text());
@@ -1194,6 +1221,7 @@ function handleJointPoseApply(): void {
           },
         },
       });
+      markWebPackageStale();
       setStatusMessage(`Applied joint pose to ${object.name}`);
     } catch (error) {
       console.error(error);

@@ -2,8 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createHash } from "node:crypto";
 import JSZip from "jszip";
 import { parseA3P } from "../src/a3p-parser";
-import { readProject } from "../src/project-io";
+import { readProject, writeProject, type AliceProjectArchive } from "../src/project-io";
 import { createServer } from "../src/server";
+import { createMinimalProject } from "./test-utils.js";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -456,6 +457,71 @@ describe("server API", () => {
       const freshZip = await JSZip.loadAsync(decodeBase64Package(freshExport.body.package.base64));
       expect(freshZip.file(importedTexture.body.asset.resourcePath)).toBeNull();
       expect(await freshZip.file("index.html")!.async("string")).not.toContain(importedTexture.body.asset.resourcePath);
+    });
+
+    it("exports the archive supplied by the browser instead of stale server state", async () => {
+      await localPost(app, "/api/launch").send({}).expect(200);
+      const project = createMinimalProject();
+      project.projectName = "Browser Archive";
+      project.importedAssets = [
+        {
+          id: "project/models/browser-robot.glb",
+          kind: "model",
+          name: "Browser Robot",
+          fileName: "browser-robot.glb",
+          resourcePath: "resources/models/browser-robot.glb",
+          contentType: "model/gltf-binary",
+          byteLength: 4,
+        },
+      ];
+      project.sceneObjects.push({
+        name: "browserRobot",
+        typeName: "org.lgna.story.SProp",
+        resourceType: null,
+        position: null,
+        orientation: null,
+        size: null,
+        modelResourceId: "project/models/browser-robot.glb",
+      });
+      const archive: AliceProjectArchive = {
+        project,
+        manifest: null,
+        resources: new Map([["resources/models/browser-robot.glb", new Uint8Array([1, 2, 3, 4])]]),
+        resourceEntries: [],
+        thumbnail: null,
+        versionInfo: {
+          originalAliceVersion: project.version,
+          detectedAliceVersion: project.version,
+          manifestVersion: null,
+          xmlVersion: null,
+          versionSource: "default",
+          migrated: false,
+          migrationSteps: [],
+        },
+      };
+
+      const exportRes = await localPost(app, "/api/project/export/web-package")
+        .send({
+          title: "Browser Archive",
+          archiveBase64: Buffer.from(await writeProject(archive, { generateThumbnailFromScene: false })).toString("base64"),
+        })
+        .expect(200);
+      const zip = await JSZip.loadAsync(decodeBase64Package(exportRes.body.package.base64));
+      const projectJson = JSON.parse(await zip.file("project/project.json")!.async("string"));
+
+      expect(projectJson.projectName).toBe("Browser Archive");
+      expect(projectJson.sceneObjects).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: "browserRobot", modelResourceId: "project/models/browser-robot.glb" }),
+      ]));
+      expect(await zip.file("resources/models/browser-robot.glb")?.async("uint8array"))
+        .toEqual(new Uint8Array([1, 2, 3, 4]));
+
+      const invalidArchive = await localPost(app, "/api/project/export/web-package")
+        .send({ title: "Bad Archive", archiveBase64: Buffer.from("not a zip").toString("base64") })
+        .expect(400);
+      expect(invalidArchive.body).toEqual(expect.objectContaining({
+        code: "corrupted-archive",
+      }));
     });
 
     it("clears stale audio metadata and resources when creating a replacement project", async () => {

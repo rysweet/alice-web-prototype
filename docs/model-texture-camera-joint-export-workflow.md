@@ -208,6 +208,11 @@ import { ProjectExport } from "alice-web";
 const webPackage = await ProjectExport.exportWebPackage(archive.project, {
   title: archive.project.projectName,
   description: "Robot arm scene with a saved camera view.",
+  resources: Array.from(archive.resources, ([path, bytes]) => ({
+    path,
+    bytes,
+    mimeType: "application/octet-stream",
+  })),
   teacher: {
     audience: "Middle school creative coding",
     lessonFocus: "Reusable camera and joint-state lesson",
