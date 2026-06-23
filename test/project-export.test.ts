@@ -86,6 +86,8 @@ function createProjectFixture() {
     position: { x: 0, y: 0, z: 0 },
     orientation: null,
     size: { width: 1, height: 2, depth: 1 },
+    modelResourceId: "project/models/bunny.glb",
+    materialBindings: [{ target: "surface", textureResourceId: "project/textures/bunny.png" }],
   });
   project.methods.push({
     name: "myFirstMethod",
@@ -207,7 +209,10 @@ describe("project-export", () => {
       title: "Winter Story",
       description: "A snow scene with a bunny.",
       canonicalUrl: "https://example.edu/alice/winter-story",
-      resources: [{ path: "resources/models/bunny.glb", bytes: new Uint8Array([1, 2, 3]) }],
+      resources: [
+        { path: "resources/models/bunny.glb", bytes: new Uint8Array([1, 2, 3]) },
+        { path: "resources/textures/bunny.png", bytes: new Uint8Array([137, 80, 78, 71]) },
+      ],
     });
     const packageBytes = decodePackage(exported.package.base64);
     const zip = await JSZip.loadAsync(packageBytes);
@@ -240,9 +245,11 @@ describe("project-export", () => {
       "preview.png",
       "project/project.json",
       "resources/models/bunny.glb",
+      "resources/textures/bunny.png",
       "validation.json",
     ]));
     expect(await zip.file("resources/models/bunny.glb")?.async("uint8array")).toEqual(new Uint8Array([1, 2, 3]));
+    expect(await zip.file("resources/textures/bunny.png")?.async("uint8array")).toEqual(new Uint8Array([137, 80, 78, 71]));
 
     const manifest = await readZipJson(zip, "manifest.json");
     expect(manifest).toMatchObject({
@@ -291,6 +298,14 @@ describe("project-export", () => {
       "alice-web-identity",
     ]));
     expect(exported.validation).toMatchObject(validation);
+
+    const indexHtml = await readZipText(zip, "index.html");
+    expect(indexHtml).toContain("alice-export-resources");
+    expect(indexHtml).toContain('JSON.parse(readText("alice-export-resources") || "{}")');
+    expect(indexHtml).toContain("new THREE.TextureLoader().load");
+    expect(indexHtml).toContain("mesh.userData.aliceResources");
+    expect(indexHtml).toContain("modelResourceAvailable");
+    expect(indexHtml).toContain("textureResourceAvailable");
   });
 
   it("exportWebPackage rejects resources that would replace required package artifacts", async () => {
