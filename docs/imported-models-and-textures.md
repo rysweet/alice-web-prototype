@@ -195,7 +195,8 @@ The local server exposes JSON base64 upload routes for issue #221.
 Asset import endpoints need a body limit larger than the current general JSON
 limit; the route limit is 25 MiB for
 `/api/assets/import-model` and `/api/assets/import-texture`. Project IO's archive
-size limit still applies after decoding.
+size limit applies when reading `.a3p` archives, not as an additional decoded
+payload limit on these upload routes.
 
 Mutating requests use the same local authentication boundary as the rest of the
 API:
@@ -297,7 +298,7 @@ Response:
 | `400` | `textureResourceId` or `modelResourceId` does not exist in `importedAssets` |
 | `400` | `target` is not `"surface"` |
 | `404` | `objectName` does not match a scene object |
-| `413` | Encoded request body exceeds the asset-route body limit, or decoded resources exceed the Project IO archive limit |
+| `413` | Encoded request body exceeds the asset-route body limit |
 
 ## Configuration
 

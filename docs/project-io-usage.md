@@ -100,7 +100,7 @@ Rejected paths throw `ProjectIoError` with code `unsafe-path`.
 
 ## Add imported model and texture assets
 
-Issue #221 imported assets need both project metadata and archive bytes. Store
+Imported assets need both project metadata and archive bytes. Store
 scene-facing IDs under `project/models/` or `project/textures/`, and store bytes
 under the matching `resources/` archive path.
 
