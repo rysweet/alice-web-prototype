@@ -271,6 +271,44 @@ describe("model, texture, camera, joint, and export workflow contract", () => {
     ]);
   });
 
+  it("deduplicates imports against descriptor-less workflow resources", async () => {
+    const api = getWorkflowApi();
+    const initial: WorkflowState = {
+      ...api.createWorkflowState({ project: createRobotProject() }),
+      resources: [
+        {
+          kind: "model",
+          path: "resources/models/robot.gltf",
+          fileName: "robot.gltf",
+          mimeType: "model/gltf+json",
+          bytes: createTriangleGltfBytes(),
+        },
+        {
+          kind: "texture",
+          path: "resources/textures/robot.png",
+          fileName: "robot.png",
+          mimeType: "image/png",
+          bytes: createPngBytes(),
+        },
+      ],
+    };
+
+    const withModel = await api.importModelAsset(initial, {
+      fileName: "robot.gltf",
+      bytes: createTriangleGltfBytes(),
+      objectName: "robot",
+    });
+    const withTexture = await api.importTextureAsset(withModel, {
+      fileName: "robot.png",
+      bytes: createPngBytes(),
+    });
+
+    expect(withModel.resources.map((resource) => resource.path)).toContain("resources/models/robot-2.gltf");
+    expect(withModel.project.sceneObjects.find((object) => object.name === "robot")?.modelResourceId)
+      .toBe("project/models/robot-2.gltf");
+    expect(withTexture.resources.map((resource) => resource.path)).toContain("resources/textures/robot-2.png");
+  });
+
   it("keeps the active project unchanged when import validation fails", async () => {
     const api = getWorkflowApi();
     const initial = api.createWorkflowState({ project: createRobotProject() });

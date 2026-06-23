@@ -1344,21 +1344,24 @@ function findDuplicateRequiredFiles(bytes: Uint8Array): string[] | null {
   if (!centralDirectory) return null;
 
   const counts = new Map<string, number>();
-  for (let offset = centralDirectory.start; offset <= centralDirectory.end - 46;) {
-    if (buffer.readUInt32LE(offset) !== 0x02014b50) break;
+  let offset = centralDirectory.start;
+  for (; offset <= centralDirectory.end - 46;) {
+    if (buffer.readUInt32LE(offset) !== 0x02014b50) return null;
     const nameLength = buffer.readUInt16LE(offset + 28);
     const extraLength = buffer.readUInt16LE(offset + 30);
     const commentLength = buffer.readUInt16LE(offset + 32);
     const nameStart = offset + 46;
     const nameEnd = nameStart + nameLength;
-    if (nameEnd > centralDirectory.end) break;
+    const recordEnd = nameEnd + extraLength + commentLength;
+    if (nameEnd > centralDirectory.end || recordEnd > centralDirectory.end) return null;
     const name = buffer.subarray(nameStart, nameEnd).toString("utf8");
     const canonicalRequiredName = RESERVED_WEB_PACKAGE_PATHS_BY_LOWERCASE.get(name.toLowerCase());
     if (canonicalRequiredName) {
       counts.set(canonicalRequiredName, (counts.get(canonicalRequiredName) ?? 0) + 1);
     }
-    offset = nameEnd + extraLength + commentLength;
+    offset = recordEnd;
   }
+  if (offset !== centralDirectory.end) return null;
   return [...counts.entries()]
     .filter(([, count]) => count > 1)
     .map(([name]) => name);

@@ -64,7 +64,7 @@ export async function importModelAsset(
     kind: "model",
     fileName: input.fileName,
     bytes: copyBytes(input.bytes),
-  }, state.project.importedAssets ?? []);
+  }, state.project.importedAssets ?? [], state.resources.map((resource) => resource.path));
   const project = cloneProject(state.project);
   project.importedAssets = [...(project.importedAssets ?? []), creation.asset];
 
@@ -100,7 +100,7 @@ export async function importTextureAsset(
     kind: "texture",
     fileName: input.fileName,
     bytes: copyBytes(input.bytes),
-  }, state.project.importedAssets ?? []);
+  }, state.project.importedAssets ?? [], state.resources.map((resource) => resource.path));
   const project = cloneProject(state.project);
   project.importedAssets = [...(project.importedAssets ?? []), creation.asset];
 

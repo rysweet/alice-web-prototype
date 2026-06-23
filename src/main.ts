@@ -642,7 +642,7 @@ async function handleModelImport(): Promise<void> {
         fileName: file.name,
         displayName: fileDisplayName(file.name),
         bytes: new Uint8Array(await file.arrayBuffer()),
-      }, archive.project.importedAssets ?? []);
+      }, archive.project.importedAssets ?? [], archive.resources.keys());
       archive.project.importedAssets = [...(archive.project.importedAssets ?? []), creation.asset];
       archive.resources.set(creation.archivePath, creation.resourceBytes);
       addImportedModelObject(archive.project, creation.asset);
@@ -667,7 +667,7 @@ async function handleTextureImport(): Promise<void> {
         fileName: file.name,
         displayName: fileDisplayName(file.name),
         bytes: new Uint8Array(await file.arrayBuffer()),
-      }, archive.project.importedAssets ?? []);
+      }, archive.project.importedAssets ?? [], archive.resources.keys());
       archive.project.importedAssets = [...(archive.project.importedAssets ?? []), creation.asset];
       archive.resources.set(creation.archivePath, creation.resourceBytes);
       selectedTextureResourceId = creation.asset.id;
