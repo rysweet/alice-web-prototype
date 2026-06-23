@@ -5,6 +5,7 @@ import { extractBoundingBoxes, extractJointHierarchy, extractTextureRefs } from 
 import {
   extractCameraWorkflow,
   extractImportedProjectAssets,
+  extractJointState,
   extractMethods,
   extractSceneObjects,
   extractTextureAssignments,
@@ -83,6 +84,7 @@ export async function parseA3PFromZip(
     importedAssets: extractImportedProjectAssets(doc),
     ...(textureAssignments.length > 0 ? { textureAssignments } : {}),
     ...extractCameraWorkflow(doc),
+    ...extractJointState(doc),
   };
 
   attachA3PSource(project, {

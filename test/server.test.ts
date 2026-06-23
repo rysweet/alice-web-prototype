@@ -491,6 +491,34 @@ describe("server API", () => {
       await localPost(app, "/api/launch").send({}).expect(200);
       const project = createMinimalProject();
       project.projectName = "Browser Archive";
+      project.cameraWorkflow = {
+        camera: {
+          mode: "first-person",
+          position: { x: 1, y: 2, z: 3 },
+          target: { x: 0, y: 1, z: 0 },
+          up: { x: 0, y: 1, z: 0 },
+          yawDegrees: 0,
+          pitchDegrees: 0,
+          rollDegrees: 0,
+          fieldOfViewDegrees: 55,
+          activePreset: null,
+        },
+        markers: [],
+        activeMarkerId: null,
+      };
+      project.jointState = {
+        schema_version: "alice.joint-state/v1",
+        runtime: "alice-web",
+        objects: {
+          browserRobot: {
+            className: "org.lgna.story.SProp",
+            joints: {},
+            jointArrays: {},
+            poses: { wave: {} },
+            pendingAnimations: [],
+          },
+        },
+      };
       project.importedAssets = [
         {
           id: "project/models/browser-robot.glb",
@@ -538,6 +566,8 @@ describe("server API", () => {
       const projectJson = JSON.parse(await zip.file("project/project.json")!.async("string"));
 
       expect(projectJson.projectName).toBe("Browser Archive");
+      expect(projectJson.cameraWorkflow.camera.mode).toBe("first-person");
+      expect(projectJson.jointState.objects.browserRobot.className).toBe("org.lgna.story.SProp");
       expect(projectJson.sceneObjects).toEqual(expect.arrayContaining([
         expect.objectContaining({ name: "browserRobot", modelResourceId: "project/models/browser-robot.glb" }),
       ]));

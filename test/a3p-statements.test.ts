@@ -377,6 +377,50 @@ describe("a3p statement serialization", () => {
     }
   });
 
+  it("preserves parsed collection loop XML when camera and joint metadata changes", async () => {
+    const original = await createParsedProjectWithCollectionLoop("ForEachInArrayLoop");
+    original.cameraWorkflow = {
+      camera: {
+        mode: "first-person",
+        position: { x: 1, y: 2, z: 3 },
+        target: { x: 0, y: 1, z: 0 },
+        up: { x: 0, y: 1, z: 0 },
+        yawDegrees: 0,
+        pitchDegrees: 0,
+        rollDegrees: 0,
+        fieldOfViewDegrees: 55,
+        activePreset: null,
+      },
+      markers: [],
+      activeMarkerId: null,
+    };
+    original.jointState = {
+      schema_version: "alice.joint-state/v1",
+      runtime: "alice-web",
+      objects: {
+        parsedLoopRobot: {
+          className: "org.lgna.story.SProp",
+          joints: {},
+          jointArrays: {},
+          poses: { wave: {} },
+          pendingAnimations: [],
+        },
+      },
+    };
+
+    const written = await writeA3P(original);
+    const xml = await JSZip.loadAsync(written).then(async (zip) => zip.file("programType.xml")?.async("string"));
+    const reparsed = await parseA3P(written);
+    const reparsedMethod = reparsed.methods.find((candidate) => candidate.name === "parsedCollectionLoop");
+
+    expect(xml).toContain("org.lgna.project.ast.ForEachInArrayLoop");
+    expect(reparsed.cameraWorkflow?.camera.mode).toBe("first-person");
+    expect(reparsed.jointState?.objects.parsedLoopRobot.className).toBe("org.lgna.story.SProp");
+    expect(reparsedMethod?.statements.map(summarizeStatement)).toEqual([
+      expectedCollectionLoopSummary("ForEachInArrayLoop"),
+    ]);
+  });
+
   it("preserves parsed collection loop XML when scene fields and methods change", async () => {
     for (const kind of COLLECTION_LOOP_KINDS) {
       const original = await createParsedProjectWithCollectionLoop(kind);

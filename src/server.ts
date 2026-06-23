@@ -68,6 +68,7 @@ export function createServer(options: ServerOptions): express.Express {
 
   app.use(createLocalApiProtectionMiddleware(context.localApiSecurity));
   registerAssetRoutes(app, context);
+  app.use("/api/project/export/web-package", express.json({ limit: "350mb" }));
   app.use(express.json({ limit: "25mb" }));
   app.use((req, res, next) => {
     if (requestHasBody(req) && req.body === undefined) {

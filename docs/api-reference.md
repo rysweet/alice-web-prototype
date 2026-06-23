@@ -793,6 +793,7 @@ Request body:
 | `description` | `string` | no | Human-readable project summary |
 | `canonicalUrl` | `string` | no | Public `http` or `https` URL for the shared project page |
 | `teacher` | `object` | no | Teacher sharing metadata. Optional fields: `audience`, `lessonFocus`, `attribution`, `remix` (`allowed`, `with-attribution`, `not-allowed`), `tags`, and `standards` |
+| `archiveBase64` | `string` | no | Strict base64-encoded `.a3p` archive to export instead of the server's current state. Used by the browser to send its current project, resources, camera workflow, and joint state. Invalid base64, corrupt archives, and archives over configured A3P limits return `400` JSON errors. |
 
 Example response:
 

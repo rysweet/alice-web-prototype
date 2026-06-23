@@ -84,6 +84,7 @@ export function buildProjectXml(project: AliceProject, baseXmlText: string | nul
   syncImportedAssets(doc, root, project.importedAssets ?? []);
   syncTextureAssignments(doc, root, project.textureAssignments ?? []);
   syncCameraWorkflow(doc, root, project.cameraWorkflow ?? null);
+  syncJointState(doc, root, project.jointState ?? null);
 
   return preserveXmlDeclaration(baseXmlText, serializeXmlString(doc));
 }
@@ -193,6 +194,15 @@ function syncCameraWorkflow(doc: Document, root: Element, cameraWorkflow: AliceP
   const cameraNode = doc.createElement("camera-workflow");
   cameraNode.appendChild(doc.createTextNode(JSON.stringify(cameraWorkflow)));
   root.appendChild(cameraNode);
+}
+
+function syncJointState(doc: Document, root: Element, jointState: AliceProject["jointState"] | null): void {
+  removeDirectChildren(root, "joint-state");
+  if (!jointState) return;
+
+  const jointStateNode = doc.createElement("joint-state");
+  jointStateNode.appendChild(doc.createTextNode(JSON.stringify(jointState)));
+  root.appendChild(jointStateNode);
 }
 
 function syncSceneObjectMetadata(doc: Document, sceneTypeNode: Element, sceneObjects: AliceObject[]): void {

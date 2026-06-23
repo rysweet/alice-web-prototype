@@ -11,6 +11,7 @@ import {
   validateCameraWorkflowState,
   type CameraWorkflowState,
 } from "../camera-workflow.js";
+import type { JointStateSnapshot } from "../joint-system.js";
 import { extractStatements } from "./statements.js";
 import type {
   AliceFieldDefinition,
@@ -286,6 +287,23 @@ export function extractCameraWorkflow(doc: Document): { cameraWorkflow?: CameraW
   } catch {
     return {};
   }
+}
+
+export function extractJointState(doc: Document): { jointState?: JointStateSnapshot } {
+  const jointStateElement = firstElementByTagName(doc, "joint-state");
+  if (!jointStateElement) return {};
+  const text = jointStateElement.textContent?.trim();
+  if (!text) return {};
+
+  try {
+    const jointState = JSON.parse(text) as JointStateSnapshot;
+    if (jointState.schema_version === "alice.joint-state/v1" && jointState.runtime === "alice-web") {
+      return { jointState };
+    }
+  } catch {
+    return {};
+  }
+  return {};
 }
 
 function readAssetKind(kind: string | null): ImportedProjectAssetKind | null {
