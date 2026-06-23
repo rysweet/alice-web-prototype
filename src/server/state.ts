@@ -117,25 +117,43 @@ export function buildCurrentProject(state: ServerState): AliceProject {
 
   const sceneType = baseProject.types?.find((type) => type.superTypeName?.includes("SScene"));
   const sourceMethods = sceneType ? (sceneType.methods ?? []) : baseProject.methods;
-  const methodsByName = new Map(sourceMethods.map((method) => [method.name, method]));
+  const rootMethodsByName = new Map(baseProject.methods.map((method) => [method.name, method]));
+  const methodsByName = new Map(sourceMethods.map((method) => [
+    method.name,
+    methodWithMetadata(method, rootMethodsByName.get(method.name), state.methodDefinitions.get(method.name)),
+  ]));
   for (const [name, statements] of state.procedures.entries()) {
     if (state.parsedProject && statements.length === 0 && methodsByName.has(name)) {
       continue;
     }
     const existing = methodsByName.get(name);
+    const rootMethod = rootMethodsByName.get(name);
     const definition = state.methodDefinitions.get(name);
     const nextStatements = mergeProcedureStatements(existing?.statements ?? [], statements);
     methodsByName.set(name, {
       name,
-      isFunction: existing?.isFunction ?? definition?.isFunction ?? false,
-      returnType: existing?.returnType ?? definition?.returnType ?? "void",
-      parameters: existing?.parameters ?? definition?.parameters ?? [],
+      isFunction: rootMethod?.isFunction ?? definition?.isFunction ?? existing?.isFunction ?? false,
+      returnType: rootMethod?.returnType ?? definition?.returnType ?? existing?.returnType ?? "void",
+      parameters: rootMethod?.parameters ?? definition?.parameters ?? existing?.parameters ?? [],
       statements: nextStatements,
     });
   }
   baseProject.methods = Array.from(methodsByName.values());
   syncSceneTypeMethods(baseProject, baseProject.methods, new Set(state.procedures.keys()));
   return baseProject;
+}
+
+function methodWithMetadata(
+  method: AliceMethod,
+  rootMethod: AliceMethod | undefined,
+  definition: { isFunction: boolean; returnType: string; parameters: MethodParam[] } | undefined,
+): AliceMethod {
+  return {
+    ...method,
+    isFunction: rootMethod?.isFunction ?? definition?.isFunction ?? method.isFunction,
+    returnType: rootMethod?.returnType ?? definition?.returnType ?? method.returnType,
+    parameters: rootMethod?.parameters ?? definition?.parameters ?? method.parameters,
+  };
 }
 
 function mergeProcedureStatements(existing: AliceStatement[], methods: string[]): AliceStatement[] {
