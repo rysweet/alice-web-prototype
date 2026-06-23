@@ -35,6 +35,7 @@ import {
   type AliceWorkflowState,
   type ResolvedVisibleWorkflowBinding,
 } from "./alice-workflow-state";
+import { queryReducedMotion } from "./accessibility-bridge";
 import {
   applySurfaceTextureBinding,
   createImportedProjectAsset,
@@ -979,6 +980,7 @@ function createEvidenceArtifactForCurrentScene(
       project,
       statusText: status.textContent?.trim() || describeProject(project),
       webxrReport: lastWebXRCapabilityReport,
+      reducedMotionRespected: queryReducedMotion(),
     }),
     export: {
       method,
@@ -1537,6 +1539,7 @@ function renderWebXRPanel(state: WebXRSessionState = webXRController?.state ?? "
     cameraComfort: createCameraVrComfortEvidence({
       camera: cameraWorkflow.camera,
       webxrReport: lastWebXRCapabilityReport,
+      reducedMotionRespected: queryReducedMotion(),
     }),
   });
   elements.button.addEventListener("click", () => {

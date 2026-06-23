@@ -30,7 +30,8 @@ describe("runtime parity evidence", () => {
 
     expect(evidence.status).toBe("partial");
     expect(evidence.desktopCameraAvailable).toBe(true);
-    expect(evidence.keyboardMovementAvailable).toBe(true);
+    expect(evidence.keyboardMovementAvailable).toBe("unknown");
+    expect(evidence.reducedMotionRespected).toBe("unknown");
     expect(evidence.trueHeadsetVrSupported).toBe(false);
     expect(evidence.nativeVrSupported).toBe(false);
     expect(evidence.evidenceCodes).toContain("immersive-vr-unsupported");
@@ -56,6 +57,9 @@ describe("runtime parity evidence", () => {
     expect(evidence.cameraCaption).toContain("Camera orbit view");
     expect(evidence.objectCaption).toContain("bunny");
     expect(evidence.captionChecks.every((check) => check.present)).toBe(true);
+    expect(evidence.captionChecks.find((check) => check.id === "aria-live-status")?.channel).toBe("aria-live");
+    expect(evidence.keyboardReviewAvailable).toBe("unknown");
+    expect(evidence.highContrastReviewAvailable).toBe("unknown");
   });
 
   it("creates gallery walk rubric evidence while keeping live studio unsupported", () => {

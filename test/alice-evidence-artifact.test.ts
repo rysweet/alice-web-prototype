@@ -282,6 +282,57 @@ describe("Alice evidence artifact", () => {
     expect(validateAliceEvidenceArtifact(artifact)).toEqual({ valid: true, errors: [] });
   });
 
+  it("bounds caller-supplied runtime review arrays", () => {
+    const many = Array.from({ length: 75 }, (_, index) => index);
+    const artifact = createAliceEvidenceArtifact({
+      ...baseArtifactInput(),
+      runtimeReview: {
+        cameraVrComfort: {
+          schema_version: "alice.camera-vr-comfort-evidence/v1",
+          status: "partial",
+          trueHeadsetVrSupported: false,
+          nativeVrSupported: false,
+          keyboardMovementAvailable: "unknown",
+          reducedMotionRespected: "unknown",
+          evidenceCodes: many.map((index) => `code-${index}`),
+        },
+        accessibilityRescueCaptions: {
+          schema_version: "alice.accessibility-rescue-camera-captions/v1",
+          status: "partial",
+          keyboardReviewAvailable: "unknown",
+          highContrastReviewAvailable: "unknown",
+          captionChecks: many.map((index) => ({ id: `caption-${index}`, present: true })),
+        },
+        galleryWalkRubric: {
+          schema_version: "alice.gallery-walk-rubric-evidence/v1",
+          status: "partial",
+          liveStudioSupported: false,
+          rubric: many.map((index) => ({
+            id: `rubric-${index}`,
+            label: `Rubric ${index}`,
+            maxScore: 4,
+            evidenceRequired: `Evidence ${index}`,
+          })),
+          galleryItems: many.map((index) => ({
+            id: `item-${index}`,
+            title: `Item ${index}`,
+            reviewPrompt: `Review item ${index}`,
+          })),
+        },
+      },
+    });
+
+    expect(artifact.runtimeReview?.cameraVrComfort?.keyboardMovementAvailable).toBe("unknown");
+    expect(artifact.runtimeReview?.cameraVrComfort?.reducedMotionRespected).toBe("unknown");
+    expect(artifact.runtimeReview?.accessibilityRescueCaptions?.keyboardReviewAvailable).toBe("unknown");
+    expect(artifact.runtimeReview?.accessibilityRescueCaptions?.highContrastReviewAvailable).toBe("unknown");
+    expect(artifact.runtimeReview?.cameraVrComfort?.evidenceCodes).toHaveLength(50);
+    expect(artifact.runtimeReview?.accessibilityRescueCaptions?.captionChecks).toHaveLength(50);
+    expect(artifact.runtimeReview?.galleryWalkRubric?.rubric).toHaveLength(50);
+    expect(artifact.runtimeReview?.galleryWalkRubric?.galleryItems).toHaveLength(50);
+    expect(validateAliceEvidenceArtifact(artifact)).toEqual({ valid: true, errors: [] });
+  });
+
   it("prepares native share metadata from the pre-share artifact hash", () => {
     const artifact = createAliceEvidenceArtifact(baseArtifactInput());
     const staleSharedArtifact: AliceEvidenceArtifact = {

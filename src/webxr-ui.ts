@@ -79,18 +79,22 @@ export function renderWebXRStatus(root: HTMLElement, viewModel: WebXRStatusViewM
     const keyboard = appendTextElement(
       comfort,
       "div",
-      viewModel.cameraComfort.keyboardMovementAvailable
+      viewModel.cameraComfort.keyboardMovementAvailable === true
         ? "Keyboard camera movement available"
-        : "Keyboard camera movement unavailable",
+        : viewModel.cameraComfort.keyboardMovementAvailable === false
+          ? "Keyboard camera movement unavailable"
+          : "Keyboard camera movement was not measured",
     );
     keyboard.dataset.testid = "alice-camera-keyboard-movement";
 
     const reducedMotion = appendTextElement(
       comfort,
       "div",
-      viewModel.cameraComfort.reducedMotionRespected
+      viewModel.cameraComfort.reducedMotionRespected === true
         ? "Reduced-motion comfort check respected"
-        : "Reduced-motion comfort check unavailable",
+        : viewModel.cameraComfort.reducedMotionRespected === false
+          ? "Reduced-motion comfort check unavailable"
+          : "Reduced-motion preference was not measured",
     );
     reducedMotion.dataset.testid = "alice-camera-reduced-motion";
 

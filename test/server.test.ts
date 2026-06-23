@@ -234,6 +234,8 @@ describe("server API", () => {
       expect(res.body.schema_version).toBe("alice.camera-vr-comfort-evidence/v1");
       expect(res.body.status).toBe("partial");
       expect(res.body.desktopCameraAvailable).toBe(true);
+      expect(res.body.keyboardMovementAvailable).toBe("unknown");
+      expect(res.body.reducedMotionRespected).toBe("unknown");
       expect(res.body.trueHeadsetVrSupported).toBe(false);
       expect(res.body.nativeVrSupported).toBe(false);
       expect(res.body.unsupportedReason).toContain("true headset/native VR remains unsupported");
@@ -253,6 +255,8 @@ describe("server API", () => {
       expect(res.body.status).toBe("partial");
       expect(res.body.cameraCaption).toContain("Camera");
       expect(res.body.objectCaption).toContain("guide");
+      expect(res.body.keyboardReviewAvailable).toBe("unknown");
+      expect(res.body.highContrastReviewAvailable).toBe("unknown");
       expect(res.body.captionChecks.map((check: { id: string }) => check.id)).toEqual(
         expect.arrayContaining(["aria-live-status", "camera-caption", "scene-object-caption"]),
       );

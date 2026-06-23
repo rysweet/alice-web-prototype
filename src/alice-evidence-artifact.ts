@@ -4,6 +4,7 @@ const ALICE_EVIDENCE_MIME_TYPE = "application/json" as const;
 
 const MAX_VISIBLE_OBJECTS = 200;
 const MAX_FILENAME_LENGTH = 120;
+const MAX_RUNTIME_REVIEW_ITEMS = 50;
 
 export type AliceEvidenceExportMethod = "download" | "native-share";
 export type AliceEvidenceShareOutcome = "prepared" | "completed" | "unavailable";
@@ -49,8 +50,8 @@ export interface AliceEvidenceCameraVrComfort {
   status: "partial";
   browserWebXrStatus?: string;
   desktopCameraAvailable?: boolean;
-  keyboardMovementAvailable?: boolean;
-  reducedMotionRespected?: boolean;
+  keyboardMovementAvailable?: boolean | "unknown";
+  reducedMotionRespected?: boolean | "unknown";
   trueHeadsetVrSupported: false;
   nativeVrSupported: false;
   cameraMode?: string;
@@ -69,8 +70,8 @@ export interface AliceEvidenceAccessibilityCaptions {
   ariaLiveCaption?: string;
   cameraCaption?: string;
   objectCaption?: string;
-  keyboardReviewAvailable?: boolean;
-  highContrastReviewAvailable?: boolean;
+  keyboardReviewAvailable?: boolean | "unknown";
+  highContrastReviewAvailable?: boolean | "unknown";
   captionChecks?: readonly {
     id: string;
     present: boolean;
@@ -471,6 +472,10 @@ function sanitizeCanvasSnapshot(snapshot: AliceEvidenceCanvasSnapshot): AliceEvi
   };
 }
 
+function measuredBoolean(value: unknown): boolean | "unknown" {
+  return value === "unknown" ? "unknown" : Boolean(value);
+}
+
 function sanitizeRuntimeReview(review: AliceEvidenceRuntimeReview): AliceEvidenceRuntimeReview {
   return {
     ...(review.cameraVrComfort !== undefined ? { cameraVrComfort: sanitizeCameraVrComfortReview(review.cameraVrComfort) } : {}),
@@ -485,12 +490,14 @@ function sanitizeCameraVrComfortReview(value: AliceEvidenceCameraVrComfort): Ali
     status: "partial",
     ...(value.browserWebXrStatus ? { browserWebXrStatus: stringValue(value.browserWebXrStatus) } : {}),
     ...(value.desktopCameraAvailable !== undefined ? { desktopCameraAvailable: Boolean(value.desktopCameraAvailable) } : {}),
-    ...(value.keyboardMovementAvailable !== undefined ? { keyboardMovementAvailable: Boolean(value.keyboardMovementAvailable) } : {}),
-    ...(value.reducedMotionRespected !== undefined ? { reducedMotionRespected: Boolean(value.reducedMotionRespected) } : {}),
+    ...(value.keyboardMovementAvailable !== undefined ? { keyboardMovementAvailable: measuredBoolean(value.keyboardMovementAvailable) } : {}),
+    ...(value.reducedMotionRespected !== undefined ? { reducedMotionRespected: measuredBoolean(value.reducedMotionRespected) } : {}),
     trueHeadsetVrSupported: false,
     nativeVrSupported: false,
     ...(value.cameraMode ? { cameraMode: stringValue(value.cameraMode) } : {}),
-    ...(Array.isArray(value.evidenceCodes) ? { evidenceCodes: value.evidenceCodes.map(stringValue) } : {}),
+    ...(Array.isArray(value.evidenceCodes)
+      ? { evidenceCodes: value.evidenceCodes.slice(0, MAX_RUNTIME_REVIEW_ITEMS).map(stringValue) }
+      : {}),
     ...(value.comfortChecks ? {
       comfortChecks: {
         discreteMovementStep: Boolean(value.comfortChecks.discreteMovementStep),
@@ -509,10 +516,10 @@ function sanitizeAccessibilityCaptionsReview(value: AliceEvidenceAccessibilityCa
     ...(value.ariaLiveCaption ? { ariaLiveCaption: stringValue(value.ariaLiveCaption) } : {}),
     ...(value.cameraCaption ? { cameraCaption: stringValue(value.cameraCaption) } : {}),
     ...(value.objectCaption ? { objectCaption: stringValue(value.objectCaption) } : {}),
-    ...(value.keyboardReviewAvailable !== undefined ? { keyboardReviewAvailable: Boolean(value.keyboardReviewAvailable) } : {}),
-    ...(value.highContrastReviewAvailable !== undefined ? { highContrastReviewAvailable: Boolean(value.highContrastReviewAvailable) } : {}),
+    ...(value.keyboardReviewAvailable !== undefined ? { keyboardReviewAvailable: measuredBoolean(value.keyboardReviewAvailable) } : {}),
+    ...(value.highContrastReviewAvailable !== undefined ? { highContrastReviewAvailable: measuredBoolean(value.highContrastReviewAvailable) } : {}),
     ...(Array.isArray(value.captionChecks) ? {
-      captionChecks: value.captionChecks.map((check) => ({
+      captionChecks: value.captionChecks.slice(0, MAX_RUNTIME_REVIEW_ITEMS).map((check) => ({
         id: stringValue(check.id),
         present: Boolean(check.present),
         ...(check.channel ? { channel: check.channel } : {}),
@@ -533,7 +540,7 @@ function sanitizeGalleryWalkRubricReview(value: AliceEvidenceGalleryReview): Ali
     liveStudioSupported: false,
     ...(value.unsupportedLiveStudioReason ? { unsupportedLiveStudioReason: stringValue(value.unsupportedLiveStudioReason) } : {}),
     ...(Array.isArray(value.rubric) ? {
-      rubric: value.rubric.map((item) => ({
+      rubric: value.rubric.slice(0, MAX_RUNTIME_REVIEW_ITEMS).map((item) => ({
         id: stringValue(item.id),
         label: stringValue(item.label),
         maxScore: finiteNonNegativeInteger(item.maxScore),
@@ -541,7 +548,7 @@ function sanitizeGalleryWalkRubricReview(value: AliceEvidenceGalleryReview): Ali
       })),
     } : {}),
     ...(Array.isArray(value.galleryItems) ? {
-      galleryItems: value.galleryItems.map((item) => ({
+      galleryItems: value.galleryItems.slice(0, MAX_RUNTIME_REVIEW_ITEMS).map((item) => ({
         id: stringValue(item.id),
         title: stringValue(item.title),
         reviewPrompt: stringValue(item.reviewPrompt),

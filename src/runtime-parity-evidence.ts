@@ -7,14 +7,15 @@ export const ACCESSIBILITY_RESCUE_CAPTIONS_SCHEMA_VERSION = "alice.accessibility
 export const GALLERY_WALK_RUBRIC_SCHEMA_VERSION = "alice.gallery-walk-rubric-evidence/v1" as const;
 
 export type RuntimeParityStatus = "partial";
+export type RuntimeParityMeasuredBoolean = boolean | "unknown";
 
 export interface CameraVrComfortEvidence {
   readonly schema_version: typeof CAMERA_VR_COMFORT_SCHEMA_VERSION;
   readonly status: RuntimeParityStatus;
   readonly browserWebXrStatus: WebXRCapabilityReport["status"] | "unknown";
   readonly desktopCameraAvailable: boolean;
-  readonly keyboardMovementAvailable: boolean;
-  readonly reducedMotionRespected: boolean;
+  readonly keyboardMovementAvailable: RuntimeParityMeasuredBoolean;
+  readonly reducedMotionRespected: RuntimeParityMeasuredBoolean;
   readonly trueHeadsetVrSupported: false;
   readonly nativeVrSupported: false;
   readonly cameraMode: string;
@@ -33,8 +34,8 @@ export interface AccessibilityRescueCaptionEvidence {
   readonly ariaLiveCaption: string;
   readonly cameraCaption: string;
   readonly objectCaption: string;
-  readonly keyboardReviewAvailable: boolean;
-  readonly highContrastReviewAvailable: boolean;
+  readonly keyboardReviewAvailable: RuntimeParityMeasuredBoolean;
+  readonly highContrastReviewAvailable: RuntimeParityMeasuredBoolean;
   readonly captionChecks: readonly {
     readonly id: string;
     readonly present: boolean;
@@ -83,8 +84,8 @@ export function createCameraVrComfortEvidence(input: {
     status: "partial",
     browserWebXrStatus: webxrReport?.status ?? "unknown",
     desktopCameraAvailable: true,
-    keyboardMovementAvailable: input.keyboardMovementAvailable ?? true,
-    reducedMotionRespected: input.reducedMotionRespected ?? true,
+    keyboardMovementAvailable: input.keyboardMovementAvailable ?? "unknown",
+    reducedMotionRespected: input.reducedMotionRespected ?? "unknown",
     trueHeadsetVrSupported: false,
     nativeVrSupported: false,
     cameraMode: input.camera.mode,
@@ -94,7 +95,7 @@ export function createCameraVrComfortEvidence(input: {
       stableHorizon: true,
       noForcedHeadset: true,
     },
-    unsupportedReason: "Alice records browser WebXR and desktop camera comfort evidence only; true headset/native VR remains unsupported.",
+    unsupportedReason: "Alice web records browser WebXR and desktop camera comfort evidence only; true headset/native VR remains unsupported.",
   };
 }
 
@@ -102,6 +103,8 @@ export function createAccessibilityRescueCaptionEvidence(input: {
   readonly camera: CameraWorkflowState["camera"];
   readonly project?: AliceProject | null;
   readonly statusText?: string;
+  readonly keyboardReviewAvailable?: boolean;
+  readonly highContrastReviewAvailable?: boolean;
 }): AccessibilityRescueCaptionEvidence {
   const objectNames = (input.project?.sceneObjects ?? [])
     .map((object) => object.name.trim())
@@ -118,8 +121,8 @@ export function createAccessibilityRescueCaptionEvidence(input: {
     ariaLiveCaption,
     cameraCaption,
     objectCaption,
-    keyboardReviewAvailable: true,
-    highContrastReviewAvailable: true,
+    keyboardReviewAvailable: input.keyboardReviewAvailable ?? "unknown",
+    highContrastReviewAvailable: input.highContrastReviewAvailable ?? "unknown",
     captionChecks: [
       { id: "aria-live-status", present: true, channel: "aria-live", text: ariaLiveCaption },
       { id: "camera-caption", present: true, channel: "visible-text", text: cameraCaption },
@@ -153,7 +156,7 @@ export function createGalleryWalkRubricEvidence(input: {
     reviewWorkflowSupported: true,
     rubricRecordingSupported: true,
     liveStudioSupported: false,
-    unsupportedLiveStudioReason: "Alice provides web gallery review and rubric evidence, not a synchronized live workshop studio.",
+    unsupportedLiveStudioReason: "Alice web provides web gallery review and rubric evidence, not a synchronized live workshop studio.",
     rubric: [
       {
         id: "visible-world",
@@ -183,16 +186,24 @@ export function createRuntimeParityEvidence(input: {
   readonly project?: AliceProject | null;
   readonly statusText?: string;
   readonly webxrReport?: WebXRCapabilityReport | null;
+  readonly keyboardMovementAvailable?: boolean;
+  readonly reducedMotionRespected?: boolean;
+  readonly keyboardReviewAvailable?: boolean;
+  readonly highContrastReviewAvailable?: boolean;
 }): RuntimeParityEvidence {
   return {
     cameraVrComfort: createCameraVrComfortEvidence({
       camera: input.camera,
       webxrReport: input.webxrReport,
+      keyboardMovementAvailable: input.keyboardMovementAvailable,
+      reducedMotionRespected: input.reducedMotionRespected,
     }),
     accessibilityRescueCaptions: createAccessibilityRescueCaptionEvidence({
       camera: input.camera,
       project: input.project,
       statusText: input.statusText,
+      keyboardReviewAvailable: input.keyboardReviewAvailable,
+      highContrastReviewAvailable: input.highContrastReviewAvailable,
     }),
     galleryWalkRubric: createGalleryWalkRubricEvidence({
       project: input.project,
