@@ -16,6 +16,17 @@ export interface SceneObjectAddedEvidence {
 const SCENE_OBJECT_ADDED_ARTIFACT = "scene-object-added.json";
 const SCENE_OBJECT_ADDED_SCHEMA = "eatme.alice-scene-object-added/v1";
 
+export function writeJsonEvidenceArtifact(
+  evidenceDir: string,
+  artifactName: string,
+  value: unknown,
+): string {
+  validateEvidenceDir(evidenceDir);
+  const artifact = path.join(evidenceDir, artifactName);
+  writeAtomically(artifact, JSON.stringify(value, null, 2) + "\n");
+  return artifact;
+}
+
 export function writeSceneObjectAdded(
   evidenceDir: string,
   evidence: SceneObjectAddedEvidence,

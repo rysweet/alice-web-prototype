@@ -1,8 +1,7 @@
-import * as fs from "fs";
-import * as path from "path";
 import type { Express } from "express";
 import type { ServerContext } from "../context.js";
 import { readJsonObjectBody, readOptionalStringField } from "../validation.js";
+import { writeJsonEvidenceArtifact } from "../../evidence-writer.js";
 
 const SETUP_SCENARIOS = [
   "setup-preflight-ready-to-create",
@@ -105,10 +104,7 @@ export function registerSetupReadinessRoutes(app: Express, context: ServerContex
 
     const scenarioValue = scenario.value ?? "setup-readiness";
     const handoff = buildEvidenceHandoff(scenarioValue);
-    fs.writeFileSync(
-      path.join(context.evidenceDir, handoff.evidenceArtifact),
-      JSON.stringify(handoff, null, 2) + "\n",
-    );
+    writeJsonEvidenceArtifact(context.evidenceDir, handoff.evidenceArtifact, handoff);
     res.json(handoff);
   });
 }

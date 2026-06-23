@@ -253,6 +253,7 @@ Evidence output is rooted at `--evidence-dir`. The server writes these stable ar
 | Save project | `project-save/desktop-save-operation-result.json` |
 | Saved project archive | `project-save/saved-project.a3p` |
 | Run world | `run-world-result.json` |
+| Setup readiness handoff | `setup-readiness-handoff-<scenario>.json` |
 | Capture screenshot | `screenshot.png` |
 | Register event | `event-register.json` |
 | Fire event | `event-fire.json` |

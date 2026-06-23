@@ -162,6 +162,33 @@ describe("server API response contracts", () => {
     );
     expect(preflight.body.doesNotClaim).toContain("native OpenGL driver diagnosis");
 
+    const defaultPreflight = await request(app)
+      .get("/api/setup/preflight")
+      .expect(200);
+    expect(defaultPreflight.body).toMatchObject({
+      schema_version: "lookingglass.setup-preflight/v1",
+      scenario: "setup-readiness",
+    });
+
+    const readiness = await request(app)
+      .get("/api/setup/readiness")
+      .expect(200);
+    expectOnlyKeys(readiness.body, [
+      "schema_version",
+      "status",
+      "runtime",
+      "platform",
+      "scenario",
+      "checks",
+      "unsupportedCapabilities",
+      "classroomReadiness",
+      "doesNotClaim",
+    ]);
+    expect(readiness.body).toMatchObject({
+      schema_version: "lookingglass.setup-preflight/v1",
+      scenario: "setup-readiness",
+    });
+
     const handoff = await localPost(app, "/api/setup/evidence-handoff")
       .send({ scenario: "instructor-student-launch-evidence-handoff" })
       .expect(200);
@@ -200,6 +227,14 @@ describe("server API response contracts", () => {
       .send({ scenario: "setup-readiness" })
       .expect(200);
     expect(generalHandoff.body.scenario).toBe("setup-readiness");
+
+    const defaultHandoff = await localPost(app, "/api/setup/evidence-handoff")
+      .send({})
+      .expect(200);
+    expect(defaultHandoff.body.scenario).toBe("setup-readiness");
+    expect(defaultHandoff.body.evidenceArtifact).toBe(
+      "setup-readiness-handoff-setup-readiness.json",
+    );
 
     await localPost(app, "/api/setup/evidence-handoff")
       .send({ scenario: "missing-setup-scenario" })

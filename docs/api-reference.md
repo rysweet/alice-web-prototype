@@ -86,8 +86,6 @@ implemented export/share routes. `/api/audio/*` exposes the audio workflow; see
 curl http://127.0.0.1:3000/api/health
 ```
 
-Example response:
-
 ```json
 {
   "status": "running",
@@ -109,8 +107,6 @@ filesystem paths.
 curl http://127.0.0.1:3000/api/config
 ```
 
-Example response:
-
 ```json
 {
   "schema_version": "lookingglass.server-config/v1",
@@ -126,7 +122,15 @@ Example response:
     "evidenceHandoff": "/api/setup/evidence-handoff",
     "projectTemplates": "/api/project/templates",
     "createProject": "/api/project/new"
-  }
+  },
+  "doesNotClaim": [
+    "Java desktop Alice launch",
+    "desktop installer automation",
+    "native OpenGL driver diagnosis",
+    "native Alice window screenshots",
+    "learner-world grading",
+    "full Alice UI automation"
+  ]
 }
 ```
 
@@ -145,9 +149,11 @@ Query parameters:
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `scenario` | `string` | no | One of `setup-preflight-ready-to-create`, `setup-support-lab-readiness`, `instructor-classroom-setup-readiness`, `instructor-student-launch-evidence-handoff`, or `setup-readiness` |
+| `scenario` | `string` | no | One of `setup-preflight-ready-to-create`, `setup-support-lab-readiness`, `instructor-classroom-setup-readiness`, `instructor-student-launch-evidence-handoff`, or `setup-readiness`. Omitted values default to `setup-readiness`. |
 
-Example response:
+Abbreviated example response. The `checks`, `unsupportedCapabilities`, and
+`classroomReadiness.studentFallbackRoles` arrays may contain additional stable
+entries; clients should treat them as arrays, not singletons.
 
 ```json
 {
@@ -170,7 +176,15 @@ Example response:
     "readyForLabHandoff": true,
     "readyForEvidenceHandoff": true,
     "studentFallbackRoles": ["web project creator"]
-  }
+  },
+  "doesNotClaim": [
+    "Java desktop Alice launch",
+    "desktop installer automation",
+    "native OpenGL driver diagnosis",
+    "native Alice window screenshots",
+    "learner-world grading",
+    "full Alice UI automation"
+  ]
 }
 ```
 
@@ -210,7 +224,8 @@ Request body:
 | --- | --- | --- | --- |
 | `scenario` | `string` | no | One setup scenario or `setup-readiness`; defaults to `setup-readiness` |
 
-Example response:
+Abbreviated example response. The `handoff.readinessSignals` array may contain
+additional stable entries; clients should treat it as an array, not a singleton.
 
 ```json
 {
@@ -222,7 +237,27 @@ Example response:
   "evidenceArtifact": "setup-readiness-handoff-instructor-student-launch-evidence-handoff.json",
   "handoff": {
     "audience": "instructor-and-students",
-    "readinessSignals": ["server health route is registered"]
+    "readinessSignals": ["server health route is registered"],
+    "studentNextActions": [
+      "open the assigned LookingGlass URL",
+      "create or open the starter project",
+      "record one visible result after running",
+      "record one next revision or setup blocker"
+    ],
+    "supportHandoffFields": [
+      "blocker category",
+      "owner",
+      "learner-safe fallback role",
+      "retest signal"
+    ],
+    "doesNotClaim": [
+      "Java desktop Alice launch",
+      "desktop installer automation",
+      "native OpenGL driver diagnosis",
+      "native Alice window screenshots",
+      "learner-world grading",
+      "full Alice UI automation"
+    ]
   }
 }
 ```
@@ -230,6 +265,15 @@ Example response:
 `evidenceArtifact` is always a filename, never an absolute path and never the
 configured `evidenceDir`. The server writes the file under its configured
 evidence directory internally.
+
+Invalid scenarios use the same setup scenario validator as
+`GET /api/setup/preflight` and return `400`:
+
+```json
+{
+  "error": "scenario must be one of: setup-preflight-ready-to-create, setup-support-lab-readiness, instructor-classroom-setup-readiness, instructor-student-launch-evidence-handoff, setup-readiness"
+}
+```
 
 ## `POST /api/launch`
 
