@@ -12,6 +12,14 @@ function expectElement(html: string, id: string): void {
   expect(html, `src/index.html must define #${id}`).toContain(`id="${id}"`);
 }
 
+function expectFunctionContains(source: string, functionName: string, expected: string): void {
+  const start = source.indexOf(`function ${functionName}`);
+  expect(start, `${functionName} should exist`).toBeGreaterThanOrEqual(0);
+  const nextFunction = source.indexOf("\nfunction ", start + 1);
+  const body = source.slice(start, nextFunction === -1 ? undefined : nextFunction);
+  expect(body, `${functionName} should contain ${expected}`).toContain(expected);
+}
+
 describe("Alice browser workflow UI contract", () => {
   it("exposes controls for project, model, texture, camera, joint, evidence, export, and share steps", () => {
     const html = readText("src/index.html");
@@ -143,5 +151,15 @@ describe("Alice browser workflow UI contract", () => {
     expect(main).toContain("handleTurnSelectedObject");
     expect(main).toContain("handleResizeSelectedObject");
     expect(main).toContain("renderProject(project)");
+  });
+
+  it("invalidates cached web packages after project mutations before share", () => {
+    const main = readText("src/main.ts");
+
+    expectFunctionContains(main, "updateAliceWorkflow", "markProjectChanged();");
+    expectFunctionContains(main, "handleClassBehaviorImport", "markProjectChanged();");
+    expectFunctionContains(main, "handleRunWorld", "markProjectChanged();");
+    expectFunctionContains(main, "exportWebPackage", "lastWebPackageBase64 = exported.package.base64");
+    expectFunctionContains(main, "generateShareArtifacts", "if (!lastWebPackageBase64)");
   });
 });

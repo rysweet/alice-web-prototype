@@ -491,7 +491,7 @@ export async function validateWebPackage(input: ValidateWebPackageInput): Promis
     zip = await JSZip.loadAsync(decoded.bytes);
     evidence.push("zip-readable");
   } catch (error) {
-    if (error instanceof Error && /duplicate entry|central directory/i.test(error.message)) {
+    if (error instanceof Error && /duplicate entry/i.test(error.message)) {
       errors.push({ code: "duplicate-zip-entry", message: error.message });
       return buildValidationResult(evidence, errors);
     }

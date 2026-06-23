@@ -67,6 +67,7 @@ export interface ProjectService {
     evidenceService: EvidenceService,
   ): Promise<Record<string, unknown>>;
   exportWebPackage(state: ServerState, input: WebPackageOptions): Promise<ExportedWebPackage>;
+  exportWebPackageFromArchive(archiveBytes: Uint8Array, input: WebPackageOptions): Promise<ExportedWebPackage>;
   validateWebPackage(input: ValidateWebPackageInput): Promise<WebPackageValidation>;
   generateShareArtifacts(input: ShareArtifactsInput): Promise<ShareArtifacts>;
   exportTypeScript(state: ServerState): Promise<TypeScriptExportResult>;
@@ -417,6 +418,18 @@ export const projectService: ProjectService = {
             && !isReservedWebPackagePath(resource.path)
           ),
       ],
+    });
+  },
+
+  async exportWebPackageFromArchive(archiveBytes, input) {
+    const archive = await readProject(archiveBytes);
+    return exportWebPackage(archive.project, {
+      ...input,
+      resources: Array.from(archive.resources, ([path, bytes]) => ({ path, bytes }))
+        .filter((resource) =>
+          !SPECIAL_PROJECT_IO_PATHS.has(resource.path)
+          && !isReservedWebPackagePath(resource.path)
+        ),
     });
   },
 

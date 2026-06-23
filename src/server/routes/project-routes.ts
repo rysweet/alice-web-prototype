@@ -8,6 +8,8 @@ import {
   ClassBehaviorPackageError,
   type ClassBehaviorConflictStrategy,
 } from "../../project-io/class-behavior-package.js";
+import { ProjectIoError } from "../../project-io.js";
+import { A3PArchiveLimitError } from "../../a3p-parser/limits.js";
 import type { ServerContext } from "../context.js";
 import {
   readJsonObjectBody,
@@ -131,10 +133,23 @@ export function registerProjectRoutes(app: Express, context: ServerContext): voi
     }
 
     try {
-      res.json(await context.projectService.exportWebPackage(context.state, input.value));
+      res.json(input.value.archiveBase64Bytes
+        ? await context.projectService.exportWebPackageFromArchive(
+          input.value.archiveBase64Bytes,
+          input.value,
+        )
+        : await context.projectService.exportWebPackage(context.state, input.value));
     } catch (error) {
       if (error instanceof WebPackageInputError) {
         res.status(400).json({ error: error.message });
+        return;
+      }
+      if (error instanceof ProjectIoError) {
+        res.status(400).json({ error: error.message, code: error.code });
+        return;
+      }
+      if (error instanceof A3PArchiveLimitError) {
+        res.status(400).json({ error: error.message, code: "archive-limit" });
         return;
       }
       next(error);
@@ -244,7 +259,17 @@ export function registerProjectRoutes(app: Express, context: ServerContext): voi
 }
 
 function readWebPackageOptions(body: Record<string, unknown>):
-  | { ok: true; value: { title?: string; description?: string; canonicalUrl?: string; teacher?: TeacherShareMetadata } }
+  | {
+    ok: true;
+    value: {
+      title?: string;
+      description?: string;
+      canonicalUrl?: string;
+      teacher?: TeacherShareMetadata;
+      archiveBase64?: string;
+      archiveBase64Bytes?: Uint8Array;
+    };
+  }
   | { ok: false; error: string } {
   const title = readOptionalStringField(body, "title");
   if (!title.ok) return title;
@@ -262,6 +287,9 @@ function readWebPackageOptions(body: Record<string, unknown>):
   const teacher = readTeacherShareMetadata(body.teacher);
   if (!teacher.ok) return teacher;
 
+  const archiveBase64 = readOptionalArchiveBase64(body);
+  if (!archiveBase64.ok) return archiveBase64;
+
   return {
     ok: true,
     value: {
@@ -269,6 +297,8 @@ function readWebPackageOptions(body: Record<string, unknown>):
       ...(description.value !== undefined ? { description: description.value } : {}),
       ...(canonicalUrl.value !== undefined ? { canonicalUrl: canonicalUrl.value } : {}),
       ...(teacher.value !== undefined ? { teacher: teacher.value } : {}),
+      ...(archiveBase64.value !== undefined ? { archiveBase64: archiveBase64.value } : {}),
+      ...(archiveBase64.bytes !== undefined ? { archiveBase64Bytes: archiveBase64.bytes } : {}),
     },
   };
 }
@@ -368,6 +398,27 @@ function readRequiredPackageBase64(body: Record<string, unknown>):
     return { ok: false, error: "packageBase64 is required and must be a non-empty string" };
   }
   return { ok: true, value: value.trim() };
+}
+
+function readOptionalArchiveBase64(body: Record<string, unknown>):
+  | { ok: true; value?: string; bytes?: Uint8Array }
+  | { ok: false; error: string } {
+  const value = body.archiveBase64;
+  if (value === undefined) {
+    return { ok: true };
+  }
+  if (typeof value !== "string" || value.trim() === "") {
+    return { ok: false, error: "archiveBase64 must be a non-empty string when provided" };
+  }
+  const trimmed = value.trim();
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(trimmed)) {
+    return { ok: false, error: "archiveBase64 must be valid base64" };
+  }
+  const bytes = Buffer.from(trimmed, "base64");
+  if (bytes.length === 0 || bytes.toString("base64") !== trimmed) {
+    return { ok: false, error: "archiveBase64 must be valid base64" };
+  }
+  return { ok: true, value: trimmed, bytes };
 }
 
 function readConflictStrategy(value: unknown):
