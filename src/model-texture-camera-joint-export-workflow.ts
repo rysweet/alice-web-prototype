@@ -49,7 +49,7 @@ export function createWorkflowState(input: { readonly project: AliceProject }): 
   return {
     project,
     resources: [],
-    textureAssignments: [],
+    textureAssignments: (project.textureAssignments ?? []).map((assignment) => ({ ...assignment })),
     cameraWorkflow: project.cameraWorkflow
       ? validateCameraWorkflowState(project.cameraWorkflow)
       : createDefaultCameraWorkflowState(),

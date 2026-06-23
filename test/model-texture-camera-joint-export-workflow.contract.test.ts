@@ -208,6 +208,28 @@ describe("model, texture, camera, joint, and export workflow contract", () => {
     ]);
   });
 
+  it("initializes workflow texture assignments from saved projects", () => {
+    const api = getWorkflowApi();
+    const project = createRobotProject();
+    project.textureAssignments = [
+      {
+        objectName: "robot",
+        texturePath: "resources/textures/saved-robot.png",
+        materialName: "body",
+      },
+    ];
+
+    const initial = api.createWorkflowState({ project });
+
+    expect(initial.textureAssignments).toEqual([
+      {
+        objectName: "robot",
+        texturePath: "resources/textures/saved-robot.png",
+        materialName: "body",
+      },
+    ]);
+  });
+
   it("imports model and texture assets immutably under safe archive paths", async () => {
     const api = getWorkflowApi();
     const initial = api.createWorkflowState({ project: createRobotProject() });

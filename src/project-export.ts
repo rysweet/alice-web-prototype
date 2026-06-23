@@ -37,7 +37,13 @@ const ENCODED_PATH_CONTROL_RE = /%(?:2e|2f|5c)/i;
 const URL_CONTROL_OR_SPACE_RE = /[\u0000-\u0020\u007f]/u;
 
 export function isReservedWebPackagePath(path: string): boolean {
-  return RESERVED_WEB_PACKAGE_PATHS.has(path);
+  return [...RESERVED_WEB_PACKAGE_PATHS].some((reserved) =>
+    path === reserved || path.startsWith(`${reserved}/`)
+  );
+}
+
+function isReservedWebPackageDescendant(path: string): boolean {
+  return [...RESERVED_WEB_PACKAGE_PATHS].some((reserved) => path.startsWith(`${reserved}/`));
 }
 
 export interface ProjectExportResource {
@@ -429,7 +435,7 @@ export async function exportWebPackage(
   addZipFile(zip, WEB_PACKAGE_ARTIFACTS.project, JSON.stringify(project, null, 2));
   addZipFile(zip, WEB_PACKAGE_ARTIFACTS.validation, JSON.stringify(validation, null, 2));
   for (const resource of resources) {
-    if (RESERVED_WEB_PACKAGE_PATHS.has(resource.path)) {
+    if (isReservedWebPackagePath(resource.path)) {
       throw new WebPackageInputError(`resource path conflicts with web package artifact: ${resource.path}`);
     }
     addZipFile(zip, resource.path, normalizeResourceBytes(resource.bytes));
@@ -533,6 +539,16 @@ export async function validateWebPackage(input: ValidateWebPackageInput): Promis
   if (preview && Array.from(preview.slice(0, 4)).join(",") !== "137,80,78,71") {
     errors.push({ code: "invalid-preview", message: "preview.png must be a PNG image", path: WEB_PACKAGE_ARTIFACTS.preview });
   }
+  if (share && Object.prototype.hasOwnProperty.call(share, "canonicalUrl")) {
+    const canonicalUrl = (share as { canonicalUrl?: unknown }).canonicalUrl;
+    if (typeof canonicalUrl !== "string" || !isSafeHttpUrl(canonicalUrl)) {
+      errors.push({
+        code: "invalid-canonical-url",
+        message: "share canonicalUrl must be a valid http or https URL",
+        path: WEB_PACKAGE_ARTIFACTS.share,
+      });
+    }
+  }
 
   if (share && Object.prototype.hasOwnProperty.call(share, "teacher")) {
     const teacherErrors = validateTeacherShareMetadata(share.teacher);
@@ -568,7 +584,7 @@ function validatedPackageFilename(
   manifest: AliceWebPackageManifest | null,
   errors: WebPackageValidationError[],
 ): string {
-  const fallback = `${manifest?.packageName ?? ALICE_WEB_PACKAGE}.zip`;
+  const fallback = `${ALICE_WEB_PACKAGE}.zip`;
   const candidate = manifest?.package?.filename;
   if (candidate === undefined) {
     if (manifest) {
@@ -1157,6 +1173,14 @@ function containsForbiddenRepositoryIdentity(values: unknown[]): boolean {
 function zipPathsAreSafe(zip: JSZip): boolean {
   for (const [path, file] of Object.entries(zip.files)) {
     const originalName = readUnsafeOriginalName(file) ?? path;
+    if (
+      ENCODED_PATH_CONTROL_RE.test(originalName)
+      || ENCODED_PATH_CONTROL_RE.test(path)
+      || isReservedWebPackageDescendant(path)
+      || isReservedWebPackageDescendant(originalName)
+    ) {
+      return false;
+    }
     try {
       const validate = file.dir ? validateArchivePath : assertSafeWritablePath;
       if (validate(originalName) !== originalName || (path && validate(path) !== path)) {

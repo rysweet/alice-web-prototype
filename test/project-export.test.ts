@@ -323,6 +323,11 @@ describe("project-export", () => {
       title: "Collision",
       resources: [{ path: "index.html", bytes: "owned" }],
     })).rejects.toThrow(/resource path conflicts with web package artifact/);
+
+    await expect(projectExportApi.exportWebPackage!(createProjectFixture(), {
+      title: "Directory Collision",
+      resources: [{ path: "index.html/foo.txt", bytes: "owned" }],
+    })).rejects.toThrow(/resource path conflicts with web package artifact/);
   });
 
   it.each([
@@ -424,6 +429,54 @@ describe("project-export", () => {
     expect(unsafePath.errors).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: "unsafe-zip-path" }),
     ]));
+
+    for (const encodedPath of ["index%2ehtml", "manifest%2ejson", "project%2fproject.json"]) {
+      const encodedAlias = await projectExportApi.validateWebPackage!({
+        packageBase64: await makeZip({
+          [encodedPath]: "owned",
+          "index.html": "<!doctype html><script>window.AlicePlayer={runtimeIdentity:'alice-web-player'}</script>",
+          "manifest.json": JSON.stringify({
+            schemaVersion: "alice-web.package/v1",
+            product: "Alice",
+            packageName: "alice-web",
+            runtimeIdentity: "alice-web-player",
+            entrypoint: "index.html",
+            package: { filename: "safe.alice-web.zip", mimeType: "application/zip" },
+          }),
+          "share.json": JSON.stringify({ schemaVersion: "alice-web.share/v1", product: "Alice", runtimeIdentity: "alice-web-player" }),
+          "preview.png": new Uint8Array([137, 80, 78, 71]),
+          "project/project.json": "{}",
+          "validation.json": JSON.stringify({ schemaVersion: "alice-web.validation/v1" }),
+        }),
+      });
+      expect(encodedAlias.errors, encodedPath).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: "unsafe-zip-path" }),
+      ]));
+    }
+
+    for (const reservedDescendant of ["index.html/foo.txt", "manifest.json/foo.txt", "project/project.json/foo.txt"]) {
+      const directoryCollision = await projectExportApi.validateWebPackage!({
+        packageBase64: await makeZip({
+          [reservedDescendant]: "owned",
+          "index.html": "<!doctype html><script>window.AlicePlayer={runtimeIdentity:'alice-web-player'}</script>",
+          "manifest.json": JSON.stringify({
+            schemaVersion: "alice-web.package/v1",
+            product: "Alice",
+            packageName: "alice-web",
+            runtimeIdentity: "alice-web-player",
+            entrypoint: "index.html",
+            package: { filename: "safe.alice-web.zip", mimeType: "application/zip" },
+          }),
+          "share.json": JSON.stringify({ schemaVersion: "alice-web.share/v1", product: "Alice", runtimeIdentity: "alice-web-player" }),
+          "preview.png": new Uint8Array([137, 80, 78, 71]),
+          "project/project.json": "{}",
+          "validation.json": JSON.stringify({ schemaVersion: "alice-web.validation/v1" }),
+        }),
+      });
+      expect(directoryCollision.errors, reservedDescendant).toEqual(expect.arrayContaining([
+        expect.objectContaining({ code: "unsafe-zip-path" }),
+      ]));
+    }
 
     const identityDrift = await projectExportApi.validateWebPackage!({
       packageBase64: await makeZip({

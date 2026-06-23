@@ -269,6 +269,42 @@ describe("server API", () => {
         })
         .expect(400);
     });
+
+    it("attaches imported model resources to newly added scene objects", async () => {
+      await localPost(app, "/api/launch").send({}).expect(200);
+      const imported = await localPost(app, "/api/assets/import-model")
+        .send({
+          fileName: "moon-rover.glb",
+          contentBase64: Buffer.from([1, 2, 3, 4]).toString("base64"),
+        })
+        .expect(200);
+      const modelResourceId = imported.body.asset.id;
+
+      const added = await localPost(app, "/api/scene/add-object")
+        .send({
+          className: "org.lgna.story.SProp",
+          name: "moonRover",
+          modelResourceId,
+        })
+        .expect(200);
+      expect(added.body.modelResourceId).toBe(modelResourceId);
+
+      const save = await localPost(app, "/api/project/save")
+        .send({})
+        .expect(200);
+      const savedProject = await parseA3P(fs.readFileSync(path.join(evidenceDir, "project-save", "saved-project.a3p")));
+      expect(save.body.status).toBe("saved");
+      expect(savedProject.sceneObjects.find((object) => object.name === "moonRover")?.modelResourceId)
+        .toBe(modelResourceId);
+
+      await localPost(app, "/api/scene/add-object")
+        .send({
+          className: "org.lgna.story.SProp",
+          name: "badModel",
+          modelResourceId: "project/models/missing.glb",
+        })
+        .expect(400);
+    });
   });
 
   describe("POST /api/code/edit-procedure", () => {
