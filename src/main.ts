@@ -190,7 +190,7 @@ let selectedTextureResourceId: string | null = null;
 let selectedClassBehaviorName: string | null = null;
 let lastWebPackageBase64: string | null = null;
 let lastEvidenceArtifact: AliceEvidenceArtifact | null = null;
-const jointState = new JointSystem.JointStateStore();
+let jointState = new JointSystem.JointStateStore();
 const MOVE_SELECTED_OBJECT_DELTA = { x: 1, y: 0, z: 0 } as const;
 const TURN_SELECTED_OBJECT_RADIANS = Math.PI / 12;
 const RESIZE_SELECTED_OBJECT_SCALE = 1.2;
@@ -239,10 +239,21 @@ function markProjectChanged(): void {
 }
 
 function currentExportProject(archive: AliceProjectArchive): AliceProject {
+  const liveJointState = jointState.listObjectNames().length > 0 ? jointState.toJSON() : null;
   return {
     ...(JSON.parse(JSON.stringify(archive.project)) as AliceProject),
     cameraWorkflow,
-    ...(jointState.listObjectNames().length > 0 ? { jointState: jointState.toJSON() } : {}),
+    ...(liveJointState
+      ? {
+        jointState: {
+          ...liveJointState,
+          objects: {
+            ...(archive.project.jointState?.objects ?? {}),
+            ...liveJointState.objects,
+          },
+        },
+      }
+      : {}),
   };
 }
 
@@ -656,11 +667,14 @@ async function handleFileSelection(): Promise<void> {
     const archive = await loadProjectFromFile(file);
     lastArchive = archive;
     lastProject = archive.project;
+    cameraWorkflow = archive.project.cameraWorkflow ?? createDefaultCameraWorkflowState();
+    jointState = new JointSystem.JointStateStore();
     markWebPackageStale();
     aliceWorkflow = archive.aliceWorkflow ?? createDefaultAliceWorkflowState();
     workflowScoreValues = createInitialScoreValues(aliceWorkflow);
     workflowElapsedSeconds = 0;
     selectedTextureResourceId = latestTextureResourceId(archive.project);
+    renderCameraWorkflow();
     renderProject(archive.project);
     renderScoreTimeWorkflow();
     setStatusMessage(describeProject(archive.project));

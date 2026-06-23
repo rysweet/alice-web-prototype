@@ -172,4 +172,12 @@ describe("Alice browser workflow UI contract", () => {
     expectFunctionContains(main, "currentExportArchive", "project: currentExportProject(archive)");
     expectFunctionContains(main, "exportWebPackage", "currentExportArchive()");
   });
+
+  it("hydrates project load state before later export/share operations", () => {
+    const main = readText("src/main.ts");
+
+    expectFunctionContains(main, "handleFileSelection", "cameraWorkflow = archive.project.cameraWorkflow ?? createDefaultCameraWorkflowState();");
+    expectFunctionContains(main, "handleFileSelection", "jointState = new JointSystem.JointStateStore();");
+    expectFunctionContains(main, "currentExportProject", "archive.project.jointState?.objects ?? {}");
+  });
 });
