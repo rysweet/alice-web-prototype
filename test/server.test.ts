@@ -885,6 +885,7 @@ describe("server API", () => {
     it("does not duplicate procedure edits when class behavior import materializes the current project", async () => {
       await localPost(app, "/api/launch").send({}).expect(200);
       const marker = "editBeforeClassImportMaterializationProof";
+      const classMarker = "classBehaviorMethodBodyProof";
       await localPost(app, "/api/code/edit-procedure")
         .send({
           procedureSelector: "scene.myFirstMethod",
@@ -912,7 +913,7 @@ describe("server API", () => {
                     {
                       kind: "MethodCall",
                       object: "this",
-                      method: "turn",
+                      method: classMarker,
                       arguments: [],
                     },
                   ],
@@ -929,12 +930,16 @@ describe("server API", () => {
         .send({ name: "myFirstMethod" })
         .expect(400);
       await localPost(app, "/api/project/save").send({}).expect(200);
-      const savedProject = await parseA3P(fs.readFileSync(path.join(evidenceDir, "project-save", "saved-project.a3p")));
-      const method = savedProject.methods.find((candidate) => candidate.name === "myFirstMethod");
-      expect(method?.statements.map((statement) => statement.method).filter((methodName) => methodName === marker))
+      const savedProjectPath = path.join(evidenceDir, "project-save", "saved-project.a3p");
+      const savedProject = await parseA3P(fs.readFileSync(savedProjectPath));
+      const sceneType = savedProject.types?.find((type) => type.superTypeName?.includes("SScene"));
+      const sceneMethod = sceneType?.methods?.find((candidate) => candidate.name === "myFirstMethod");
+      expect(sceneMethod?.statements.map((statement) => statement.method).filter((methodName) => methodName === marker))
         .toHaveLength(1);
       const importedType = savedProject.types?.find((type) => type.name === "ReusableBehavior");
-      expect(importedType?.methods?.some((candidate) => candidate.name === "myFirstMethod")).toBe(true);
+      const importedMethod = importedType?.methods?.find((candidate) => candidate.name === "myFirstMethod");
+      expect(importedMethod?.statements.map((statement) => statement.method)).toContain(classMarker);
+      expect(importedMethod?.statements.map((statement) => statement.method)).not.toContain(marker);
       const exportRes = await request(app)
         .get("/api/projects/current/export/typescript")
         .buffer(true)
@@ -947,6 +952,25 @@ describe("server API", () => {
           .map((entry) => entry.async("string")),
       )).join("\n");
       expect(exportedText).toContain(marker);
+
+      const persistenceApp = createTestServer({
+        port: 0,
+        evidenceDir,
+        allowedProjectDirs: [evidenceDir],
+      });
+      await localPost(persistenceApp, "/api/project/reopen")
+        .send({ project: savedProjectPath })
+        .expect(200);
+      await localPost(persistenceApp, "/api/project/save").send({}).expect(200);
+      const resavedProject = await parseA3P(fs.readFileSync(savedProjectPath));
+      const resavedSceneType = resavedProject.types?.find((type) => type.superTypeName?.includes("SScene"));
+      const resavedSceneMethod = resavedSceneType?.methods?.find((candidate) => candidate.name === "myFirstMethod");
+      expect(resavedSceneMethod?.statements.map((statement) => statement.method).filter((methodName) => methodName === marker))
+        .toHaveLength(1);
+      const resavedImportedType = resavedProject.types?.find((type) => type.name === "ReusableBehavior");
+      const resavedImportedMethod = resavedImportedType?.methods?.find((candidate) => candidate.name === "myFirstMethod");
+      expect(resavedImportedMethod?.statements.map((statement) => statement.method)).toContain(classMarker);
+      expect(resavedImportedMethod?.statements.map((statement) => statement.method)).not.toContain(marker);
     });
 
     it("preserves intentional repeated edits after materialization", async () => {

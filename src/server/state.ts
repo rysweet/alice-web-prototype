@@ -116,9 +116,7 @@ export function buildCurrentProject(state: ServerState): AliceProject {
   baseProject.sceneObjects = Array.from(sceneObjectsByName.values());
 
   const sceneType = baseProject.types?.find((type) => type.superTypeName?.includes("SScene"));
-  const sourceMethods = baseProject.methods.length > 0
-    ? baseProject.methods
-    : sceneType ? (sceneType.methods ?? []) : baseProject.methods;
+  const sourceMethods = sceneType ? (sceneType.methods ?? []) : baseProject.methods;
   const methodsByName = new Map(sourceMethods.map((method) => [method.name, method]));
   for (const [name, statements] of state.procedures.entries()) {
     if (state.parsedProject && statements.length === 0 && methodsByName.has(name)) {
@@ -260,9 +258,7 @@ export function syncServerMethodDefinitionsFromProject(state: ServerState, proje
 
 function getServerOwnedProjectMethods(project: AliceProject): AliceMethod[] {
   const sceneType = project.types?.find((type) => type.superTypeName?.includes("SScene"));
-  return project.methods.length > 0
-    ? project.methods
-    : sceneType ? (sceneType.methods ?? []) : [];
+  return sceneType ? (sceneType.methods ?? []) : project.methods;
 }
 
 export function parseMethodParams(
