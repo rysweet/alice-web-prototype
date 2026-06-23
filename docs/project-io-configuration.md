@@ -115,10 +115,9 @@ limit protects callers from ZIP bombs and unexpectedly large projects.
 
 Archives that exceed the limit throw `ProjectIoError` with code `zip-bomb`.
 
-Package validation also enforces decoded package size and file-count limits for
-`packageBase64` inputs. Oversized packages, malformed ZIP data, traversal paths,
-duplicate required files, and missing required files are explicit validation
-errors.
+Package validation rejects malformed ZIP data, traversal paths, duplicate
+required files, missing required files, unsafe package filenames, and mismatched
+share/package links with explicit validation errors.
 
 ## Manifest version synchronization
 

@@ -305,6 +305,50 @@ describe("server API", () => {
         })
         .expect(400);
     });
+
+    it("persists applied texture assignments through save and web package export", async () => {
+      await localPost(app, "/api/launch").send({}).expect(200);
+      await localPost(app, "/api/scene/add-object")
+        .send({
+          className: "org.lgna.story.SBiped",
+          name: "bunny",
+        })
+        .expect(200);
+      const importedTexture = await localPost(app, "/api/assets/import-texture")
+        .send({
+          fileName: "moon-rock.png",
+          contentBase64: Buffer.from([137, 80, 78, 71]).toString("base64"),
+        })
+        .expect(200);
+
+      const applied = await localPost(app, "/api/scene/apply-texture")
+        .send({
+          objectName: "bunny",
+          textureResourceId: importedTexture.body.asset.id,
+        })
+        .expect(200);
+      expect(applied.body.materialBindings).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          target: "surface",
+          textureResourceId: importedTexture.body.asset.id,
+        }),
+      ]));
+
+      await localPost(app, "/api/project/save").send({}).expect(200);
+      const savedProject = await parseA3P(fs.readFileSync(path.join(evidenceDir, "project-save", "saved-project.a3p")));
+      expect(savedProject.textureAssignments).toEqual([
+        { objectName: "bunny", texturePath: importedTexture.body.asset.resourcePath },
+      ]);
+
+      const exportRes = await localPost(app, "/api/project/export/web-package")
+        .send({ title: "Texture Assignment" })
+        .expect(200);
+      const zip = await JSZip.loadAsync(decodeBase64Package(exportRes.body.package.base64));
+      const projectJson = JSON.parse(await zip.file("project/project.json")!.async("string"));
+      expect(projectJson.textureAssignments).toEqual([
+        { objectName: "bunny", texturePath: importedTexture.body.asset.resourcePath },
+      ]);
+    });
   });
 
   describe("POST /api/code/edit-procedure", () => {

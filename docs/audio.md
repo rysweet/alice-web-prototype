@@ -469,7 +469,7 @@ Response:
 ```json
 {
   "schema_version": "alice.audio-workflow-result/v1",
-  "status": "bounded",
+  "status": "proved",
   "evidenceArtifact": "evidence/audio-workflow.json"
 }
 ```
