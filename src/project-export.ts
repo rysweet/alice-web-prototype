@@ -1102,8 +1102,11 @@ function isSafePackageFilename(value: string): boolean {
 }
 
 function validateShareDelivery(share: AliceWebShareDocument): WebPackageValidationError[] {
+  if (share.delivery === undefined) {
+    return [];
+  }
   if (
-    share.delivery?.mode === "browser-download-fallback"
+    share.delivery.mode === "browser-download-fallback"
     && share.delivery.nativeWebShare === false
     && share.delivery.requiresUserDownload === true
   ) {
