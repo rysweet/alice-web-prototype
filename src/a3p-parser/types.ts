@@ -112,6 +112,7 @@ export interface A3PSourceMetadata {
 
 export interface A3PMethodSourceMetadata {
   statementsSnapshot: string;
+  ownerTypeName?: string;
 }
 
 export const DEFAULT_A3P_XML_ENTRY = "programType.xml";

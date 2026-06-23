@@ -110,12 +110,26 @@ function buildDesiredSceneMethods(project: AliceProject, sceneType: AliceTypeDef
       .flatMap((type) => type.methods ?? [])
       .map(methodOwnerKey))
     : new Set<string>();
+  const sceneMethods = new Set(sceneType?.methods ?? []);
+  const nonSceneMethodRefs = new Set(sceneType
+    ? (project.types ?? [])
+      .filter((type) => type !== sceneType)
+      .flatMap((type) => type.methods ?? [])
+    : []);
+  const sceneTypeName = sceneType?.name;
   const seen = new Set(methods.map((method) => method.name));
   for (const method of project.methods.filter((candidate) => {
+    const ownerTypeName = getA3PMethodSource(candidate)?.ownerTypeName;
+    if (ownerTypeName !== undefined) {
+      return ownerTypeName === sceneTypeName;
+    }
+    if (sceneMethods.has(candidate)) {
+      return true;
+    }
     const key = methodOwnerKey(candidate);
     return sceneMethodNames.has(candidate.name)
       ? sceneMethodKeys.has(key)
-      : !ownedTypeMethodKeys.has(key);
+      : !ownedTypeMethodKeys.has(key) && !nonSceneMethodRefs.has(candidate);
   })) {
     if (!seen.has(method.name)) {
       methods.push(method);

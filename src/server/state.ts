@@ -1,7 +1,14 @@
 import { EventSystem } from "../events.js";
 import { JointStateStore } from "../joint-system.js";
 import { TemplateLibrary } from "../project-templates.js";
-import { snapshotAliceStatements, type AliceMethod, type AliceProject, type AliceStatement, type AliceTypeDefinition } from "../a3p-parser.js";
+import {
+  getA3PMethodSource,
+  snapshotAliceStatements,
+  type AliceMethod,
+  type AliceProject,
+  type AliceStatement,
+  type AliceTypeDefinition,
+} from "../a3p-parser.js";
 import {
   createDefaultCameraWorkflowState,
   type CameraWorkflowState,
@@ -121,14 +128,21 @@ export function buildCurrentProject(state: ServerState): AliceProject {
   const rootMethodsByName = new Map(rootSceneMethods.map((method) => [method.name, method]));
   const methodsByName = new Map(sourceMethods.map((method) => [
     method.name,
-    methodWithMetadata(method, rootMethodsByName.get(method.name), state.methodDefinitions.get(method.name)),
+    methodWithMetadata(
+      method,
+      rootMethodsByName.get(method.name) === method ? method : undefined,
+      state.methodDefinitions.get(method.name),
+    ),
   ]));
   for (const [name, statements] of state.procedures.entries()) {
     if (state.parsedProject && statements.length === 0 && methodsByName.has(name)) {
       continue;
     }
     const existing = methodsByName.get(name);
-    const rootMethod = rootMethodsByName.get(name);
+    const candidateRootMethod = rootMethodsByName.get(name);
+    const rootMethod = existing === undefined || candidateRootMethod === existing
+      ? candidateRootMethod
+      : undefined;
     const definition = state.methodDefinitions.get(name);
     const nextStatements = mergeProcedureStatements(existing?.statements ?? [], statements);
     methodsByName.set(name, {
@@ -289,11 +303,22 @@ function rootLegacySceneMethods(project: AliceProject, sceneType: AliceTypeDefin
       .flatMap((type) => type.methods ?? [])
       .map(methodOwnerKey),
   );
+  const sceneMethods = new Set(sceneType.methods ?? []);
+  const nonSceneMethods = new Set((project.types ?? [])
+    .filter((type) => type !== sceneType)
+    .flatMap((type) => type.methods ?? []));
   return project.methods.filter((method) => {
+    const ownerTypeName = getA3PMethodSource(method)?.ownerTypeName;
+    if (ownerTypeName !== undefined) {
+      return ownerTypeName === sceneType.name;
+    }
+    if (sceneMethods.has(method)) {
+      return true;
+    }
     const key = methodOwnerKey(method);
     return sceneMethodNames.has(method.name)
       ? sceneMethodKeys.has(key)
-      : !ownedTypeMethodKeys.has(key);
+      : !ownedTypeMethodKeys.has(key) && !nonSceneMethods.has(method);
   });
 }
 
