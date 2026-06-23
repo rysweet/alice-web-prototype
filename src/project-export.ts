@@ -35,6 +35,7 @@ const RESERVED_WEB_PACKAGE_PATHS = new Set<string>(REQUIRED_WEB_PACKAGE_FILES);
 const FORBIDDEN_IDENTITY_RE = /LookingGlass|lookingglass|alice-standalone-player/;
 const ENCODED_PATH_CONTROL_RE = /%(?:2e|2f|5c)/i;
 const URL_CONTROL_OR_SPACE_RE = /[\u0000-\u0020\u007f]/u;
+const SAFE_PACKAGE_FILENAME_RE = /^[a-z0-9][a-z0-9._-]*\.zip$/i;
 
 export function isReservedWebPackagePath(path: string): boolean {
   return [...RESERVED_WEB_PACKAGE_PATHS].some((reserved) =>
@@ -613,7 +614,12 @@ function validatedPackageFilename(
       throw new Error("package filename must not contain encoded path controls");
     }
     const safe = assertSafeWritablePath(candidate);
-    if (safe.includes("/") || RESERVED_WEB_PACKAGE_PATHS.has(safe) || !safe.toLowerCase().endsWith(".zip")) {
+    if (
+      safe.includes("/")
+      || RESERVED_WEB_PACKAGE_PATHS.has(safe)
+      || !safe.toLowerCase().endsWith(".zip")
+      || !SAFE_PACKAGE_FILENAME_RE.test(safe)
+    ) {
       throw new Error("package filename must be a non-reserved ZIP basename");
     }
     return safe;
