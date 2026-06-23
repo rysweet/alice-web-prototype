@@ -16,7 +16,9 @@ import {
   DEFAULT_A3P_XML_ENTRY,
   LEGACY_A3P_XML_ENTRY,
   snapshotAliceProject,
+  type AliceMethod,
   type AliceProject,
+  type AliceTypeDefinition,
 } from "./types.js";
 import {
   A3PArchiveLimitError,
@@ -71,13 +73,14 @@ export async function parseA3PFromZip(
   const doc = parseXmlString(xmlEntry.text);
   const nodeIndex = indexNodes(doc.documentElement);
   const textureAssignments = extractTextureAssignments(doc);
+  const types = extractTypes(nodeIndex.namedUserTypes, nodeIndex.keyMap);
 
   const project: AliceProject = {
     version: version.trim(),
     projectName: getProjectName(doc),
     sceneObjects: extractSceneObjects(nodeIndex.namedUserTypes, nodeIndex.keyMap),
-    methods: extractMethods(nodeIndex.userMethods, nodeIndex.keyMap, { includeMain: false }),
-    types: extractTypes(nodeIndex.namedUserTypes, nodeIndex.keyMap),
+    methods: extractProjectMethods(types, nodeIndex.userMethods, nodeIndex.keyMap),
+    types,
     jointHierarchy: extractJointHierarchy(nodeIndex.jointImplementations),
     boundingBoxes: extractBoundingBoxes(nodeIndex.modelResourceInfos),
     textureRefs: extractTextureRefs(nodeIndex.textureReferences, zip),
@@ -95,6 +98,15 @@ export async function parseA3PFromZip(
   });
 
   return project;
+}
+
+function extractProjectMethods(
+  types: AliceTypeDefinition[],
+  userMethods: Element[],
+  keyMap: Map<string, Element>,
+): AliceMethod[] {
+  const sceneType = types.find((type) => type.superTypeName?.includes("SScene"));
+  return sceneType ? (sceneType.methods ?? []) : extractMethods(userMethods, keyMap, { includeMain: false });
 }
 
 async function readTextFile(

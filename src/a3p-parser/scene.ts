@@ -64,7 +64,7 @@ export function extractTypes(namedUserTypes: Element[], keyMap: Map<string, Elem
     types.push({
       name,
       superTypeName: getSuperTypeName(node, keyMap),
-      methods: extractMethods(methodNodes, keyMap, { includeMain: true }),
+      methods: extractMethods(methodNodes, keyMap, { includeMain: true, ownerTypeName: name }),
       constructors: extractConstructors(constructorNodes, keyMap, name),
       fields: extractFieldDefinitions(node, keyMap),
     });
@@ -82,7 +82,7 @@ function extractConstructors(constructorNodes: Element[], keyMap: Map<string, El
       parameters: extractParameters(node, keyMap),
       statements: extractStatements(node, keyMap),
     };
-    attachStatementSource(method);
+    attachStatementSource(method, typeName);
     return method;
   });
 }
@@ -391,7 +391,7 @@ function extractDoubleArgs(methodInvocation: Element): number[] {
 export function extractMethods(
   methodNodes: Element[],
   keyMap: Map<string, Element>,
-  options: { includeMain: boolean },
+  options: { includeMain: boolean; ownerTypeName?: string },
 ): AliceMethod[] {
   const methods: AliceMethod[] = [];
 
@@ -409,16 +409,17 @@ export function extractMethods(
       parameters: extractParameters(node, keyMap),
       statements: extractStatements(node, keyMap),
     };
-    attachStatementSource(method);
+    attachStatementSource(method, options.ownerTypeName);
     methods.push(method);
   }
 
   return methods;
 }
 
-function attachStatementSource(method: AliceMethod): void {
+function attachStatementSource(method: AliceMethod, ownerTypeName: string | undefined): void {
   attachA3PMethodSource(method, {
     statementsSnapshot: snapshotAliceStatements(method.statements),
+    ...(ownerTypeName !== undefined ? { ownerTypeName } : {}),
   });
 }
 

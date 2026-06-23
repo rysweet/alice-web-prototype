@@ -103,23 +103,27 @@ function buildDesiredSceneFields(project: AliceProject, sceneType: AliceTypeDefi
 
 function buildDesiredSceneMethods(project: AliceProject, sceneType: AliceTypeDefinition | null): AliceMethod[] {
   const methods = [...(sceneType?.methods ?? [])];
-  const ownedTypeMethodKeys = sceneType
-    ? new Set((project.types ?? [])
+  const sceneMethods = new Set(sceneType?.methods ?? []);
+  const nonSceneMethods = new Set(sceneType
+    ? (project.types ?? [])
+      .filter((type) => type !== sceneType)
       .flatMap((type) => type.methods ?? [])
-      .map(methodOwnerKey))
-    : new Set<string>();
+    : []);
+  const sceneTypeName = sceneType?.name;
   const seen = new Set(methods.map((method) => method.name));
-  for (const method of project.methods.filter((candidate) => !ownedTypeMethodKeys.has(methodOwnerKey(candidate)))) {
+  for (const method of project.methods.filter((candidate) => {
+    const ownerTypeName = getA3PMethodSource(candidate)?.ownerTypeName;
+    if (ownerTypeName !== undefined) {
+      return ownerTypeName === sceneTypeName;
+    }
+    return sceneMethods.has(candidate) || !nonSceneMethods.has(candidate);
+  })) {
     if (!seen.has(method.name)) {
       methods.push(method);
       seen.add(method.name);
     }
   }
   return methods;
-}
-
-function methodOwnerKey(method: AliceMethod): string {
-  return `${method.name}\u0000${snapshotAliceStatements(method.statements)}`;
 }
 
 function fieldFromSceneObject(object: AliceObject): AliceFieldDefinition {
