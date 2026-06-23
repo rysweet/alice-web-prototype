@@ -71,6 +71,10 @@ export function registerAssetRoutes(app: Express, context: ServerContext): void 
 
     const updated = applySurfaceTextureBinding(object, textureResourceId.value);
     Object.assign(object, updated);
+    project.textureAssignments = [
+      ...(project.textureAssignments ?? []).filter((assignment) => assignment.objectName !== object.name),
+      { objectName: object.name, texturePath: textureAsset.resourcePath },
+    ];
 
     res.json({
       status: "applied",

@@ -32,23 +32,32 @@ const WEB_PACKAGE_ARTIFACTS = {
 
 const REQUIRED_WEB_PACKAGE_FILES = Object.values(WEB_PACKAGE_ARTIFACTS);
 const RESERVED_WEB_PACKAGE_PATHS = new Set<string>(REQUIRED_WEB_PACKAGE_FILES);
+const RESERVED_WEB_PACKAGE_PATHS_BY_LOWERCASE = new Map(
+  REQUIRED_WEB_PACKAGE_FILES.map((path) => [path.toLowerCase(), path] as const),
+);
 const FORBIDDEN_IDENTITY_RE = /LookingGlass|lookingglass|alice-standalone-player/;
 const ENCODED_PATH_CONTROL_RE = /%(?:2e|2f|5c)/i;
 const URL_CONTROL_OR_SPACE_RE = /[\u0000-\u0020\u007f]/u;
 const SAFE_PACKAGE_FILENAME_RE = /^[a-z0-9][a-z0-9._-]*\.zip$/i;
 
 export function isReservedWebPackagePath(path: string): boolean {
-  return [...RESERVED_WEB_PACKAGE_PATHS].some((reserved) =>
-    path === reserved || path.startsWith(`${reserved}/`) || reserved.startsWith(`${path}/`)
-  );
+  const lowerPath = path.toLowerCase();
+  return [...RESERVED_WEB_PACKAGE_PATHS].some((reserved) => {
+    const lowerReserved = reserved.toLowerCase();
+    return lowerPath === lowerReserved
+      || lowerPath.startsWith(`${lowerReserved}/`)
+      || lowerReserved.startsWith(`${lowerPath}/`);
+  });
 }
 
-function isReservedWebPackageDescendant(path: string): boolean {
-  return [...RESERVED_WEB_PACKAGE_PATHS].some((reserved) => path.startsWith(`${reserved}/`));
-}
-
-function isReservedWebPackageAncestor(path: string): boolean {
-  return [...RESERVED_WEB_PACKAGE_PATHS].some((reserved) => reserved.startsWith(`${path}/`));
+function conflictsWithReservedWebPackageArtifact(path: string): boolean {
+  const lowerPath = path.toLowerCase();
+  return [...RESERVED_WEB_PACKAGE_PATHS].some((reserved) => {
+    const lowerReserved = reserved.toLowerCase();
+    return (lowerPath === lowerReserved && path !== reserved)
+      || lowerPath.startsWith(`${lowerReserved}/`)
+      || lowerReserved.startsWith(`${lowerPath}/`);
+  });
 }
 
 export interface ProjectExportResource {
@@ -1189,10 +1198,8 @@ function zipPathsAreSafe(zip: JSZip): boolean {
     if (
       ENCODED_PATH_CONTROL_RE.test(originalName)
       || ENCODED_PATH_CONTROL_RE.test(path)
-      || isReservedWebPackageDescendant(path)
-      || isReservedWebPackageDescendant(originalName)
-      || isReservedWebPackageAncestor(path)
-      || isReservedWebPackageAncestor(originalName)
+      || conflictsWithReservedWebPackageArtifact(path)
+      || conflictsWithReservedWebPackageArtifact(originalName)
     ) {
       return false;
     }
@@ -1225,8 +1232,9 @@ function findDuplicateRequiredFiles(bytes: Uint8Array): string[] {
     const nameEnd = nameStart + nameLength;
     if (nameEnd > buffer.length) break;
     const name = buffer.subarray(nameStart, nameEnd).toString("utf8");
-    if (REQUIRED_WEB_PACKAGE_FILES.includes(name as (typeof REQUIRED_WEB_PACKAGE_FILES)[number])) {
-      counts.set(name, (counts.get(name) ?? 0) + 1);
+    const canonicalRequiredName = RESERVED_WEB_PACKAGE_PATHS_BY_LOWERCASE.get(name.toLowerCase());
+    if (canonicalRequiredName) {
+      counts.set(canonicalRequiredName, (counts.get(canonicalRequiredName) ?? 0) + 1);
     }
     offset = nameEnd + extraLength + commentLength - 1;
   }

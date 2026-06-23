@@ -273,7 +273,7 @@ export function registerAudioRoutes(app: Express, context: ServerContext): void 
       );
       res.json({
         schema_version: "alice.audio-workflow-result/v1",
-        status: "bounded",
+        status: "proved",
         evidenceArtifact,
       });
     } catch (error) {

@@ -333,6 +333,11 @@ describe("project-export", () => {
       title: "Directory Collision",
       resources: [{ path: "index.html/foo.txt", bytes: "owned" }],
     })).rejects.toThrow(/resource path conflicts with web package artifact/);
+
+    await expect(projectExportApi.exportWebPackage!(createProjectFixture(), {
+      title: "Case Collision",
+      resources: [{ path: "INDEX.HTML", bytes: "owned" }],
+    })).rejects.toThrow(/resource path conflicts with web package artifact/);
   });
 
   it.each([
@@ -459,7 +464,15 @@ describe("project-export", () => {
       ]));
     }
 
-    for (const reservedDescendant of ["index.html/foo.txt", "manifest.json/foo.txt", "project/project.json/foo.txt", "project"]) {
+    for (const reservedDescendant of [
+      "index.html/foo.txt",
+      "manifest.json/foo.txt",
+      "project/project.json/foo.txt",
+      "project",
+      "INDEX.HTML",
+      "Manifest.json/foo.txt",
+      "PROJECT/PROJECT.JSON/foo.txt",
+    ]) {
       const directoryCollision = await projectExportApi.validateWebPackage!({
         packageBase64: await makeZip({
           [reservedDescendant]: "owned",
@@ -482,6 +495,29 @@ describe("project-export", () => {
         expect.objectContaining({ code: "unsafe-zip-path" }),
       ]));
     }
+
+    const caseVariantDuplicate = await projectExportApi.validateWebPackage!({
+      packageBase64: await makeZip({
+        "INDEX.HTML": "owned",
+        "index.html": "<!doctype html><script>window.AlicePlayer={runtimeIdentity:'alice-web-player'}</script>",
+        "manifest.json": JSON.stringify({
+          schemaVersion: "alice-web.package/v1",
+          product: "Alice",
+          packageName: "alice-web",
+          runtimeIdentity: "alice-web-player",
+          entrypoint: "index.html",
+          package: { filename: "safe.alice-web.zip", mimeType: "application/zip" },
+        }),
+        "share.json": JSON.stringify({ schemaVersion: "alice-web.share/v1", product: "Alice", runtimeIdentity: "alice-web-player" }),
+        "preview.png": new Uint8Array([137, 80, 78, 71]),
+        "project/project.json": "{}",
+        "validation.json": JSON.stringify({ schemaVersion: "alice-web.validation/v1" }),
+      }),
+    });
+    expect(caseVariantDuplicate.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "unsafe-zip-path" }),
+      expect.objectContaining({ code: "duplicate-required-file", path: "index.html" }),
+    ]));
 
     const identityDrift = await projectExportApi.validateWebPackage!({
       packageBase64: await makeZip({
