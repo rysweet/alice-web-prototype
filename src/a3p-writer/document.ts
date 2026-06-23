@@ -103,11 +103,15 @@ function buildDesiredSceneFields(project: AliceProject, sceneType: AliceTypeDefi
 
 function buildDesiredSceneMethods(project: AliceProject, sceneType: AliceTypeDefinition | null): AliceMethod[] {
   const methods = [...(sceneType?.methods ?? [])];
-  if (sceneType) {
-    return methods;
-  }
+  const nonSceneMethodNames = sceneType
+    ? new Set(
+      (project.types ?? [])
+        .filter((type) => type !== sceneType)
+        .flatMap((type) => (type.methods ?? []).map((method) => method.name)),
+    )
+    : new Set<string>();
   const seen = new Set(methods.map((method) => method.name));
-  for (const method of project.methods) {
+  for (const method of project.methods.filter((candidate) => !nonSceneMethodNames.has(candidate.name))) {
     if (!seen.has(method.name)) {
       methods.push(method);
       seen.add(method.name);
