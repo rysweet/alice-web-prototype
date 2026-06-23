@@ -6,6 +6,47 @@ const MAX_VISIBLE_OBJECTS = 200;
 const MAX_FILENAME_LENGTH = 120;
 const MAX_RUNTIME_REVIEW_ITEMS = 50;
 
+const CAMERA_VR_COMFORT_KEYS = new Set([
+  "schema_version",
+  "status",
+  "browserWebXrStatus",
+  "desktopCameraAvailable",
+  "keyboardMovementAvailable",
+  "reducedMotionRespected",
+  "trueHeadsetVrSupported",
+  "nativeVrSupported",
+  "cameraMode",
+  "evidenceCodes",
+  "comfortChecks",
+  "unsupportedReason",
+]);
+const COMFORT_CHECK_KEYS = new Set(["discreteMovementStep", "stableHorizon", "noForcedHeadset"]);
+const ACCESSIBILITY_CAPTION_KEYS = new Set([
+  "schema_version",
+  "status",
+  "ariaLiveCaption",
+  "cameraCaption",
+  "objectCaption",
+  "keyboardReviewAvailable",
+  "highContrastReviewAvailable",
+  "captionChecks",
+]);
+const CAPTION_CHECK_KEYS = new Set(["id", "present", "channel", "text"]);
+const GALLERY_RUBRIC_KEYS = new Set([
+  "schema_version",
+  "status",
+  "projectName",
+  "galleryItemCount",
+  "reviewWorkflowSupported",
+  "rubricRecordingSupported",
+  "liveStudioSupported",
+  "unsupportedLiveStudioReason",
+  "rubric",
+  "galleryItems",
+]);
+const RUBRIC_ITEM_KEYS = new Set(["id", "label", "maxScore", "evidenceRequired"]);
+const GALLERY_ITEM_KEYS = new Set(["id", "title", "reviewPrompt"]);
+
 export type AliceEvidenceExportMethod = "download" | "native-share";
 export type AliceEvidenceShareOutcome = "prepared" | "completed" | "unavailable";
 
@@ -356,29 +397,80 @@ export function validateAliceEvidenceArtifact(value: unknown): AliceEvidenceVali
       if (runtimeReview.cameraVrComfort !== undefined) {
         const cameraVrComfort = nestedRecord(runtimeReview.cameraVrComfort, "runtimeReview.cameraVrComfort", errors);
         if (cameraVrComfort) {
+          expectOnlyKeys(cameraVrComfort, CAMERA_VR_COMFORT_KEYS, "runtimeReview.cameraVrComfort", errors);
           expectEqual(cameraVrComfort.schema_version, "alice.camera-vr-comfort-evidence/v1", "runtimeReview.cameraVrComfort.schema_version", errors);
           expectEqual(cameraVrComfort.status, "partial", "runtimeReview.cameraVrComfort.status", errors);
+          expectOptionalString(cameraVrComfort.browserWebXrStatus, "runtimeReview.cameraVrComfort.browserWebXrStatus", errors);
+          expectOptionalBoolean(cameraVrComfort.desktopCameraAvailable, "runtimeReview.cameraVrComfort.desktopCameraAvailable", errors);
+          expectOptionalMeasuredBoolean(cameraVrComfort.keyboardMovementAvailable, "runtimeReview.cameraVrComfort.keyboardMovementAvailable", errors);
+          expectOptionalMeasuredBoolean(cameraVrComfort.reducedMotionRespected, "runtimeReview.cameraVrComfort.reducedMotionRespected", errors);
           expectLiteralFalse(cameraVrComfort.trueHeadsetVrSupported, "runtimeReview.cameraVrComfort.trueHeadsetVrSupported", errors);
           expectLiteralFalse(cameraVrComfort.nativeVrSupported, "runtimeReview.cameraVrComfort.nativeVrSupported", errors);
+          expectOptionalString(cameraVrComfort.cameraMode, "runtimeReview.cameraVrComfort.cameraMode", errors);
           expectMaxArrayLength(cameraVrComfort.evidenceCodes, "runtimeReview.cameraVrComfort.evidenceCodes", errors);
+          expectOptionalStringArray(cameraVrComfort.evidenceCodes, "runtimeReview.cameraVrComfort.evidenceCodes", errors);
+          if (cameraVrComfort.comfortChecks !== undefined) {
+            const comfortChecks = nestedRecord(cameraVrComfort.comfortChecks, "runtimeReview.cameraVrComfort.comfortChecks", errors);
+            if (comfortChecks) {
+              expectOnlyKeys(comfortChecks, COMFORT_CHECK_KEYS, "runtimeReview.cameraVrComfort.comfortChecks", errors);
+              expectOptionalBoolean(comfortChecks.discreteMovementStep, "runtimeReview.cameraVrComfort.comfortChecks.discreteMovementStep", errors);
+              expectOptionalBoolean(comfortChecks.stableHorizon, "runtimeReview.cameraVrComfort.comfortChecks.stableHorizon", errors);
+              expectOptionalBoolean(comfortChecks.noForcedHeadset, "runtimeReview.cameraVrComfort.comfortChecks.noForcedHeadset", errors);
+            }
+          }
+          expectOptionalString(cameraVrComfort.unsupportedReason, "runtimeReview.cameraVrComfort.unsupportedReason", errors);
         }
       }
       if (runtimeReview.accessibilityRescueCaptions !== undefined) {
         const captions = nestedRecord(runtimeReview.accessibilityRescueCaptions, "runtimeReview.accessibilityRescueCaptions", errors);
         if (captions) {
+          expectOnlyKeys(captions, ACCESSIBILITY_CAPTION_KEYS, "runtimeReview.accessibilityRescueCaptions", errors);
           expectEqual(captions.schema_version, "alice.accessibility-rescue-camera-captions/v1", "runtimeReview.accessibilityRescueCaptions.schema_version", errors);
           expectEqual(captions.status, "partial", "runtimeReview.accessibilityRescueCaptions.status", errors);
+          expectOptionalString(captions.ariaLiveCaption, "runtimeReview.accessibilityRescueCaptions.ariaLiveCaption", errors);
+          expectOptionalString(captions.cameraCaption, "runtimeReview.accessibilityRescueCaptions.cameraCaption", errors);
+          expectOptionalString(captions.objectCaption, "runtimeReview.accessibilityRescueCaptions.objectCaption", errors);
+          expectOptionalMeasuredBoolean(captions.keyboardReviewAvailable, "runtimeReview.accessibilityRescueCaptions.keyboardReviewAvailable", errors);
+          expectOptionalMeasuredBoolean(captions.highContrastReviewAvailable, "runtimeReview.accessibilityRescueCaptions.highContrastReviewAvailable", errors);
           expectMaxArrayLength(captions.captionChecks, "runtimeReview.accessibilityRescueCaptions.captionChecks", errors);
+          validateRecordArray(captions.captionChecks, "runtimeReview.accessibilityRescueCaptions.captionChecks", errors, (check, label) => {
+            expectOnlyKeys(check, CAPTION_CHECK_KEYS, label, errors);
+            expectNonEmptyString(check.id, `${label}.id`, errors);
+            expectOptionalBoolean(check.present, `${label}.present`, errors);
+            if (check.channel !== undefined && check.channel !== "aria-live" && check.channel !== "visible-text") {
+              errors.push(`${label}.channel must be aria-live or visible-text.`);
+            }
+            expectOptionalString(check.text, `${label}.text`, errors);
+          });
         }
       }
       if (runtimeReview.galleryWalkRubric !== undefined) {
         const galleryWalkRubric = nestedRecord(runtimeReview.galleryWalkRubric, "runtimeReview.galleryWalkRubric", errors);
         if (galleryWalkRubric) {
+          expectOnlyKeys(galleryWalkRubric, GALLERY_RUBRIC_KEYS, "runtimeReview.galleryWalkRubric", errors);
           expectEqual(galleryWalkRubric.schema_version, "alice.gallery-walk-rubric-evidence/v1", "runtimeReview.galleryWalkRubric.schema_version", errors);
           expectEqual(galleryWalkRubric.status, "partial", "runtimeReview.galleryWalkRubric.status", errors);
+          expectOptionalString(galleryWalkRubric.projectName, "runtimeReview.galleryWalkRubric.projectName", errors);
+          expectOptionalNonNegativeInteger(galleryWalkRubric.galleryItemCount, "runtimeReview.galleryWalkRubric.galleryItemCount", errors);
+          expectOptionalBoolean(galleryWalkRubric.reviewWorkflowSupported, "runtimeReview.galleryWalkRubric.reviewWorkflowSupported", errors);
+          expectOptionalBoolean(galleryWalkRubric.rubricRecordingSupported, "runtimeReview.galleryWalkRubric.rubricRecordingSupported", errors);
           expectLiteralFalse(galleryWalkRubric.liveStudioSupported, "runtimeReview.galleryWalkRubric.liveStudioSupported", errors);
+          expectOptionalString(galleryWalkRubric.unsupportedLiveStudioReason, "runtimeReview.galleryWalkRubric.unsupportedLiveStudioReason", errors);
           expectMaxArrayLength(galleryWalkRubric.rubric, "runtimeReview.galleryWalkRubric.rubric", errors);
+          validateRecordArray(galleryWalkRubric.rubric, "runtimeReview.galleryWalkRubric.rubric", errors, (item, label) => {
+            expectOnlyKeys(item, RUBRIC_ITEM_KEYS, label, errors);
+            expectNonEmptyString(item.id, `${label}.id`, errors);
+            expectNonEmptyString(item.label, `${label}.label`, errors);
+            expectOptionalNonNegativeInteger(item.maxScore, `${label}.maxScore`, errors);
+            expectNonEmptyString(item.evidenceRequired, `${label}.evidenceRequired`, errors);
+          });
           expectMaxArrayLength(galleryWalkRubric.galleryItems, "runtimeReview.galleryWalkRubric.galleryItems", errors);
+          validateRecordArray(galleryWalkRubric.galleryItems, "runtimeReview.galleryWalkRubric.galleryItems", errors, (item, label) => {
+            expectOnlyKeys(item, GALLERY_ITEM_KEYS, label, errors);
+            expectNonEmptyString(item.id, `${label}.id`, errors);
+            expectNonEmptyString(item.title, `${label}.title`, errors);
+            expectNonEmptyString(item.reviewPrompt, `${label}.reviewPrompt`, errors);
+          });
         }
       }
     }
@@ -483,6 +575,18 @@ function measuredBoolean(value: unknown): boolean | "unknown" {
   return "unknown";
 }
 
+function optionalBoolean(value: unknown): boolean | undefined {
+  return value === true || value === false ? value : undefined;
+}
+
+function sanitizeComfortChecks(value: AliceEvidenceCameraVrComfort["comfortChecks"]): NonNullable<AliceEvidenceCameraVrComfort["comfortChecks"]> {
+  return {
+    discreteMovementStep: optionalBoolean(value?.discreteMovementStep) ?? false,
+    stableHorizon: optionalBoolean(value?.stableHorizon) ?? false,
+    noForcedHeadset: optionalBoolean(value?.noForcedHeadset) ?? false,
+  };
+}
+
 function sanitizeRuntimeReview(review: AliceEvidenceRuntimeReview): AliceEvidenceRuntimeReview {
   return {
     ...(review.cameraVrComfort !== undefined ? { cameraVrComfort: sanitizeCameraVrComfortReview(review.cameraVrComfort) } : {}),
@@ -496,7 +600,7 @@ function sanitizeCameraVrComfortReview(value: AliceEvidenceCameraVrComfort): Ali
     schema_version: "alice.camera-vr-comfort-evidence/v1",
     status: "partial",
     ...(value.browserWebXrStatus ? { browserWebXrStatus: stringValue(value.browserWebXrStatus) } : {}),
-    ...(value.desktopCameraAvailable !== undefined ? { desktopCameraAvailable: Boolean(value.desktopCameraAvailable) } : {}),
+    ...(optionalBoolean(value.desktopCameraAvailable) !== undefined ? { desktopCameraAvailable: optionalBoolean(value.desktopCameraAvailable)! } : {}),
     ...(value.keyboardMovementAvailable !== undefined ? { keyboardMovementAvailable: measuredBoolean(value.keyboardMovementAvailable) } : {}),
     ...(value.reducedMotionRespected !== undefined ? { reducedMotionRespected: measuredBoolean(value.reducedMotionRespected) } : {}),
     trueHeadsetVrSupported: false,
@@ -505,13 +609,7 @@ function sanitizeCameraVrComfortReview(value: AliceEvidenceCameraVrComfort): Ali
     ...(Array.isArray(value.evidenceCodes)
       ? { evidenceCodes: value.evidenceCodes.slice(0, MAX_RUNTIME_REVIEW_ITEMS).map(stringValue) }
       : {}),
-    ...(value.comfortChecks ? {
-      comfortChecks: {
-        discreteMovementStep: Boolean(value.comfortChecks.discreteMovementStep),
-        stableHorizon: Boolean(value.comfortChecks.stableHorizon),
-        noForcedHeadset: Boolean(value.comfortChecks.noForcedHeadset),
-      },
-    } : {}),
+    ...(value.comfortChecks ? { comfortChecks: sanitizeComfortChecks(value.comfortChecks) } : {}),
     ...(value.unsupportedReason ? { unsupportedReason: stringValue(value.unsupportedReason) } : {}),
   };
 }
@@ -528,7 +626,7 @@ function sanitizeAccessibilityCaptionsReview(value: AliceEvidenceAccessibilityCa
     ...(Array.isArray(value.captionChecks) ? {
       captionChecks: value.captionChecks.slice(0, MAX_RUNTIME_REVIEW_ITEMS).map((check) => ({
         id: stringValue(check.id),
-        present: Boolean(check.present),
+        present: optionalBoolean(check.present) ?? false,
         ...(check.channel ? { channel: check.channel } : {}),
         ...(check.text ? { text: stringValue(check.text) } : {}),
       })),
@@ -542,8 +640,8 @@ function sanitizeGalleryWalkRubricReview(value: AliceEvidenceGalleryReview): Ali
     status: "partial",
     ...(value.projectName ? { projectName: stringValue(value.projectName) } : {}),
     ...(value.galleryItemCount !== undefined ? { galleryItemCount: finiteNonNegativeInteger(value.galleryItemCount) } : {}),
-    ...(value.reviewWorkflowSupported !== undefined ? { reviewWorkflowSupported: Boolean(value.reviewWorkflowSupported) } : {}),
-    ...(value.rubricRecordingSupported !== undefined ? { rubricRecordingSupported: Boolean(value.rubricRecordingSupported) } : {}),
+    ...(optionalBoolean(value.reviewWorkflowSupported) !== undefined ? { reviewWorkflowSupported: optionalBoolean(value.reviewWorkflowSupported)! } : {}),
+    ...(optionalBoolean(value.rubricRecordingSupported) !== undefined ? { rubricRecordingSupported: optionalBoolean(value.rubricRecordingSupported)! } : {}),
     liveStudioSupported: false,
     ...(value.unsupportedLiveStudioReason ? { unsupportedLiveStudioReason: stringValue(value.unsupportedLiveStudioReason) } : {}),
     ...(Array.isArray(value.rubric) ? {
@@ -623,6 +721,68 @@ function expectMaxArrayLength(value: unknown, label: string, errors: string[]): 
   if (Array.isArray(value) && value.length > MAX_RUNTIME_REVIEW_ITEMS) {
     errors.push(`${label} must include ${MAX_RUNTIME_REVIEW_ITEMS} items or fewer.`);
   }
+}
+
+function expectOnlyKeys(value: Record<string, unknown>, allowed: ReadonlySet<string>, label: string, errors: string[]): void {
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) {
+      errors.push(`${label}.${key} is not supported.`);
+    }
+  }
+}
+
+function expectOptionalBoolean(value: unknown, label: string, errors: string[]): void {
+  if (value !== undefined && typeof value !== "boolean") {
+    errors.push(`${label} must be boolean.`);
+  }
+}
+
+function expectOptionalMeasuredBoolean(value: unknown, label: string, errors: string[]): void {
+  if (value !== undefined && value !== true && value !== false && value !== "unknown") {
+    errors.push(`${label} must be true, false, or unknown.`);
+  }
+}
+
+function expectOptionalString(value: unknown, label: string, errors: string[]): void {
+  if (value !== undefined && typeof value !== "string") {
+    errors.push(`${label} must be a string.`);
+  }
+}
+
+function expectOptionalStringArray(value: unknown, label: string, errors: string[]): void {
+  if (value === undefined) return;
+  if (!Array.isArray(value)) {
+    errors.push(`${label} must be an array.`);
+    return;
+  }
+  value.forEach((item, index) => expectOptionalString(item, `${label}[${index}]`, errors));
+}
+
+function expectOptionalNonNegativeInteger(value: unknown, label: string, errors: string[]): void {
+  if (value !== undefined && (!Number.isInteger(value) || (value as number) < 0)) {
+    errors.push(`${label} must be a non-negative integer.`);
+  }
+}
+
+function validateRecordArray(
+  value: unknown,
+  label: string,
+  errors: string[],
+  validateItem: (item: Record<string, unknown>, label: string) => void,
+): void {
+  if (value === undefined) return;
+  if (!Array.isArray(value)) {
+    errors.push(`${label} must be an array.`);
+    return;
+  }
+  value.forEach((item, index) => {
+    const record = recordValue(item);
+    if (!record) {
+      errors.push(`${label}[${index}] must be an object.`);
+      return;
+    }
+    validateItem(record, `${label}[${index}]`);
+  });
 }
 
 function expectNonEmptyString(value: unknown, label: string, errors: string[]): void {

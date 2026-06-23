@@ -342,25 +342,48 @@ describe("Alice evidence artifact", () => {
           status: "partial",
           trueHeadsetVrSupported: false,
           nativeVrSupported: false,
+          desktopCameraAvailable: "false" as unknown as boolean,
           keyboardMovementAvailable: "false" as unknown as boolean,
           reducedMotionRespected: "false" as unknown as boolean,
+          comfortChecks: {
+            discreteMovementStep: "false" as unknown as boolean,
+            stableHorizon: "false" as unknown as boolean,
+            noForcedHeadset: "false" as unknown as boolean,
+          },
         },
         accessibilityRescueCaptions: {
           schema_version: "alice.accessibility-rescue-camera-captions/v1",
           status: "partial",
           keyboardReviewAvailable: "false" as unknown as boolean,
           highContrastReviewAvailable: "false" as unknown as boolean,
+          captionChecks: [{ id: "caption", present: "yes" as unknown as boolean }],
+        },
+        galleryWalkRubric: {
+          schema_version: "alice.gallery-walk-rubric-evidence/v1",
+          status: "partial",
+          liveStudioSupported: false,
+          reviewWorkflowSupported: "true" as unknown as boolean,
+          rubricRecordingSupported: "true" as unknown as boolean,
         },
       },
     });
 
+    expect(artifact.runtimeReview?.cameraVrComfort?.desktopCameraAvailable).toBeUndefined();
     expect(artifact.runtimeReview?.cameraVrComfort?.keyboardMovementAvailable).toBe("unknown");
     expect(artifact.runtimeReview?.cameraVrComfort?.reducedMotionRespected).toBe("unknown");
+    expect(artifact.runtimeReview?.cameraVrComfort?.comfortChecks).toEqual({
+      discreteMovementStep: false,
+      stableHorizon: false,
+      noForcedHeadset: false,
+    });
     expect(artifact.runtimeReview?.accessibilityRescueCaptions?.keyboardReviewAvailable).toBe("unknown");
     expect(artifact.runtimeReview?.accessibilityRescueCaptions?.highContrastReviewAvailable).toBe("unknown");
+    expect(artifact.runtimeReview?.accessibilityRescueCaptions?.captionChecks?.[0]?.present).toBe(false);
+    expect(artifact.runtimeReview?.galleryWalkRubric?.reviewWorkflowSupported).toBeUndefined();
+    expect(artifact.runtimeReview?.galleryWalkRubric?.rubricRecordingSupported).toBeUndefined();
   });
 
-  it("rejects parsed runtime review arrays beyond the evidence bound", () => {
+  it("rejects malformed parsed runtime review evidence", () => {
     const many = Array.from({ length: 75 }, (_, index) => index);
     const artifact = createAliceEvidenceArtifact(baseArtifactInput());
     const oversized = {
@@ -371,17 +394,27 @@ describe("Alice evidence artifact", () => {
           status: "partial",
           trueHeadsetVrSupported: false,
           nativeVrSupported: false,
+          secretBackendPath: "/tmp/secret",
+          desktopCameraAvailable: "false",
+          keyboardMovementAvailable: "false",
           evidenceCodes: many.map((index) => `code-${index}`),
+          comfortChecks: {
+            discreteMovementStep: "false",
+          },
         },
         accessibilityRescueCaptions: {
           schema_version: "alice.accessibility-rescue-camera-captions/v1",
           status: "partial",
-          captionChecks: many.map((index) => ({ id: `caption-${index}`, present: true })),
+          rawDomDump: "<main>secret</main>",
+          keyboardReviewAvailable: "false",
+          captionChecks: many.map((index) => ({ id: `caption-${index}`, present: index === 0 ? "yes" : true })),
         },
         galleryWalkRubric: {
           schema_version: "alice.gallery-walk-rubric-evidence/v1",
           status: "partial",
           liveStudioSupported: false,
+          reviewerToken: "hidden",
+          reviewWorkflowSupported: "true",
           rubric: many.map((index) => ({ id: `rubric-${index}`, label: `Rubric ${index}`, maxScore: 4, evidenceRequired: "Evidence" })),
           galleryItems: many.map((index) => ({ id: `item-${index}`, title: `Item ${index}`, reviewPrompt: "Review" })),
         },
@@ -391,8 +424,17 @@ describe("Alice evidence artifact", () => {
     const validation = validateAliceEvidenceArtifact(oversized);
     expect(validation.valid).toBe(false);
     expect(validation.errors).toEqual(expect.arrayContaining([
+      "runtimeReview.cameraVrComfort.secretBackendPath is not supported.",
+      "runtimeReview.cameraVrComfort.desktopCameraAvailable must be boolean.",
+      "runtimeReview.cameraVrComfort.keyboardMovementAvailable must be true, false, or unknown.",
       "runtimeReview.cameraVrComfort.evidenceCodes must include 50 items or fewer.",
+      "runtimeReview.cameraVrComfort.comfortChecks.discreteMovementStep must be boolean.",
+      "runtimeReview.accessibilityRescueCaptions.rawDomDump is not supported.",
+      "runtimeReview.accessibilityRescueCaptions.keyboardReviewAvailable must be true, false, or unknown.",
       "runtimeReview.accessibilityRescueCaptions.captionChecks must include 50 items or fewer.",
+      "runtimeReview.accessibilityRescueCaptions.captionChecks[0].present must be boolean.",
+      "runtimeReview.galleryWalkRubric.reviewerToken is not supported.",
+      "runtimeReview.galleryWalkRubric.reviewWorkflowSupported must be boolean.",
       "runtimeReview.galleryWalkRubric.rubric must include 50 items or fewer.",
       "runtimeReview.galleryWalkRubric.galleryItems must include 50 items or fewer.",
     ]));
