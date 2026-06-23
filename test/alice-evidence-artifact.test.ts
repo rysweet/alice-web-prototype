@@ -389,6 +389,7 @@ describe("Alice evidence artifact", () => {
     const oversized = {
       ...artifact,
       runtimeReview: {
+        rawDomDump: "<main>secret</main>",
         cameraVrComfort: {
           schema_version: "alice.camera-vr-comfort-evidence/v1",
           status: "partial",
@@ -415,7 +416,12 @@ describe("Alice evidence artifact", () => {
           liveStudioSupported: false,
           reviewerToken: "hidden",
           reviewWorkflowSupported: "true",
-          rubric: many.map((index) => ({ id: `rubric-${index}`, label: `Rubric ${index}`, maxScore: 4, evidenceRequired: "Evidence" })),
+          rubric: many.map((index) => ({
+            id: `rubric-${index}`,
+            label: `Rubric ${index}`,
+            ...(index === 0 ? {} : { maxScore: 4 }),
+            evidenceRequired: "Evidence",
+          })),
           galleryItems: many.map((index) => ({ id: `item-${index}`, title: `Item ${index}`, reviewPrompt: "Review" })),
         },
       },
@@ -424,6 +430,7 @@ describe("Alice evidence artifact", () => {
     const validation = validateAliceEvidenceArtifact(oversized);
     expect(validation.valid).toBe(false);
     expect(validation.errors).toEqual(expect.arrayContaining([
+      "runtimeReview.rawDomDump is not supported.",
       "runtimeReview.cameraVrComfort.secretBackendPath is not supported.",
       "runtimeReview.cameraVrComfort.desktopCameraAvailable must be boolean.",
       "runtimeReview.cameraVrComfort.keyboardMovementAvailable must be true, false, or unknown.",
@@ -436,6 +443,7 @@ describe("Alice evidence artifact", () => {
       "runtimeReview.galleryWalkRubric.reviewerToken is not supported.",
       "runtimeReview.galleryWalkRubric.reviewWorkflowSupported must be boolean.",
       "runtimeReview.galleryWalkRubric.rubric must include 50 items or fewer.",
+      "runtimeReview.galleryWalkRubric.rubric[0].maxScore must be a non-negative integer.",
       "runtimeReview.galleryWalkRubric.galleryItems must include 50 items or fewer.",
     ]));
     expect(() => parseAliceEvidenceArtifact(JSON.stringify(oversized))).toThrow(/50 items or fewer/);

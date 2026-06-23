@@ -6,6 +6,7 @@ const MAX_VISIBLE_OBJECTS = 200;
 const MAX_FILENAME_LENGTH = 120;
 const MAX_RUNTIME_REVIEW_ITEMS = 50;
 
+const RUNTIME_REVIEW_KEYS = new Set(["cameraVrComfort", "accessibilityRescueCaptions", "galleryWalkRubric"]);
 const CAMERA_VR_COMFORT_KEYS = new Set([
   "schema_version",
   "status",
@@ -394,6 +395,7 @@ export function validateAliceEvidenceArtifact(value: unknown): AliceEvidenceVali
   if (artifact.runtimeReview !== undefined) {
     const runtimeReview = nestedRecord(artifact.runtimeReview, "runtimeReview", errors);
     if (runtimeReview) {
+      expectOnlyKeys(runtimeReview, RUNTIME_REVIEW_KEYS, "runtimeReview", errors);
       if (runtimeReview.cameraVrComfort !== undefined) {
         const cameraVrComfort = nestedRecord(runtimeReview.cameraVrComfort, "runtimeReview.cameraVrComfort", errors);
         if (cameraVrComfort) {
@@ -436,7 +438,7 @@ export function validateAliceEvidenceArtifact(value: unknown): AliceEvidenceVali
           validateRecordArray(captions.captionChecks, "runtimeReview.accessibilityRescueCaptions.captionChecks", errors, (check, label) => {
             expectOnlyKeys(check, CAPTION_CHECK_KEYS, label, errors);
             expectNonEmptyString(check.id, `${label}.id`, errors);
-            expectOptionalBoolean(check.present, `${label}.present`, errors);
+            expectRequiredBoolean(check.present, `${label}.present`, errors);
             if (check.channel !== undefined && check.channel !== "aria-live" && check.channel !== "visible-text") {
               errors.push(`${label}.channel must be aria-live or visible-text.`);
             }
@@ -461,7 +463,7 @@ export function validateAliceEvidenceArtifact(value: unknown): AliceEvidenceVali
             expectOnlyKeys(item, RUBRIC_ITEM_KEYS, label, errors);
             expectNonEmptyString(item.id, `${label}.id`, errors);
             expectNonEmptyString(item.label, `${label}.label`, errors);
-            expectOptionalNonNegativeInteger(item.maxScore, `${label}.maxScore`, errors);
+            expectNonNegativeInteger(item.maxScore, `${label}.maxScore`, errors);
             expectNonEmptyString(item.evidenceRequired, `${label}.evidenceRequired`, errors);
           });
           expectMaxArrayLength(galleryWalkRubric.galleryItems, "runtimeReview.galleryWalkRubric.galleryItems", errors);
@@ -737,6 +739,12 @@ function expectOptionalBoolean(value: unknown, label: string, errors: string[]):
   }
 }
 
+function expectRequiredBoolean(value: unknown, label: string, errors: string[]): void {
+  if (typeof value !== "boolean") {
+    errors.push(`${label} must be boolean.`);
+  }
+}
+
 function expectOptionalMeasuredBoolean(value: unknown, label: string, errors: string[]): void {
   if (value !== undefined && value !== true && value !== false && value !== "unknown") {
     errors.push(`${label} must be true, false, or unknown.`);
@@ -760,6 +768,12 @@ function expectOptionalStringArray(value: unknown, label: string, errors: string
 
 function expectOptionalNonNegativeInteger(value: unknown, label: string, errors: string[]): void {
   if (value !== undefined && (!Number.isInteger(value) || (value as number) < 0)) {
+    errors.push(`${label} must be a non-negative integer.`);
+  }
+}
+
+function expectNonNegativeInteger(value: unknown, label: string, errors: string[]): void {
+  if (!Number.isInteger(value) || (value as number) < 0) {
     errors.push(`${label} must be a non-negative integer.`);
   }
 }
