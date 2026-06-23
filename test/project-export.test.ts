@@ -520,6 +520,33 @@ describe("project-export", () => {
       expect.objectContaining({ code: "duplicate-required-file", path: "index.html" }),
     ]));
 
+    const fakeCentralDirectoryPayload = new Uint8Array(46 + "index.html".length);
+    const fakeCentralDirectoryView = new DataView(fakeCentralDirectoryPayload.buffer);
+    fakeCentralDirectoryView.setUint32(0, 0x02014b50, true);
+    fakeCentralDirectoryView.setUint16(28, "index.html".length, true);
+    fakeCentralDirectoryPayload.set(Buffer.from("index.html"), 46);
+    const payloadSignature = await projectExportApi.validateWebPackage!({
+      packageBase64: await makeZip({
+        "resources/fake-central-directory.bin": fakeCentralDirectoryPayload,
+        "index.html": "<!doctype html><script>window.AlicePlayer={runtimeIdentity:'alice-web-player'}</script>",
+        "manifest.json": JSON.stringify({
+          schemaVersion: "alice-web.package/v1",
+          product: "Alice",
+          packageName: "alice-web",
+          runtimeIdentity: "alice-web-player",
+          entrypoint: "index.html",
+          package: { filename: "safe.alice-web.zip", mimeType: "application/zip" },
+        }),
+        "share.json": JSON.stringify({ schemaVersion: "alice-web.share/v1", product: "Alice", runtimeIdentity: "alice-web-player" }),
+        "preview.png": new Uint8Array([137, 80, 78, 71]),
+        "project/project.json": "{}",
+        "validation.json": JSON.stringify({ schemaVersion: "alice-web.validation/v1" }),
+      }),
+    });
+    expect(payloadSignature.errors).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "duplicate-required-file" }),
+    ]));
+
     const identityDrift = await projectExportApi.validateWebPackage!({
       packageBase64: await makeZip({
         "index.html": "<!doctype html><script>window.AlicePlayer={runtimeIdentity:'alice-standalone-player'}</script>",

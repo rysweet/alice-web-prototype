@@ -1248,23 +1248,43 @@ function readUnsafeOriginalName(file: JSZip.JSZipObject): string | null {
 
 function findDuplicateRequiredFiles(bytes: Uint8Array): string[] {
   const buffer = Buffer.from(bytes);
+  const centralDirectory = findCentralDirectoryRange(buffer);
+  if (!centralDirectory) return [];
+
   const counts = new Map<string, number>();
-  for (let offset = 0; offset <= buffer.length - 46; offset += 1) {
-    if (buffer.readUInt32LE(offset) !== 0x02014b50) continue;
+  for (let offset = centralDirectory.start; offset <= centralDirectory.end - 46;) {
+    if (buffer.readUInt32LE(offset) !== 0x02014b50) break;
     const nameLength = buffer.readUInt16LE(offset + 28);
     const extraLength = buffer.readUInt16LE(offset + 30);
     const commentLength = buffer.readUInt16LE(offset + 32);
     const nameStart = offset + 46;
     const nameEnd = nameStart + nameLength;
-    if (nameEnd > buffer.length) break;
+    if (nameEnd > centralDirectory.end) break;
     const name = buffer.subarray(nameStart, nameEnd).toString("utf8");
     const canonicalRequiredName = RESERVED_WEB_PACKAGE_PATHS_BY_LOWERCASE.get(name.toLowerCase());
     if (canonicalRequiredName) {
       counts.set(canonicalRequiredName, (counts.get(canonicalRequiredName) ?? 0) + 1);
     }
-    offset = nameEnd + extraLength + commentLength - 1;
+    offset = nameEnd + extraLength + commentLength;
   }
   return [...counts.entries()]
     .filter(([, count]) => count > 1)
     .map(([name]) => name);
+}
+
+function findCentralDirectoryRange(buffer: Buffer): { start: number; end: number } | null {
+  const minEocdLength = 22;
+  const maxCommentLength = 0xffff;
+  const searchStart = Math.max(0, buffer.length - minEocdLength - maxCommentLength);
+  for (let offset = buffer.length - minEocdLength; offset >= searchStart; offset -= 1) {
+    if (buffer.readUInt32LE(offset) !== 0x06054b50) continue;
+    const commentLength = buffer.readUInt16LE(offset + 20);
+    if (offset + minEocdLength + commentLength !== buffer.length) continue;
+    const size = buffer.readUInt32LE(offset + 12);
+    const start = buffer.readUInt32LE(offset + 16);
+    const end = start + size;
+    if (start > buffer.length || end > offset || end < start) return null;
+    return { start, end };
+  }
+  return null;
 }
