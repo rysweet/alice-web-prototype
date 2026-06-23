@@ -48,33 +48,39 @@ permissions during this check.
 
 ## 4. Check accessibility and caption evidence
 
-Open the accessibility/captions panel and confirm the visible status text for:
+Use the visible status text and the exported artifact or local API response to
+confirm:
 
-- captions;
-- transcript availability;
-- ARIA/live-region evidence;
-- keyboard reachability.
+- ARIA/live-region status evidence;
+- camera caption text;
+- scene object caption text;
+- keyboard and high-contrast review fields, which remain `"unknown"` unless
+  measured by the caller.
 
-The exported artifact stores statuses and counts. It does not store raw user
-transcript text.
+The exported artifact stores structured status and caption fields. It does not
+store raw user transcript text.
 
-## 5. Browse gallery and review evidence
+## 5. Check static gallery and rubric evidence
 
-Use the gallery/review panel:
+Use the exported artifact or local API response to inspect the static
+gallery/rubric prompt evidence:
 
-1. Browse the visible gallery.
-2. Select an item, such as `Alice`.
-3. Read the rubric criteria.
-4. Open the reflection prompt.
-5. Confirm the review status is ready.
+1. Confirm `galleryItemCount` is greater than zero.
+2. Confirm `galleryItems` contains the visible scene object names or the starter
+   project prompt.
+3. Confirm `rubric` lists fixed review criteria.
+4. Confirm `reviewWorkflowSupported` and `rubricRecordingSupported` remain
+   `false` unless a real review workflow is implemented.
+5. Confirm `liveStudioSupported` is `false`.
 
-This proves the browser workflow for gallery browsing and review/reflection. It
-does not exercise save/import/setup/class-sharing flows.
+This proves static gallery/rubric evidence only. It does not prove a browser
+gallery browsing workflow, reflection prompt workflow, save/import/setup flows,
+or class-sharing flows.
 
 ## 6. Capture visible behavior
 
 Select **Capture visible behavior**. Alice shows a status message and a summary
-with scene, camera/VR comfort, accessibility/caption, and gallery/review
+with scene, camera/VR comfort, accessibility/caption, and static gallery/rubric
 evidence.
 
 The capture is structured runtime evidence. It is not a video file and does not
