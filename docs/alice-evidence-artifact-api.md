@@ -128,8 +128,8 @@ Callers check `valid` before exporting or trusting metadata.
       "status": "partial",
       "projectName": "Program",
       "galleryItemCount": 1,
-      "reviewWorkflowSupported": true,
-      "rubricRecordingSupported": true,
+      "reviewWorkflowSupported": false,
+      "rubricRecordingSupported": false,
       "liveStudioSupported": false,
       "unsupportedLiveStudioReason": "Alice provides web gallery review and rubric evidence, not a synchronized live workshop studio.",
       "rubric": [

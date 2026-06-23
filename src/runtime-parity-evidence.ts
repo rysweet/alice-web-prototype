@@ -153,8 +153,8 @@ export function createGalleryWalkRubricEvidence(input: {
     status: "partial",
     projectName,
     galleryItemCount: galleryItems.length,
-    reviewWorkflowSupported: true,
-    rubricRecordingSupported: true,
+    reviewWorkflowSupported: false,
+    rubricRecordingSupported: false,
     liveStudioSupported: false,
     unsupportedLiveStudioReason: "Alice web provides web gallery review and rubric evidence, not a synchronized live workshop studio.",
     rubric: [

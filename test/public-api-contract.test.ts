@@ -437,8 +437,8 @@ function assertFactoryResult(key: string, value: unknown): void {
     case "RuntimeParityEvidence.createGalleryWalkRubricEvidence":
       expect(value).toMatchObject({
         schema_version: "alice.gallery-walk-rubric-evidence/v1",
-        reviewWorkflowSupported: true,
-        rubricRecordingSupported: true,
+        reviewWorkflowSupported: false,
+        rubricRecordingSupported: false,
         liveStudioSupported: false,
       });
       return;

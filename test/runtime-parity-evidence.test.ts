@@ -75,8 +75,8 @@ describe("runtime parity evidence", () => {
       },
     });
 
-    expect(evidence.reviewWorkflowSupported).toBe(true);
-    expect(evidence.rubricRecordingSupported).toBe(true);
+    expect(evidence.reviewWorkflowSupported).toBe(false);
+    expect(evidence.rubricRecordingSupported).toBe(false);
     expect(evidence.liveStudioSupported).toBe(false);
     expect(evidence.galleryItems.map((item) => item.title)).toEqual(["hero", "goal"]);
     expect(evidence.rubric.map((criterion) => criterion.id)).toContain("accessibility-captions");

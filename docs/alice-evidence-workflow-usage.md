@@ -1,6 +1,6 @@
 ---
 title: "Alice evidence workflow usage"
-description: Browser workflow for capturing visible Alice camera/VR comfort, accessibility/caption, and gallery/review evidence.
+description: Browser workflow for capturing visible Alice camera/VR comfort, accessibility/caption, and static gallery/rubric review evidence.
 last_updated: 2026-06-22
 review_schedule: quarterly
 doc_type: how-to
@@ -10,8 +10,8 @@ doc_type: how-to
 
 Alice captures browser-visible runtime evidence into a deterministic JSON
 artifact. The evidence covers what the page renders and exposes to browser tests:
-scene state, camera/WebXR comfort fallback, accessibility and captions, and the
-gallery/review workflow.
+scene state, camera/WebXR comfort fallback, accessibility and captions, and
+static gallery/rubric review prompts.
 
 Evidence export is not media capture, telemetry, classroom sharing, or a claim of
 native VR parity. True headset/native VR and workshop live studio remain
@@ -21,7 +21,7 @@ unsupported and are reported explicitly in the artifact.
 
 1. Open an Alice world in the browser.
 2. Use the camera controls and WebXR fallback status until the visible state is
-   ready to prove. Accessibility captions and gallery/rubric review evidence are
+   ready to prove. Accessibility captions and static gallery/rubric review evidence are
    also available through the runtime review artifact and local HTTP APIs.
 3. Select **Capture visible behavior**.
 4. Review the evidence status, summary, and capture list.

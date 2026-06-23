@@ -273,8 +273,8 @@ describe("server API", () => {
         .expect(200);
 
       expect(res.body.schema_version).toBe("alice.gallery-walk-rubric-evidence/v1");
-      expect(res.body.reviewWorkflowSupported).toBe(true);
-      expect(res.body.rubricRecordingSupported).toBe(true);
+      expect(res.body.reviewWorkflowSupported).toBe(false);
+      expect(res.body.rubricRecordingSupported).toBe(false);
       expect(res.body.liveStudioSupported).toBe(false);
       expect(res.body.galleryItems.map((item: { title: string }) => item.title)).toContain("checkpoint");
     });

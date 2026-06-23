@@ -122,7 +122,7 @@ console.log({
   nativeVrSupported: artifact.runtimeReview.cameraVrComfort.nativeVrSupported,
   captions: artifact.runtimeReview.accessibilityRescueCaptions.status,
   ariaLiveCaption: artifact.runtimeReview.accessibilityRescueCaptions.ariaLiveCaption,
-  galleryWorkflow: artifact.runtimeReview.galleryWalkRubric.reviewWorkflowSupported,
+  staticGalleryReviewPrompts: artifact.runtimeReview.galleryWalkRubric.galleryItemCount,
   reviewStatus: artifact.runtimeReview.galleryWalkRubric.status,
   unsupported: {
     trueHeadsetVrSupported: artifact.runtimeReview.cameraVrComfort.trueHeadsetVrSupported,
@@ -154,7 +154,7 @@ Expected output shape:
   "nativeVrSupported": false,
   "captions": "partial",
   "ariaLiveCaption": "Loaded Program.",
-  "galleryWorkflow": true,
+  "staticGalleryReviewPrompts": 1,
   "reviewStatus": "partial",
   "unsupported": {
     "trueHeadsetVrSupported": false,
