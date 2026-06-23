@@ -15,7 +15,11 @@ export type WebXREvidenceCode =
   | "hand-pose-unavailable"
   | "invalid-movement-target"
   | "non-finite-pose"
-  | "locomotion-disabled";
+  | "locomotion-disabled"
+  | "desktop-camera-fallback"
+  | "true-vr-unsupported"
+  | "keyboard-camera-movement"
+  | "reduced-motion-respected";
 
 export interface WebXREvidence {
   readonly code: WebXREvidenceCode;

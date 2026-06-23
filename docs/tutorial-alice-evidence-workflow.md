@@ -1,6 +1,6 @@
 ---
 title: "Tutorial: Capture and export Alice evidence"
-description: Hands-on walkthrough for capturing visible Alice behavior, exporting evidence, and checking artifact metadata.
+description: Hands-on walkthrough for capturing visible Alice runtime evidence, exporting JSON, and checking artifact metadata.
 last_updated: 2026-06-22
 review_schedule: quarterly
 doc_type: tutorial
@@ -8,8 +8,9 @@ doc_type: tutorial
 
 # Tutorial: Capture and export Alice evidence
 
-This walkthrough captures visible behavior from an Alice world, exports a JSON
-evidence artifact, and checks the file metadata.
+This walkthrough captures visible runtime evidence from an Alice world, exports a
+JSON evidence artifact, and checks the camera/VR comfort, accessibility/caption,
+and gallery/review metadata.
 
 ## 1. Start Alice
 
@@ -27,19 +28,65 @@ http://127.0.0.1:5173
 
 ## 2. Open a world
 
-Use the browser file control to open an `.a3p` Alice world. The scene view should
-show the world canvas and the Alice controls.
+Use the browser file control to open an `.a3p` Alice world. The scene view shows
+the world canvas and the Alice controls.
 
-## 3. Capture visible behavior
+## 3. Check camera and WebXR comfort evidence
 
-Make visible behavior appear in the browser scene, then select **Capture visible
-behavior**. Alice shows a status message and a summary with the captured object
-count.
+Use the browser camera controls before capture:
 
-The capture is structured scene evidence. It is not a video file and does not
+1. Change the camera view.
+2. Move the camera with the available keyboard or camera control.
+3. Check the WebXR/camera comfort panel.
+
+The page shows desktop camera fallback and comfort evidence even when WebXR or a
+headset is unavailable. This is expected. The artifact keeps
+`trueHeadsetVrSupported: false` and `nativeVrSupported: false`.
+
+Alice does not start camera capture, microphone capture, WebXR, or headset
+permissions during this check.
+
+## 4. Check accessibility and caption evidence
+
+Use the visible status text and the exported artifact or local API response to
+confirm:
+
+- ARIA/live-region status evidence;
+- camera caption text;
+- scene object caption text;
+- keyboard and high-contrast review fields, which remain `"unknown"` unless
+  measured by the caller.
+
+The exported artifact stores structured status and caption fields. It does not
+store raw user transcript text.
+
+## 5. Check static gallery and rubric evidence
+
+Use the exported artifact or local API response to inspect the static
+gallery/rubric prompt evidence:
+
+1. Confirm `galleryItemCount` is greater than zero.
+2. Confirm `galleryItems` contains the visible scene object names or the starter
+   project prompt.
+3. Confirm `rubric` lists fixed review criteria.
+4. Confirm `reviewWorkflowSupported` and `rubricRecordingSupported` remain
+   `false` unless a real review workflow is implemented.
+5. Confirm `liveStudioSupported` is `false`.
+
+This proves static gallery/rubric evidence only. It does not prove a browser
+gallery browsing workflow, reflection prompt workflow, save/import/setup flows,
+or class-sharing flows.
+
+## 6. Capture visible behavior
+
+Select **Capture visible behavior**. Alice shows a status message and a summary
+with scene, camera/VR comfort, accessibility/caption, and static gallery/rubric
+evidence.
+
+The capture is structured runtime evidence. It is not a video file and does not
 use browser media APIs.
 
-## 4. Export evidence
+## 7. Export evidence
 
 Select **Export evidence**. Alice validates the artifact and downloads a JSON
 file such as:
@@ -48,7 +95,7 @@ file such as:
 program-alice-evidence.json
 ```
 
-## 5. Check metadata
+## 8. Check metadata
 
 Save the downloaded filename in a shell variable:
 
@@ -75,7 +122,18 @@ console.log({
   filename: artifact.export.filename,
   objectCount: artifact.world.objectCount,
   visibleObjects: artifact.visibleBehavior.objects.length,
-  snapshotAvailable: artifact.visibleBehavior.viewport.canvasSnapshot.available
+  snapshotAvailable: artifact.visibleBehavior.viewport.canvasSnapshot.available,
+  browserWebXrStatus: artifact.runtimeReview.cameraVrComfort.browserWebXrStatus,
+  trueHeadsetVrSupported: artifact.runtimeReview.cameraVrComfort.trueHeadsetVrSupported,
+  nativeVrSupported: artifact.runtimeReview.cameraVrComfort.nativeVrSupported,
+  captions: artifact.runtimeReview.accessibilityRescueCaptions.status,
+  ariaLiveCaption: artifact.runtimeReview.accessibilityRescueCaptions.ariaLiveCaption,
+  staticGalleryReviewPrompts: artifact.runtimeReview.galleryWalkRubric.galleryItemCount,
+  reviewStatus: artifact.runtimeReview.galleryWalkRubric.status,
+  unsupported: {
+    trueHeadsetVrSupported: artifact.runtimeReview.cameraVrComfort.trueHeadsetVrSupported,
+    liveStudioSupported: artifact.runtimeReview.galleryWalkRubric.liveStudioSupported
+  }
 });
 '
 ```
@@ -96,15 +154,26 @@ Expected output shape:
   "filename": "program-alice-evidence.json",
   "objectCount": 2,
   "visibleObjects": 2,
-  "snapshotAvailable": false
+  "snapshotAvailable": false,
+  "browserWebXrStatus": "unsupported",
+  "trueHeadsetVrSupported": false,
+  "nativeVrSupported": false,
+  "captions": "partial",
+  "ariaLiveCaption": "Loaded Program.",
+  "staticGalleryReviewPrompts": 1,
+  "reviewStatus": "partial",
+  "unsupported": {
+    "trueHeadsetVrSupported": false,
+    "liveStudioSupported": false
+  }
 }
 ```
 
 The timestamp, run ID, world name, and object count vary by world. The identity,
-format, version, export method, and JSON structure stay consistent for valid
-Alice evidence.
+format, version, unsupported capability values, export method, and JSON
+structure stay consistent for valid Alice evidence.
 
-## 6. Share when available
+## 9. Share when available
 
 If **Share evidence** is available, select it to use the native browser share
 prompt. If sharing is unavailable, export remains the supported path.

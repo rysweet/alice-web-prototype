@@ -73,7 +73,7 @@ function hasJsonContentType(req: Request): boolean {
   return req.is("application/json") === "application/json";
 }
 
-function hasValidToken(value: string | undefined, expected: string): boolean {
+export function hasValidToken(value: string | undefined, expected: string): boolean {
   if (!value) {
     return false;
   }

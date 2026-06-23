@@ -1,6 +1,6 @@
 ---
 title: Alice evidence API
-description: Current TypeScript API for browser-created Alice visible-behavior evidence artifacts.
+description: Current TypeScript API for browser-created Alice runtime evidence artifacts.
 last_updated: 2026-06-22
 review_schedule: quarterly
 doc_type: reference
@@ -8,7 +8,7 @@ doc_type: reference
 
 # Alice evidence API
 
-Alice browser evidence files are JSON artifacts created from visible scene
+Alice browser evidence files are JSON artifacts created from visible runtime
 behavior. The helpers live in `src/alice-evidence-artifact.ts` and are exported
 from the root API as `AliceEvidenceArtifact`.
 
@@ -37,58 +37,19 @@ it so generated evidence remains Alice / `alice-web`.
 
 ## JSON shape
 
-```json
-{
-  "format": "alice-visible-behavior-evidence",
-  "version": 1,
-  "application": {
-    "name": "Alice",
-    "runtime": "alice-web"
-  },
-  "world": {
-    "name": "Program",
-    "aliceVersion": "3.10.0.0",
-    "objectCount": 2
-  },
-  "run": {
-    "id": "run-2026-06-22T05-19-37-228Z",
-    "capturedAt": "2026-06-22T05:19:37.228Z"
-  },
-  "visibleBehavior": {
-    "statusText": "Loaded \"Program\" (v3.10.0.0) - 2 objects.",
-    "viewport": {
-      "width": 1280,
-      "height": 720,
-      "canvasSnapshot": {
-        "available": false,
-        "reason": "structured-scene-metadata",
-        "width": 1280,
-        "height": 720,
-        "mimeType": "image/png"
-      }
-    },
-    "camera": {
-      "mode": "orbit",
-      "position": { "x": 0, "y": 1.6, "z": 6 },
-      "target": { "x": 0, "y": 1, "z": 0 }
-    },
-    "objects": [
-      {
-        "name": "alice",
-        "typeName": "org.lgna.story.SBiped",
-        "visible": true,
-        "position": { "x": 0, "y": 0, "z": 0 }
-      }
-    ]
-  },
-  "export": {
-    "method": "download",
-    "requestedAt": "2026-06-22T05:19:38.000Z",
-    "filename": "program-alice-evidence.json",
-    "mimeType": "application/json"
-  }
-}
-```
+The artifact includes the base visible behavior fields plus three browser
+runtime evidence groups:
+
+| Field | Purpose |
+| --- | --- |
+| `visibleBehavior` | Scene status, viewport metadata, camera metadata, and bounded object summaries |
+| `runtimeReview.cameraVrComfort` | WebXR fallback, camera movement, reduced-motion, keyboard movement, and explicit true headset/native VR unsupported evidence |
+| `runtimeReview.accessibilityRescueCaptions` | ARIA/live-region, camera, scene-object, keyboard, and high-contrast caption review evidence |
+| `runtimeReview.galleryWalkRubric` | Gallery item count, review prompts, rubric criteria, and explicit live-studio unsupported evidence |
+| `export` | Download/native-share method, timestamp, filename, MIME type, and optional share metadata |
+
+See [Alice evidence artifact API](./alice-evidence-artifact-api.md#json-shape)
+for the complete JSON example.
 
 Native sharing uses `export.method: "native-share"` and attaches
 `export.share`. `export.share.artifactHash` is a SHA-256 digest of the canonical
@@ -126,12 +87,26 @@ serialized artifact before `export.share` is attached.
 | Run | ID is non-empty; capture time parses as a timestamp |
 | Visible behavior | Status, viewport, camera, and at least one object are required |
 | Objects | Name, type name, visibility, and finite position values are required |
+| Camera/VR comfort | Browser camera evidence is recorded; `trueHeadsetVrSupported` and `nativeVrSupported` are always `false` |
+| Accessibility/captions | ARIA, camera, and scene-object caption evidence is explicit |
+| Gallery/review | Gallery item, rubric, and review status evidence is explicit; live studio remains unsupported |
 | Export | Method is `download` or `native-share`; filename is a safe `.json` name; MIME type is `application/json` |
 | Share | Outcome is `prepared`, `completed`, or `unavailable`; hash is `sha256:` plus 64 lowercase hex characters |
 
 Artifacts do not include secrets, local absolute paths, full project bytes,
-image bytes, screenshots, or `data:` URLs. Browser code renders summaries with
-text APIs.
+image bytes, screenshots, raw user transcripts, camera frames, audio, or `data:`
+URLs. Browser code renders summaries with text APIs.
+
+## Runtime review HTTP APIs
+
+The local server also exposes bounded read-only review evidence:
+
+| Endpoint | Evidence |
+| --- | --- |
+| `GET /api/vr/camera-comfort` | Browser camera comfort evidence; true headset/native VR remains `false` |
+| `GET /api/accessibility/rescue-camera-captions` | ARIA/live, camera, and scene-object caption checks |
+| `GET /api/review/gallery-walk-rubric` | Gallery items, review prompts, rubric criteria, and `liveStudioSupported: false` |
+| `GET /api/review/runtime-parity` | Bundles all three sections |
 
 ## Related docs
 

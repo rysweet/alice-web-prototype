@@ -134,6 +134,22 @@ function buildFactoryCases() {
       PublicApi.AliceWorkflowState.createDefaultAliceWorkflowState(),
     )],
     ["CameraWorkflow.createDefaultCameraWorkflowState", () => PublicApi.CameraWorkflow.createDefaultCameraWorkflowState()],
+    ["RuntimeParityEvidence.createCameraVrComfortEvidence", () => PublicApi.RuntimeParityEvidence.createCameraVrComfortEvidence({
+      camera: PublicApi.CameraWorkflow.createDefaultCameraWorkflowState().camera,
+    })],
+    ["RuntimeParityEvidence.createAccessibilityRescueCaptionEvidence", () => PublicApi.RuntimeParityEvidence.createAccessibilityRescueCaptionEvidence({
+      camera: PublicApi.CameraWorkflow.createDefaultCameraWorkflowState().camera,
+      project: contractProject,
+      statusText: "Loaded ContractWorld.",
+    })],
+    ["RuntimeParityEvidence.createGalleryWalkRubricEvidence", () => PublicApi.RuntimeParityEvidence.createGalleryWalkRubricEvidence({
+      project: contractProject,
+    })],
+    ["RuntimeParityEvidence.createRuntimeParityEvidence", () => PublicApi.RuntimeParityEvidence.createRuntimeParityEvidence({
+      camera: PublicApi.CameraWorkflow.createDefaultCameraWorkflowState().camera,
+      project: contractProject,
+      statusText: "Loaded ContractWorld.",
+    })],
     ["CodeGeneration.createTweedleSource", () => PublicApi.CodeGeneration.createTweedleSource("Demo", [])],
     ["Curriculum.createCurriculumMetadata", () => PublicApi.Curriculum.createCurriculumMetadata()],
     ["Curriculum.createCurriculumProgress", () => PublicApi.Curriculum.createCurriculumProgress()],
@@ -406,6 +422,28 @@ function assertFactoryResult(key: string, value: unknown): void {
       return;
     case "ResourceManager.createResourceManager":
       expectKeys(value, ["register", "get", "acquire", "stats"]);
+      return;
+    case "RuntimeParityEvidence.createCameraVrComfortEvidence":
+      expect(value).toMatchObject({
+        schema_version: "alice.camera-vr-comfort-evidence/v1",
+        status: "partial",
+        trueHeadsetVrSupported: false,
+        nativeVrSupported: false,
+      });
+      return;
+    case "RuntimeParityEvidence.createAccessibilityRescueCaptionEvidence":
+      expectKeys(value, ["schema_version", "ariaLiveCaption", "cameraCaption", "objectCaption", "captionChecks"]);
+      return;
+    case "RuntimeParityEvidence.createGalleryWalkRubricEvidence":
+      expect(value).toMatchObject({
+        schema_version: "alice.gallery-walk-rubric-evidence/v1",
+        reviewWorkflowSupported: false,
+        rubricRecordingSupported: false,
+        liveStudioSupported: false,
+      });
+      return;
+    case "RuntimeParityEvidence.createRuntimeParityEvidence":
+      expectKeys(value, ["cameraVrComfort", "accessibilityRescueCaptions", "galleryWalkRubric"]);
       return;
     case "SceneLayout.createViewingPerspective":
     case "SceneLayout.createTopCamera":

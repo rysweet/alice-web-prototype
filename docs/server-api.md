@@ -188,6 +188,10 @@ export/share/validation routes:
 | `POST` | `/api/camera/markers` | `eatme.alice-camera-workflow-state/v1` | saves a camera marker |
 | `POST` | `/api/camera/markers/:id/restore` | `eatme.alice-camera-workflow-state/v1` | restores a camera marker |
 | `DELETE` | `/api/camera/markers/:id` | `eatme.alice-camera-workflow-state/v1` | deletes a camera marker |
+| `GET` | `/api/vr/camera-comfort` | `alice.camera-vr-comfort-evidence/v1` | token-protected runtime parity read; no state change |
+| `GET` | `/api/accessibility/rescue-camera-captions` | `alice.accessibility-rescue-camera-captions/v1` | token-protected runtime parity read; no state change |
+| `GET` | `/api/review/gallery-walk-rubric` | `alice.gallery-walk-rubric-evidence/v1` | token-protected runtime parity read; no state change |
+| `GET` | `/api/review/runtime-parity` | combined runtime parity evidence | token-protected runtime parity read; no state change |
 | `POST` | `/api/events/register` | event registration summary | writes `event-register.json` |
 | `POST` | `/api/events/fire` | triggered handler summary | writes `event-fire.json` |
 

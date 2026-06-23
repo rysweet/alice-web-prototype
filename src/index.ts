@@ -131,6 +131,7 @@ export * as ResourceLoading from "./resource-loading";
 export * as ResourceSystem from "./resource-system";
 export * as RunSystem from "./run-system";
 export * as RuntimeEnvironment from "./runtime-environment";
+export * as RuntimeParityEvidence from "./runtime-parity-evidence";
 export * as SceneBuilder from "./scene-builder";
 export * as WebRuntime from "./web-runtime";
 export * as WebXRCapabilities from "./webxr-capabilities";
