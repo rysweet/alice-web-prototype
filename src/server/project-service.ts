@@ -597,6 +597,8 @@ export const projectService: ProjectService = {
     const project = buildCurrentProject(state);
     const result = importClassBehaviorPackage(project, packageData, options);
     state.parsedProject = project;
+    syncServerProceduresFromProject(state, project);
+    syncServerMethodDefinitionsFromProject(state, project);
     if (state.projectArchive) {
       state.projectArchive = {
         ...state.projectArchive,
