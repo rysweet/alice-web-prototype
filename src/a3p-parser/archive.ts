@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { assertNoDuplicateZipEntries } from "../zip-entry-validation.js";
 import { indexNodes, getProjectName } from "./dom.js";
 import { extractBoundingBoxes, extractJointHierarchy, extractTextureRefs } from "./resources.js";
 import {
@@ -43,6 +44,7 @@ export async function parseA3P(
   assertA3PArchiveBytes(data, limits);
 
   try {
+    assertNoDuplicateZipEntries(data);
     const zip = await JSZip.loadAsync(data);
     return parseA3PFromZip(zip, { limits });
   } catch (error) {
