@@ -904,7 +904,7 @@ describe("server API", () => {
               fields: [],
               methods: [
                 {
-                  name: "spin",
+                  name: "myFirstMethod",
                   isFunction: false,
                   returnType: "void",
                   parameters: [],
@@ -933,7 +933,20 @@ describe("server API", () => {
       const method = savedProject.methods.find((candidate) => candidate.name === "myFirstMethod");
       expect(method?.statements.map((statement) => statement.method).filter((methodName) => methodName === marker))
         .toHaveLength(1);
-      expect(savedProject.types?.some((type) => type.name === "ReusableBehavior")).toBe(true);
+      const importedType = savedProject.types?.find((type) => type.name === "ReusableBehavior");
+      expect(importedType?.methods?.some((candidate) => candidate.name === "myFirstMethod")).toBe(true);
+      const exportRes = await request(app)
+        .get("/api/projects/current/export/typescript")
+        .buffer(true)
+        .parse(parseBinaryResponse)
+        .expect(200);
+      const zip = await JSZip.loadAsync(exportRes.body);
+      const exportedText = (await Promise.all(
+        Object.values(zip.files)
+          .filter((entry) => !entry.dir)
+          .map((entry) => entry.async("string")),
+      )).join("\n");
+      expect(exportedText).toContain(marker);
     });
 
     it("preserves intentional repeated edits after materialization", async () => {

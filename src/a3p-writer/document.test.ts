@@ -52,4 +52,24 @@ describe("a3p-writer/document class behavior XML", () => {
     expect(xml).toContain("hop");
     expect(xml).toContain("custom type method survives");
   });
+
+  it("keeps scene and imported class methods separate when names collide", async () => {
+    await ensureXmlTools();
+
+    const project = createProject();
+    project.methods = [
+      {
+        name: "hop",
+        isFunction: false,
+        returnType: "void",
+        parameters: [],
+        statements: [{ kind: "MethodCall", object: "this", method: "scene edit survives", arguments: [] }],
+      },
+    ];
+
+    const xml = buildProjectXml(project, MINIMAL_PROJECT_XML_TEMPLATE);
+
+    expect(xml).toContain("scene edit survives");
+    expect(xml).toContain("custom type method survives");
+  });
 });
