@@ -1035,7 +1035,7 @@ Example response:
 ```json
 {
   "schema_version": "alice.audio-workflow-result/v1",
-  "status": "proved",
+  "status": "bounded",
   "evidenceArtifact": "evidence/audio-workflow.json"
 }
 ```
