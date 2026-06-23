@@ -906,9 +906,9 @@ describe("server API", () => {
               methods: [
                 {
                   name: "myFirstMethod",
-                  isFunction: false,
-                  returnType: "void",
-                  parameters: [],
+                  isFunction: true,
+                  returnType: "DecimalNumber",
+                  parameters: [{ name: "amount", type: "DecimalNumber" }],
                   statements: [
                     {
                       kind: "MethodCall",
@@ -936,8 +936,18 @@ describe("server API", () => {
       const sceneMethod = sceneType?.methods?.find((candidate) => candidate.name === "myFirstMethod");
       expect(sceneMethod?.statements.map((statement) => statement.method).filter((methodName) => methodName === marker))
         .toHaveLength(1);
+      expect(sceneMethod).toMatchObject({
+        isFunction: false,
+        returnType: "void",
+        parameters: [],
+      });
       const importedType = savedProject.types?.find((type) => type.name === "ReusableBehavior");
       const importedMethod = importedType?.methods?.find((candidate) => candidate.name === "myFirstMethod");
+      expect(importedMethod).toMatchObject({
+        isFunction: true,
+        returnType: "DecimalNumber",
+        parameters: [{ name: "amount", type: "DecimalNumber" }],
+      });
       expect(importedMethod?.statements.map((statement) => statement.method)).toContain(classMarker);
       expect(importedMethod?.statements.map((statement) => statement.method)).not.toContain(marker);
       const exportRes = await request(app)
@@ -967,8 +977,18 @@ describe("server API", () => {
       const resavedSceneMethod = resavedSceneType?.methods?.find((candidate) => candidate.name === "myFirstMethod");
       expect(resavedSceneMethod?.statements.map((statement) => statement.method).filter((methodName) => methodName === marker))
         .toHaveLength(1);
+      expect(resavedSceneMethod).toMatchObject({
+        isFunction: false,
+        returnType: "void",
+        parameters: [],
+      });
       const resavedImportedType = resavedProject.types?.find((type) => type.name === "ReusableBehavior");
       const resavedImportedMethod = resavedImportedType?.methods?.find((candidate) => candidate.name === "myFirstMethod");
+      expect(resavedImportedMethod).toMatchObject({
+        isFunction: true,
+        returnType: "DecimalNumber",
+        parameters: [{ name: "amount", type: "DecimalNumber" }],
+      });
       expect(resavedImportedMethod?.statements.map((statement) => statement.method)).toContain(classMarker);
       expect(resavedImportedMethod?.statements.map((statement) => statement.method)).not.toContain(marker);
     });

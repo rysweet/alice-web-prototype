@@ -117,7 +117,18 @@ export function buildCurrentProject(state: ServerState): AliceProject {
 
   const sceneType = baseProject.types?.find((type) => type.superTypeName?.includes("SScene"));
   const sourceMethods = sceneType ? (sceneType.methods ?? []) : baseProject.methods;
-  const rootMethodsByName = new Map(baseProject.methods.map((method) => [method.name, method]));
+  const nonSceneMethodNames = sceneType
+    ? new Set(
+      (baseProject.types ?? [])
+        .filter((type) => type !== sceneType)
+        .flatMap((type) => (type.methods ?? []).map((method) => method.name)),
+    )
+    : new Set<string>();
+  const rootMethodsByName = new Map(
+    baseProject.methods
+      .filter((method) => !nonSceneMethodNames.has(method.name))
+      .map((method) => [method.name, method]),
+  );
   const methodsByName = new Map(sourceMethods.map((method) => [
     method.name,
     methodWithMetadata(method, rootMethodsByName.get(method.name), state.methodDefinitions.get(method.name)),
