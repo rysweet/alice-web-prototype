@@ -38,6 +38,11 @@ export interface ServerState {
   projectName: string;
   sceneObjects: Map<string, SceneObject>;
   procedures: Map<string, string[]>;
+  methodDefinitions: Map<string, {
+    isFunction: boolean;
+    returnType: string;
+    parameters: MethodParam[];
+  }>;
   parsedProject: AliceProject | null;
   cameraWorkflow: CameraWorkflowState;
   projectArchive: AliceProjectArchive | null;
@@ -60,6 +65,7 @@ export function createInitialServerState(): ServerState {
     projectName: "Program",
     sceneObjects,
     procedures: createDefaultProcedures(),
+    methodDefinitions: new Map(),
     parsedProject: null,
     cameraWorkflow: createDefaultCameraWorkflowState(),
     projectArchive: null,
@@ -114,12 +120,13 @@ export function buildCurrentProject(state: ServerState): AliceProject {
       continue;
     }
     const existing = methodsByName.get(name);
+    const definition = state.methodDefinitions.get(name);
     const nextStatements = mergeProcedureStatements(existing?.statements ?? [], statements);
     methodsByName.set(name, {
       name,
-      isFunction: existing?.isFunction ?? false,
-      returnType: existing?.returnType ?? "void",
-      parameters: existing?.parameters ?? [],
+      isFunction: definition?.isFunction ?? existing?.isFunction ?? false,
+      returnType: definition?.returnType ?? existing?.returnType ?? "void",
+      parameters: definition?.parameters ?? existing?.parameters ?? [],
       statements: nextStatements,
     });
   }
@@ -253,6 +260,11 @@ export function registerMethod(
   params: MethodParam[],
 ): void {
   state.procedures.set(methodName, []);
+  state.methodDefinitions.set(methodName, {
+    isFunction,
+    returnType,
+    parameters: params,
+  });
   if (state.parsedProject) {
     const method = {
       name: methodName,

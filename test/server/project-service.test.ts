@@ -1,7 +1,12 @@
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import { createMinimalProject } from "../test-utils.js";
 import { projectService } from "../../src/server/project-service.js";
+import { evidenceService } from "../../src/server/evidence-service.js";
+import { readProject } from "../../src/project-io.js";
 import {
   buildCurrentProject,
   createInitialServerState,
@@ -174,6 +179,63 @@ describe("ProjectService.exportTypeScript", () => {
       returnType: "DecimalNumber",
       parameters: [{ name: "target", type: "SModel" }],
     });
+  });
+
+  it("preserves newly registered function metadata for default in-memory projects", () => {
+    const state = createInitialServerState();
+
+    registerMethod(state, "distanceToTarget", true, "DecimalNumber", [
+      { name: "target", type: "SModel" },
+    ]);
+
+    const project = buildCurrentProject(state);
+    expect(project.methods.find((candidate) => candidate.name === "distanceToTarget"))
+      .toMatchObject({
+        isFunction: true,
+        returnType: "DecimalNumber",
+        parameters: [{ name: "target", type: "SModel" }],
+      });
+  });
+
+  it("preserves reopened archive resources in edited project artifacts", async () => {
+    const evidenceDir = fs.mkdtempSync(path.join(os.tmpdir(), "alice-edit-resource-test-"));
+    try {
+      const resourcePath = "resources/textures/moon-rock.png";
+      const resourceBytes = new Uint8Array([137, 80, 78, 71]);
+      const state = createInitialServerState();
+      const project = createMinimalProject();
+      state.launched = true;
+      state.projectName = project.projectName;
+      state.parsedProject = project;
+      state.procedures = new Map([["myFirstMethod", []]]);
+      state.resources = new Map([[resourcePath, resourceBytes]]);
+      state.projectArchive = {
+        project,
+        manifest: null,
+        resources: state.resources,
+        resourceEntries: [],
+        thumbnail: null,
+        versionInfo: {
+          originalAliceVersion: project.version,
+          detectedAliceVersion: project.version,
+          manifestVersion: null,
+          xmlVersion: null,
+          versionSource: "default",
+          migrated: false,
+          migrationSteps: [],
+        },
+      };
+
+      await projectService.editProcedure(state, evidenceDir, evidenceService, {
+        procedureSelector: "scene.myFirstMethod",
+        editSpec: "append-comment:resource-preservation-proof",
+      });
+
+      const archive = await readProject(fs.readFileSync(path.join(evidenceDir, "edited-project.a3p")));
+      expect(Array.from(archive.resources.get(resourcePath) ?? [])).toEqual(Array.from(resourceBytes));
+    } finally {
+      fs.rmSync(evidenceDir, { recursive: true, force: true });
+    }
   });
 
   it("rejects export before a current Alice project is launched", async () => {

@@ -1,7 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
 import type { AliceProject } from "../a3p-parser.js";
-import { writeA3P } from "../a3p-writer/archive.js";
 import { TypeScriptExporter } from "../project-export.js";
 import type { TypeScriptSourceManifest } from "../code-generation.js";
 import { createDefaultCameraWorkflowState } from "../camera-workflow.js";
@@ -283,7 +282,10 @@ export const projectService: ProjectService = {
 
     const methodNames = Array.from(state.procedures.keys());
 
-    const currentProjectBytes = await writeA3P(buildCurrentProject(state));
+    const currentProject = buildCurrentProject(state);
+    const currentProjectBytes = await writeProject(archiveForCurrentProject(state, currentProject), {
+      generateThumbnailFromScene: false,
+    });
     await evidenceService.writeEditedProjectArtifact(
       null,
       evidenceDir,
