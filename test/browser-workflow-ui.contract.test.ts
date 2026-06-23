@@ -167,8 +167,9 @@ describe("Alice browser workflow UI contract", () => {
   it("exports browser-only camera and joint state with the current archive", () => {
     const main = readText("src/main.ts");
 
-    expectFunctionContains(main, "currentExportProject", "cameraWorkflow,");
+    expectFunctionContains(main, "currentExportProject", "archive.project.cameraWorkflow = cameraWorkflow;");
     expectFunctionContains(main, "currentExportProject", "jointState.toJSON()");
+    expectFunctionContains(main, "currentExportProject", "return archive.project;");
     expectFunctionContains(main, "currentExportArchive", "project: currentExportProject(archive)");
     expectFunctionContains(main, "exportWebPackage", "currentExportArchive()");
   });
