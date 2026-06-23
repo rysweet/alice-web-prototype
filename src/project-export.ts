@@ -1125,7 +1125,13 @@ function validateSharePackageLinks(share: AliceWebShareDocument, filename: strin
       path: WEB_PACKAGE_ARTIFACTS.share,
     });
   }
-  if (!share.links || share.links.package !== filename || share.links.html !== WEB_PACKAGE_ARTIFACTS.entrypoint || share.links.preview !== WEB_PACKAGE_ARTIFACTS.preview) {
+  if (
+    share.preview !== WEB_PACKAGE_ARTIFACTS.preview
+    || !share.links
+    || share.links.package !== filename
+    || share.links.html !== WEB_PACKAGE_ARTIFACTS.entrypoint
+    || share.links.preview !== WEB_PACKAGE_ARTIFACTS.preview
+  ) {
     errors.push({
       code: "invalid-share-package-reference",
       message: "share links must point to the package, HTML entrypoint, and preview artifacts",

@@ -851,6 +851,39 @@ describe("project-export", () => {
       expect.objectContaining({ code: "invalid-share-package-reference" }),
     ]));
 
+    const mismatchedSharePreview = await projectExportApi.validateWebPackage!({
+      packageBase64: await makeZip({
+        "index.html": "<!doctype html><script>window.AlicePlayer={runtimeIdentity:'alice-web-player'}</script>",
+        "manifest.json": JSON.stringify({
+          schemaVersion: "alice-web.package/v1",
+          product: "Alice",
+          packageName: "alice-web",
+          runtimeIdentity: "alice-web-player",
+          entrypoint: "index.html",
+          preview: "preview.png",
+          share: "share.json",
+          validation: "validation.json",
+          project: "project/project.json",
+          package: { filename: "safe.alice-web.zip", mimeType: "application/zip" },
+        }),
+        "share.json": JSON.stringify({
+          schemaVersion: "alice-web.share/v1",
+          product: "Alice",
+          runtimeIdentity: "alice-web-player",
+          preview: "other-preview.png",
+          package: { filename: "safe.alice-web.zip", mimeType: "application/zip" },
+          delivery: { mode: "browser-download-fallback", nativeWebShare: false, requiresUserDownload: true },
+          links: { html: "index.html", package: "safe.alice-web.zip", preview: "preview.png" },
+        }),
+        "preview.png": new Uint8Array([137, 80, 78, 71]),
+        "project/project.json": "{}",
+        "validation.json": JSON.stringify({ schemaVersion: "alice-web.validation/v1" }),
+      }),
+    });
+    expect(mismatchedSharePreview.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "invalid-share-package-reference" }),
+    ]));
+
     const nativeShareOverclaim = await projectExportApi.validateWebPackage!({
       packageBase64: await makeZip({
         "index.html": "<!doctype html><script>window.AlicePlayer={runtimeIdentity:'alice-web-player'}</script>",
