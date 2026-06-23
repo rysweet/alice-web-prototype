@@ -182,7 +182,7 @@ describe("ProjectService.exportTypeScript", () => {
     });
   });
 
-  it("keeps manifest workflow method metadata authoritative for reopened typed projects", () => {
+  it("keeps scene method metadata authoritative for reopened typed projects", () => {
     const state = createInitialServerState();
     state.parsedProject = createMinimalProject();
     state.parsedProject.methods = [{
@@ -202,6 +202,27 @@ describe("ProjectService.exportTypeScript", () => {
         statements: [],
       }];
     }
+
+    const project = buildCurrentProject(state);
+    const method = project.methods.find((candidate) => candidate.name === "distanceToTarget");
+
+    expect(method).toMatchObject({
+      isFunction: false,
+      returnType: "void",
+      parameters: [],
+    });
+  });
+
+  it("preserves legacy root-only method metadata for typed projects", () => {
+    const state = createInitialServerState();
+    state.parsedProject = createMinimalProject();
+    state.parsedProject.methods = [{
+      name: "distanceToTarget",
+      isFunction: true,
+      returnType: "DecimalNumber",
+      parameters: [{ name: "target", type: "SModel" }],
+      statements: [],
+    }];
 
     const project = buildCurrentProject(state);
     const method = project.methods.find((candidate) => candidate.name === "distanceToTarget");
