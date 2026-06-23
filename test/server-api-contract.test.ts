@@ -461,7 +461,7 @@ describe("server API response contracts", () => {
       .expect(200);
     expect(evidence.body).toMatchObject({
       schema_version: "alice.audio-workflow-result/v1",
-      status: "proved",
+      status: "bounded",
       evidenceArtifact: path.join(evidenceDir, "audio-workflow.json"),
     });
     const audioEvidence = readJson(evidence.body.evidenceArtifact);

@@ -191,6 +191,7 @@ export const projectService: ProjectService = {
       state.resources = new Map();
       state.projectAudio = createEmptyProjectAudioState();
       state.aliceAudio = createDefaultProjectAudioState();
+      state.sceneObjects.clear();
     }
 
     state.launched = true;

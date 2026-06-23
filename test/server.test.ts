@@ -305,6 +305,15 @@ describe("server API", () => {
           modelResourceId: "project/models/missing.glb",
         })
         .expect(400);
+
+      await localPost(app, "/api/launch").send({}).expect(200);
+      const freshExport = await localPost(app, "/api/project/export/web-package")
+        .send({ title: "Fresh Launch" })
+        .expect(200);
+      const freshZip = await JSZip.loadAsync(decodeBase64Package(freshExport.body.package.base64));
+      const freshProject = JSON.parse(await freshZip.file("project/project.json")!.async("string"));
+      expect(JSON.stringify(freshProject)).not.toContain(modelResourceId);
+      expect(freshZip.file("resources/models/moon-rover.glb")).toBeNull();
     });
 
     it("persists applied texture assignments through save and web package export", async () => {

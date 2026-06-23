@@ -588,6 +588,11 @@ export async function validateWebPackage(input: ValidateWebPackageInput): Promis
     });
   }
   if (share) {
+    const deliveryErrors = validateShareDelivery(share);
+    errors.push(...deliveryErrors);
+    if (deliveryErrors.length === 0) {
+      evidence.push("browser-download-fallback");
+    }
     const shareLinkErrors = validateSharePackageLinks(share, filename);
     errors.push(...shareLinkErrors);
     if (shareLinkErrors.length === 0) {
@@ -1043,6 +1048,21 @@ function isSafeHttpUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function validateShareDelivery(share: AliceWebShareDocument): WebPackageValidationError[] {
+  if (
+    share.delivery?.mode === "browser-download-fallback"
+    && share.delivery.nativeWebShare === false
+    && share.delivery.requiresUserDownload === true
+  ) {
+    return [];
+  }
+  return [{
+    code: "invalid-share-delivery",
+    message: "share delivery must be browser-download-fallback with nativeWebShare false and requiresUserDownload true",
+    path: WEB_PACKAGE_ARTIFACTS.share,
+  }];
 }
 
 function validateSharePackageLinks(share: AliceWebShareDocument, filename: string): WebPackageValidationError[] {
