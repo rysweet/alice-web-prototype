@@ -869,7 +869,7 @@ function expectOptionalString(value: unknown, label: string, errors: string[]): 
     errors.push(`${label} must be a string.`);
     return;
   }
-  if (value.length > MAX_RUNTIME_REVIEW_STRING_LENGTH) {
+  if (value.trim().length > MAX_RUNTIME_REVIEW_STRING_LENGTH) {
     errors.push(`${label} must be ${MAX_RUNTIME_REVIEW_STRING_LENGTH} characters or fewer.`);
   }
 }
@@ -942,7 +942,7 @@ function expectNonEmptyString(value: unknown, label: string, errors: string[]): 
     errors.push(`${label} must be a non-empty string.`);
     return;
   }
-  if (value.length > MAX_RUNTIME_REVIEW_STRING_LENGTH) {
+  if (value.trim().length > MAX_RUNTIME_REVIEW_STRING_LENGTH) {
     errors.push(`${label} must be ${MAX_RUNTIME_REVIEW_STRING_LENGTH} characters or fewer.`);
   }
 }

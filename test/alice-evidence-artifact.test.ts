@@ -494,7 +494,7 @@ describe("Alice evidence artifact", () => {
           liveStudioSupported: false,
           reviewWorkflowSupported: true,
           rubricRecordingSupported: true,
-          unsupportedLiveStudioReason: `ok${" ".repeat(600)}`,
+          unsupportedLiveStudioReason: "x".repeat(600),
           rubric: [null],
           galleryItems: [null],
         },
@@ -524,10 +524,43 @@ describe("Alice evidence artifact", () => {
     ]);
     expect(parsed.runtimeReview?.galleryWalkRubric?.reviewWorkflowSupported).toBe(false);
     expect(parsed.runtimeReview?.galleryWalkRubric?.rubricRecordingSupported).toBe(false);
-    expect(parsed.runtimeReview?.galleryWalkRubric?.unsupportedLiveStudioReason).toBe("ok");
+    expect(parsed.runtimeReview?.galleryWalkRubric?.unsupportedLiveStudioReason).toHaveLength(500);
     expect(parsed.runtimeReview?.galleryWalkRubric?.rubric).toEqual([]);
     expect(parsed.runtimeReview?.galleryWalkRubric?.galleryItems).toEqual([]);
     expect(validateAliceEvidenceArtifact(parsed)).toEqual({ valid: true, errors: [] });
+  });
+
+  it("validates runtime review string bounds after trimming whitespace", () => {
+    const artifact = createAliceEvidenceArtifact(baseArtifactInput());
+    const padded = {
+      ...artifact,
+      runtimeReview: {
+        galleryWalkRubric: {
+          schema_version: "alice.gallery-walk-rubric-evidence/v1",
+          status: "partial",
+          liveStudioSupported: false,
+          unsupportedLiveStudioReason: `ok${" ".repeat(600)}`,
+        },
+      },
+    };
+    const overlong = {
+      ...artifact,
+      runtimeReview: {
+        galleryWalkRubric: {
+          schema_version: "alice.gallery-walk-rubric-evidence/v1",
+          status: "partial",
+          liveStudioSupported: false,
+          unsupportedLiveStudioReason: "x".repeat(600),
+        },
+      },
+    };
+
+    expect(validateAliceEvidenceArtifact(padded)).toEqual({ valid: true, errors: [] });
+    expect(parseAliceEvidenceArtifact(JSON.stringify(padded)).runtimeReview?.galleryWalkRubric?.unsupportedLiveStudioReason)
+      .toBe("ok");
+    expect(validateAliceEvidenceArtifact(overlong).errors).toEqual(expect.arrayContaining([
+      "runtimeReview.galleryWalkRubric.unsupportedLiveStudioReason must be 500 characters or fewer.",
+    ]));
   });
 
   it("prepares native share metadata from the pre-share artifact hash", () => {
