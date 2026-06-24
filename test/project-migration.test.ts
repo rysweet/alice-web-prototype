@@ -261,6 +261,38 @@ describe("project-migration", () => {
     });
   });
 
+  it("updates nested Alice 2 manifest metadata after scoped conversion", () => {
+    const manifest = synchronizeManifestVersion(
+      {
+        project: {
+          createdWith: {
+            version: "2.4.3",
+            product: "Alice",
+          },
+        },
+      },
+      {
+        originalAliceVersion: "2.4.3",
+        detectedAliceVersion: CURRENT_VERSION,
+        manifestVersion: "2.4.3",
+        xmlVersion: "2.4.3",
+        versionSource: "manifest",
+        migrated: true,
+        migrationSupport: "alice-2-scoped-conversion",
+        migrationSteps: [],
+      },
+    );
+
+    expect(manifest).toEqual({
+      project: {
+        createdWith: {
+          version: CURRENT_VERSION,
+          product: "Alice",
+        },
+      },
+    });
+  });
+
   it("synchronizes the first known direct manifest version field without mutating input", () => {
     const manifest = {
       aliceVersion: "3.1.10.0.0",
