@@ -307,8 +307,12 @@ describe("artifact equivalence checks", () => {
             parameters: [],
             statements: [
               {
-                kind: "DoInOrder",
-                body: [{ kind: "Comment", expression: "teacher note only" }],
+                kind: "Switch",
+                expression: "mode",
+                cases: [
+                  { value: "open", body: [{ kind: "Comment", expression: "teacher note only" }] },
+                ],
+                defaultCase: [{ kind: "Comment", expression: "default teacher note only" }],
               },
             ],
           },

@@ -20,6 +20,19 @@ const CONFLICT_STRATEGIES = new Set<ClassBehaviorConflictStrategy>([
   "merge",
   "reject",
 ]);
+const CONTAINER_STATEMENT_KINDS = new Set([
+  "CountLoop",
+  "DoInOrder",
+  "DoTogether",
+  "EachInArrayTogether",
+  "EachInIterableTogether",
+  "ForEachInArrayLoop",
+  "ForEachInIterableLoop",
+  "IfElse",
+  "Switch",
+  "TryCatch",
+  "WhileLoop",
+]);
 
 export type ClassBehaviorConflictStrategy = "rename" | "replace" | "merge" | "reject";
 
@@ -495,23 +508,24 @@ function hasExecutableStatement(statement: AliceStatement): boolean {
   if (["Comment", "comment"].includes(statement.kind)) {
     return false;
   }
+  return nestedStatementGroups(statement).some((statements) => statements.some(hasExecutableStatement))
+    || !isStatementContainer(statement);
+}
+
+function nestedStatementGroups(statement: AliceStatement): AliceStatement[][] {
   return [
     statement.body,
     statement.ifBody,
     statement.elseBody,
     statement.tryBody,
     statement.catchBody,
-  ].some((statements) => statements?.some(hasExecutableStatement)) || !isStatementContainer(statement);
+    statement.defaultCase ?? undefined,
+    ...(statement.cases ?? []).map((caseBranch) => caseBranch.body),
+  ].filter((statements): statements is AliceStatement[] => Array.isArray(statements));
 }
 
 function isStatementContainer(statement: AliceStatement): boolean {
-  return Boolean(
-    statement.body?.length
-    || statement.ifBody?.length
-    || statement.elseBody?.length
-    || statement.tryBody?.length
-    || statement.catchBody?.length,
-  );
+  return CONTAINER_STATEMENT_KINDS.has(statement.kind) || nestedStatementGroups(statement).length > 0;
 }
 
 function cloneMethod(method: AliceMethod): AliceMethod {

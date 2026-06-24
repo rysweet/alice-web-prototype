@@ -989,7 +989,7 @@ async function handleClassBehaviorImport(): Promise<void> {
       renderClassBehaviorControls(archive.project);
       setStatusMessage(
         behaviorEvidence
-          ? `Imported ${result.importedName}, created ${instanceName}, and verified ${behaviorEvidence.methodName} behavior trace: ${behaviorEvidence.trace.join("; ")}`
+          ? `Imported ${result.importedName}, created ${instanceName}, and displayed ${behaviorEvidence.methodName} behavior trace: ${behaviorEvidence.trace.join("; ")}`
           : `Imported ${result.importedName} and created ${instanceName}`,
       );
     } catch (error) {
