@@ -982,11 +982,16 @@ async function handleClassBehaviorImport(): Promise<void> {
         orientation: null,
         size: null,
       });
+      const behaviorEvidence = describeImportedClassInstanceBehavior(archive.project, result.importedName, instanceName);
       selectedClassBehaviorName = result.importedName;
       markProjectChanged();
       renderProject(archive.project);
       renderClassBehaviorControls(archive.project);
-      setStatusMessage(`Imported ${result.importedName} and created ${instanceName}`);
+      setStatusMessage(
+        behaviorEvidence
+          ? `Imported ${result.importedName}, created ${instanceName}, and verified ${behaviorEvidence.methodName} behavior trace: ${behaviorEvidence.trace.join("; ")}`
+          : `Imported ${result.importedName} and created ${instanceName}`,
+      );
     } catch (error) {
       console.error(error);
       setErrorMessage(error);
@@ -1425,6 +1430,21 @@ function importedClassInstanceName(typeName: string, existingNames: readonly str
       candidate = `${base}${counter}`;
     }
     return candidate;
+}
+
+function describeImportedClassInstanceBehavior(
+  project: AliceProject,
+  typeName: string,
+  instanceName: string,
+): { methodName: string; trace: string[] } | null {
+    const type = (project.types ?? []).find((candidate) => candidate.name === typeName);
+    const method = (type?.methods ?? []).find((candidate) =>
+      candidate.statements.some((statement) => describeStatementBehavior(statement) !== null),
+    );
+    if (!method) return null;
+    const trace = collectStatementBehavior(method.statements)
+      .map((entry) => entry.replaceAll("this.", `${instanceName}.`));
+    return trace.length > 0 ? { methodName: method.name, trace } : null;
 }
 
 function describeLastProject(): string {

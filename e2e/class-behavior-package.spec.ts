@@ -99,7 +99,10 @@ test("shows imported executable class behavior and persists a created instance",
   }, null, 2)));
 
   await page.getByTestId("alice-import-class-behavior-input").setInputFiles(behaviorPackagePath);
-  await expect(page.locator("#status")).toContainText("Imported ReusableDoor and created reusableDoorInstance");
+  await expect(page.locator("#status")).toContainText("Imported ReusableDoor, created reusableDoorInstance");
+  await expect(page.locator("#status")).toContainText("verified openDoor behavior trace");
+  await expect(page.locator("#status")).toContainText("reusableDoorInstance.turn(LEFT, degrees)");
+  await expect(page.locator("#status")).toContainText("reusableDoorInstance.openCount = reusableDoorInstance.openCount + 1");
   await expect(page.getByTestId("alice-class-behavior-list")).toContainText("this.turn(LEFT, degrees)");
   await expect(page.getByTestId("alice-class-behavior-list")).toContainText("this.openCount = this.openCount + 1");
   await expect(page.getByTestId("alice-class-behavior-list")).toContainText("returns this.openCount > 0");
