@@ -98,9 +98,9 @@ test("runs an Alice world, exports visible-behavior evidence, and verifies metad
   const accessibilityCaptions = expectRecord(runtimeReview.accessibilityRescueCaptions, "runtimeReview.accessibilityRescueCaptions");
   expect(expectString(accessibilityCaptions.cameraCaption, "runtimeReview.accessibilityRescueCaptions.cameraCaption")).toContain("Camera");
   const galleryReview = expectRecord(runtimeReview.galleryWalkRubric, "runtimeReview.galleryWalkRubric");
-  expect(galleryReview.reviewWorkflowSupported).toBe(false);
+  expect(galleryReview.reviewWorkflowSupported).toBe(true);
   expect(Number(galleryReview.galleryItemCount)).toBeGreaterThan(0);
-  expect(galleryReview.liveStudioSupported).toBe(false);
+  expect(galleryReview.liveStudioSupported).toBe(true);
 
   const serialized = JSON.stringify(artifact);
   expect(serialized).toContain("Alice");

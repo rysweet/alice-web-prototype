@@ -130,7 +130,7 @@ Callers check `valid` before exporting or trusting metadata.
       "galleryItemCount": 1,
       "reviewWorkflowSupported": false,
       "rubricRecordingSupported": false,
-      "liveStudioSupported": false,
+      "liveStudioSupported": true,
       "unsupportedLiveStudioReason": "Alice provides web gallery review and rubric evidence, not a synchronized live workshop studio.",
       "rubric": [
         {
@@ -219,7 +219,18 @@ interface AliceGalleryReviewEvidence {
   galleryItemCount?: number;
   reviewWorkflowSupported?: false;
   rubricRecordingSupported?: false;
-  liveStudioSupported: false;
+  liveStudioSupported: boolean;
+  liveStudio?: {
+    supported?: boolean;
+    synchronizationSupported?: boolean;
+    participantOrchestrationSupported?: boolean;
+    handoffSupported?: boolean;
+    activeSessionId?: string | null;
+    stage?: string;
+    participantCount?: number;
+    syncRevision?: number;
+    handoffReady?: boolean;
+  };
   unsupportedLiveStudioReason?: string;
   rubric?: {
     id: string;
@@ -262,7 +273,7 @@ internals, cookies, or backend data in those fields.
 | Runtime review | Optional `runtimeReview` sections are sanitized to documented fields when present |
 | Camera/VR comfort | `runtimeReview.cameraVrComfort` records browser camera evidence; `trueHeadsetVrSupported` and `nativeVrSupported` are always `false` |
 | Accessibility/captions | `runtimeReview.accessibilityRescueCaptions` records aria-live, camera, and scene-object captions plus keyboard/high-contrast review booleans |
-| Gallery/review | `runtimeReview.galleryWalkRubric` records gallery item count, rubric support, and `liveStudioSupported: false` |
+| Gallery/review | `runtimeReview.galleryWalkRubric` records gallery item count, rubric support, and local live studio synchronization/handoff evidence |
 | Export | Method is `download` or `native-share`; filename is a safe `.json` name; MIME type is `application/json` |
 | Size | Object evidence is bounded to 200 entries; rubric criteria and evidence lists are bounded by implementation constants |
 

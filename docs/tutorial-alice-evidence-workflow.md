@@ -71,7 +71,7 @@ gallery/rubric prompt evidence:
 3. Confirm `rubric` lists fixed review criteria.
 4. Confirm `reviewWorkflowSupported` and `rubricRecordingSupported` remain
    `false` unless a real review workflow is implemented.
-5. Confirm `liveStudioSupported` is `false`.
+5. Confirm `liveStudioSupported` is `true` and the live studio evidence names synchronization, participant orchestration, and handoff support.
 
 This proves static gallery/rubric evidence only. It does not prove a browser
 gallery browsing workflow, reflection prompt workflow, save/import/setup flows,
@@ -164,7 +164,7 @@ Expected output shape:
   "reviewStatus": "partial",
   "unsupported": {
     "trueHeadsetVrSupported": false,
-    "liveStudioSupported": false
+    "liveStudioSupported": true
   }
 }
 ```

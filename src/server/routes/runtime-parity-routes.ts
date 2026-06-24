@@ -31,6 +31,7 @@ export function registerRuntimeParityRoutes(app: Express, context: ServerContext
     res.setHeader("Cache-Control", "no-store");
     res.json(createGalleryWalkRubricEvidence({
       project: buildCurrentProject(context.state),
+      liveStudio: context.liveWorkshopStudio.current(),
     }));
   });
 
@@ -40,6 +41,7 @@ export function registerRuntimeParityRoutes(app: Express, context: ServerContext
       camera: context.state.cameraWorkflow.camera,
       project: buildCurrentProject(context.state),
       statusText: context.state.launched ? "Alice web project is launched." : "Alice web project is ready.",
+      liveStudio: context.liveWorkshopStudio.current(),
     }));
   });
 }

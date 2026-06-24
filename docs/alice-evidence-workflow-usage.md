@@ -112,7 +112,7 @@ Alice reports unsupported capabilities explicitly:
 | Capability | Artifact field | Required value | Rationale |
 | --- | --- | --- | --- |
 | True headset/native VR | `runtimeReview.cameraVrComfort.trueHeadsetVrSupported` | `false` | The browser evidence proves WebXR/camera comfort and fallback behavior, not native headset parity |
-| Workshop live studio | `runtimeReview.galleryWalkRubric.liveStudioSupported` | `false` | The runtime evidence workflow does not implement live workshop studio hosting |
+| Workshop live studio | `runtimeReview.galleryWalkRubric.liveStudioSupported` | `true` | The runtime evidence workflow exposes local synchronized facilitator studio, roster orchestration, and handoff evidence |
 
 Unsupported fields are part of the successful artifact. They prevent parity
 matrices from treating browser fallback evidence as true VR or live studio

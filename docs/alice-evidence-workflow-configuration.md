@@ -32,7 +32,7 @@ npm run dev
 | Optional share path | Native browser file sharing |
 | Camera/VR evidence | Browser-rendered WebXR fallback and camera comfort status |
 | True headset/native VR | Unsupported and exported as `trueHeadsetVrSupported: false` |
-| Workshop live studio | Unsupported and exported as `liveStudioSupported: false` |
+| Workshop live studio | Supported by the local `/api/workshops/live-studio/*` runtime and exported as `liveStudioSupported: true` with synchronized session evidence |
 | Accessibility/caption evidence | Runtime-review ARIA/live, camera, scene-object, keyboard, and high-contrast caption evidence |
 | Gallery/review evidence | Runtime-review gallery item, rubric, prompt, and live-studio unsupported evidence |
 | MIME type | `application/json` |

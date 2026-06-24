@@ -89,7 +89,7 @@ serialized artifact before `export.share` is attached.
 | Objects | Name, type name, visibility, and finite position values are required |
 | Camera/VR comfort | Browser camera evidence is recorded; `trueHeadsetVrSupported` and `nativeVrSupported` are always `false` |
 | Accessibility/captions | ARIA, camera, and scene-object caption evidence is explicit |
-| Gallery/review | Gallery item, rubric, and review status evidence is explicit; live studio remains unsupported |
+| Gallery/review | Gallery item, rubric, review status, and local live studio evidence are explicit |
 | Export | Method is `download` or `native-share`; filename is a safe `.json` name; MIME type is `application/json` |
 | Share | Outcome is `prepared`, `completed`, or `unavailable`; hash is `sha256:` plus 64 lowercase hex characters |
 
@@ -105,7 +105,11 @@ The local server also exposes bounded read-only review evidence:
 | --- | --- |
 | `GET /api/vr/camera-comfort` | Browser camera comfort evidence; true headset/native VR remains `false` |
 | `GET /api/accessibility/rescue-camera-captions` | ARIA/live, camera, and scene-object caption checks |
-| `GET /api/review/gallery-walk-rubric` | Gallery items, review prompts, rubric criteria, and `liveStudioSupported: false` |
+| `GET /api/review/gallery-walk-rubric` | Gallery items, review prompts, rubric criteria, and `liveStudioSupported: true` with synchronized studio evidence |
+| `POST /api/workshops/live-studio/start` | Starts a server-authoritative facilitator live studio snapshot for the current project |
+| `POST /api/workshops/live-studio/:id/participants` | Adds facilitator, participant, or observer roster entries and increments the sync revision |
+| `POST /api/workshops/live-studio/:id/handoff` | Creates the live workshop handoff packet for the next facilitator |
+| `POST /api/community/shares` | Validates a web package and records a teacher-community share in the local community platform store |
 | `GET /api/review/runtime-parity` | Bundles all three sections |
 
 ## Related docs

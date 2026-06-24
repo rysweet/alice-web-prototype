@@ -56,6 +56,7 @@ import {
   createRuntimeParityEvidence,
   type WebXRSessionEvidenceState,
 } from "./runtime-parity-evidence";
+import type { LiveWorkshopStudioSession } from "./live-studio";
 import { type WebXRInputSourceState, type WebXRInputState } from "./webxr-input";
 import {
   createWebXRLocomotion,
@@ -138,6 +139,13 @@ const shareEvidenceButton = requireElement("share-evidence-button", HTMLButtonEl
 const evidenceStatus = requireElement("evidence-status", HTMLElement);
 const evidenceSummary = requireElement("evidence-summary", HTMLElement);
 const evidenceCaptureList = requireElement("evidence-capture-list", HTMLUListElement);
+const liveStudioFacilitator = requireElement("live-studio-facilitator", HTMLInputElement);
+const liveStudioParticipants = requireElement("live-studio-participants", HTMLTextAreaElement);
+const liveStudioStartButton = requireElement("live-studio-start", HTMLButtonElement);
+const liveStudioHandoffButton = requireElement("live-studio-handoff", HTMLButtonElement);
+const liveStudioStatus = requireElement("live-studio-status", HTMLElement);
+const communityPublishShareButton = requireElement("community-publish-share", HTMLButtonElement);
+const communitySharingStatus = requireElement("community-sharing-status", HTMLElement);
 
 interface AliceWebRunResult {
   status: "completed" | "error";
@@ -191,6 +199,7 @@ let selectedTextureResourceId: string | null = null;
 let selectedClassBehaviorName: string | null = null;
 let lastWebPackageBase64: string | null = null;
 let lastEvidenceArtifact: AliceEvidenceArtifact | null = null;
+let lastLiveStudioSession: LiveWorkshopStudioSession | null = null;
 let jointState = new JointSystem.JointStateStore();
 const MOVE_SELECTED_OBJECT_DELTA = { x: 1, y: 0, z: 0 } as const;
 const TURN_SELECTED_OBJECT_RADIANS = Math.PI / 12;
@@ -1104,6 +1113,7 @@ function createEvidenceArtifactForCurrentScene(
       project,
       statusText: status.textContent?.trim() || describeProject(project),
       webxrReport: lastWebXRCapabilityReport,
+      liveStudio: lastLiveStudioSession,
       ...webXRSessionEvidenceInput(),
     }),
     export: {
@@ -1267,6 +1277,104 @@ async function generateShareArtifacts(): Promise<void> {
         console.error(error);
         setErrorMessage(error);
     }
+}
+
+async function startLiveStudio(): Promise<void> {
+      try {
+        const project = ensureArchive().project;
+        const response = await fetch("/api/workshops/live-studio/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: `${project.projectName || "Alice Project"} live studio`,
+            facilitatorName: liveStudioFacilitator.value.trim() || "Facilitator",
+            participantNames: liveStudioParticipants.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+          }),
+        });
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        lastLiveStudioSession = await response.json() as LiveWorkshopStudioSession;
+        renderLiveStudioStatus();
+      } catch (error) {
+        console.error(error);
+        liveStudioStatus.textContent = `Live studio error: ${error instanceof Error ? error.message : String(error)}`;
+      }
+}
+
+async function createLiveStudioHandoff(): Promise<void> {
+      if (!lastLiveStudioSession) {
+        liveStudioStatus.textContent = "Start a live studio session before creating a handoff.";
+        return;
+      }
+      try {
+        const response = await fetch(`/api/workshops/live-studio/${encodeURIComponent(lastLiveStudioSession.id)}/handoff`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            summary: `${lastLiveStudioSession.title} handoff is ready for the next classroom facilitator.`,
+            checklist: [
+              "Review the synchronized studio snapshot.",
+              "Confirm participant questions and blockers.",
+              "Publish or remix the teacher community share package.",
+            ],
+          }),
+        });
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        lastLiveStudioSession = await response.json() as LiveWorkshopStudioSession;
+        renderLiveStudioStatus();
+      } catch (error) {
+        console.error(error);
+        liveStudioStatus.textContent = `Live studio handoff error: ${error instanceof Error ? error.message : String(error)}`;
+      }
+}
+
+async function publishCommunityShare(): Promise<void> {
+      try {
+        const project = ensureArchive().project;
+        if (!lastWebPackageBase64) {
+          await exportWebPackage();
+        }
+        if (!lastWebPackageBase64) {
+          throw new Error("Export a web package before publishing to the teacher community.");
+        }
+        const response = await fetch("/api/community/shares", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            packageBase64: lastWebPackageBase64,
+            title: project.projectName || "Alice Project",
+            teacher: {
+              audience: "Teacher community",
+              lessonFocus: "Alice classroom remix",
+              remix: "with-attribution",
+              tags: ["alice-web", "teacher-community"],
+              standards: [],
+            },
+          }),
+        });
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+        const record = await response.json() as { id: string; title: string; evidence: string[]; storage: string };
+        communitySharingStatus.textContent = `Published ${record.title} to ${record.storage} community record ${record.id}; evidence: ${record.evidence.join(", ")}.`;
+      } catch (error) {
+        console.error(error);
+        communitySharingStatus.textContent = `Community share error: ${error instanceof Error ? error.message : String(error)}`;
+      }
+}
+
+function renderLiveStudioStatus(): void {
+      if (!lastLiveStudioSession) {
+        liveStudioHandoffButton.disabled = true;
+        liveStudioStatus.textContent = "No live studio session.";
+        return;
+      }
+      liveStudioHandoffButton.disabled = false;
+      const handoff = lastLiveStudioSession.handoff ? "handoff ready" : "handoff pending";
+      liveStudioStatus.textContent = `${lastLiveStudioSession.title}: ${lastLiveStudioSession.participants.length} participant(s), revision ${lastLiveStudioSession.sync.revision}, ${handoff}.`;
 }
 
 function renderProject(project: AliceProject): void {
@@ -1560,6 +1668,15 @@ function installInputHandlers(): void {
   });
   shareWebPackageButton.addEventListener("click", () => {
     void ModelTextureCameraJointExportWorkflowBrowser.generateShareArtifacts();
+  });
+  liveStudioStartButton.addEventListener("click", () => {
+    void startLiveStudio();
+  });
+  liveStudioHandoffButton.addEventListener("click", () => {
+    void createLiveStudioHandoff();
+  });
+  communityPublishShareButton.addEventListener("click", () => {
+    void publishCommunityShare();
   });
   jointApplyPose.addEventListener("click", handleJointPoseApply);
   captureEvidenceButton.addEventListener("click", handleCaptureEvidence);

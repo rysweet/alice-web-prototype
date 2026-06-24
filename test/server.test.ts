@@ -311,7 +311,7 @@ describe("server API", () => {
       );
     });
 
-    it("reports gallery walk rubric evidence while live studio remains unsupported", async () => {
+    it("reports gallery walk rubric evidence with live studio support", async () => {
       await localPost(app, "/api/scene/add-object")
         .send({ className: "org.lgna.story.SProp", name: "checkpoint" })
         .expect(200);
@@ -322,10 +322,65 @@ describe("server API", () => {
         .expect(200);
 
       expect(res.body.schema_version).toBe("alice.gallery-walk-rubric-evidence/v1");
-      expect(res.body.reviewWorkflowSupported).toBe(false);
+      expect(res.body.reviewWorkflowSupported).toBe(true);
       expect(res.body.rubricRecordingSupported).toBe(false);
-      expect(res.body.liveStudioSupported).toBe(false);
+      expect(res.body.liveStudioSupported).toBe(true);
+      expect(res.body.liveStudio).toMatchObject({
+        supported: true,
+        synchronizationSupported: true,
+        participantOrchestrationSupported: true,
+        handoffSupported: true,
+      });
       expect(res.body.galleryItems.map((item: { title: string }) => item.title)).toContain("checkpoint");
+    });
+
+    it("orchestrates a synchronized live studio and workshop handoff", async () => {
+      await localPost(app, "/api/scene/add-object")
+        .send({ className: "org.lgna.story.SProp", name: "demo" })
+        .expect(200);
+
+      const started = await localPost(app, "/api/workshops/live-studio/start")
+        .send({
+          title: "Remix workshop",
+          facilitatorName: "Ms. Rivera",
+          participantNames: ["Ari", "Bea"],
+        })
+        .expect(200);
+
+      expect(started.body).toMatchObject({
+        schema_version: "alice.live-workshop-studio/v1",
+        title: "Remix workshop",
+        stage: "live",
+        sync: {
+          mode: "server-authoritative-snapshot",
+          revision: 1,
+        },
+        orchestration: {
+          participantCount: 3,
+        },
+      });
+
+      const participant = await localPost(app, `/api/workshops/live-studio/${started.body.id}/participants`)
+        .send({ displayName: "Observer", role: "observer" })
+        .expect(200);
+      expect(participant.body.sync.revision).toBe(2);
+      expect(participant.body.orchestration.participantRoles).toEqual(expect.arrayContaining(["facilitator", "participant", "observer"]));
+
+      const handoff = await localPost(app, `/api/workshops/live-studio/${started.body.id}/handoff`)
+        .send({ summary: "Ready for next classroom.", nextFacilitator: "Mr. Lee" })
+        .expect(200);
+      expect(handoff.body.stage).toBe("handoff");
+      expect(handoff.body.handoff).toMatchObject({
+        summary: "Ready for next classroom.",
+        nextFacilitator: "Mr. Lee",
+      });
+
+      const runtime = await localGet(app, "/api/review/runtime-parity").expect(200);
+      expect(runtime.body.galleryWalkRubric.liveStudio).toMatchObject({
+        activeSessionId: started.body.id,
+        participantCount: 4,
+        handoffReady: true,
+      });
     });
 
     it("bundles the runtime parity evidence sections", async () => {
@@ -1214,6 +1269,38 @@ describe("server API", () => {
           errors: [],
         },
       });
+
+      const communityRes = await localPost(app, "/api/community/shares")
+        .send({
+          packageBase64: exportRes.body.package.base64,
+          title: "Shared Winter Story",
+          teacher: {
+            audience: "After-school club",
+            lessonFocus: "Community remix",
+            remix: "allowed",
+            tags: ["gallery"],
+            standards: ["CSTA 2-CS-01"],
+          },
+        })
+        .expect(201);
+      expect(communityRes.body).toMatchObject({
+        schema_version: "alice-web.community-share/v1",
+        title: "Shared Winter Story",
+        storage: "server-memory",
+        platform: "alice-web-local-community",
+        evidence: expect.arrayContaining([
+          "web-package-validated",
+          "community-platform-recorded",
+          "teacher-share-metadata",
+        ]),
+        teacher: {
+          schemaVersion: "alice-web.teacher-share/v1",
+          audience: "After-school club",
+        },
+      });
+
+      const communityList = await localGet(app, "/api/community/shares").expect(200);
+      expect(communityList.body.shares.map((share: { id: string }) => share.id)).toContain(communityRes.body.id);
     });
 
     it("returns explicit API errors for malformed web-package requests", async () => {

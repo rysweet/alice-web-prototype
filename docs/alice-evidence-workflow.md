@@ -103,7 +103,7 @@ controls. It does not depend on save/import/setup or class-sharing controls.
 | Camera and WebXR comfort | Camera mode/status, keyboard movement status, reduced-motion status, WebXR fallback status, true VR unsupported text | `runtimeReview.cameraVrComfort.browserWebXrStatus`, `desktopCameraAvailable`, `keyboardMovementAvailable`, `reducedMotionRespected`, `trueHeadsetVrSupported: false`, `nativeVrSupported: false` |
 | Accessibility and captions | Evidence artifact and `/api/accessibility/rescue-camera-captions` expose ARIA/live, camera, scene-object, keyboard, and high-contrast caption checks | `runtimeReview.accessibilityRescueCaptions` |
 | Gallery and review | Evidence artifact and `/api/review/gallery-walk-rubric` expose gallery items, review prompts, rubric criteria, and live-studio unsupported status | `runtimeReview.galleryWalkRubric` |
-| Unsupported boundaries | Explicit unsupported statements | `runtimeReview.cameraVrComfort.trueHeadsetVrSupported: false`, `runtimeReview.galleryWalkRubric.liveStudioSupported: false` |
+| Unsupported boundaries | Explicit unsupported statements | `runtimeReview.cameraVrComfort.trueHeadsetVrSupported: false`; live studio is separate local workshop orchestration evidence, not headset/native VR support |
 
 ## Export an evidence file
 
@@ -275,8 +275,10 @@ Evidence export keeps the artifact small and reviewable:
 - local absolute file paths are not stored;
 - request headers and tokens are not stored;
 - project bytes are not embedded;
-- true headset/native VR and workshop live studio remain unsupported unless real
-  runtime support and browser evidence are added in a separate feature;
+- true headset/native VR remains unsupported unless real runtime support and
+  browser evidence are added in a separate feature;
+- workshop live studio evidence is limited to the local synchronized
+  facilitator, participant roster, and handoff runtime;
 - generated summaries are rendered as text;
 - export and share require user action.
 

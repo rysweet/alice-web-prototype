@@ -2,6 +2,8 @@ import * as fs from "fs";
 import * as path from "path";
 import { createInitialServerState, type ServerState } from "./state.js";
 import { evidenceService, type EvidenceService } from "./evidence-service.js";
+import { CommunityPlatformStore } from "../community-platform.js";
+import { LiveWorkshopStudioStore } from "../live-studio.js";
 import { projectService, type ProjectService } from "./project-service.js";
 import { screenshotService, type ScreenshotService } from "./screenshot-service.js";
 import {
@@ -29,6 +31,8 @@ export interface ServerContext {
   projectService: ProjectService;
   screenshotService: ScreenshotService;
   templateService: TemplateService;
+  communityPlatform: CommunityPlatformStore;
+  liveWorkshopStudio: LiveWorkshopStudioStore;
   localApiSecurity: LocalApiSecurity;
 }
 
@@ -49,6 +53,8 @@ export function createServerContext(options: ServerOptions): ServerContext {
     projectService,
     screenshotService,
     templateService,
+    communityPlatform: new CommunityPlatformStore(),
+    liveWorkshopStudio: new LiveWorkshopStudioStore(),
     localApiSecurity: createLocalApiSecurity({
       token: options.localApiToken,
       allowedHosts: options.allowedHosts,

@@ -89,8 +89,20 @@ const GALLERY_RUBRIC_KEYS = new Set([
   "rubricRecordingSupported",
   "liveStudioSupported",
   "unsupportedLiveStudioReason",
+  "liveStudio",
   "rubric",
   "galleryItems",
+]);
+const LIVE_STUDIO_KEYS = new Set([
+  "supported",
+  "synchronizationSupported",
+  "participantOrchestrationSupported",
+  "handoffSupported",
+  "activeSessionId",
+  "stage",
+  "participantCount",
+  "syncRevision",
+  "handoffReady",
 ]);
 const RUBRIC_ITEM_KEYS = new Set(["id", "label", "maxScore", "evidenceRequired"]);
 const GALLERY_ITEM_KEYS = new Set(["id", "title", "reviewPrompt"]);
@@ -102,6 +114,21 @@ export interface AliceEvidenceVector {
   x: number;
   y: number;
   z: number;
+}
+
+function sanitizeLiveStudioEvidence(input: unknown): NonNullable<AliceEvidenceGalleryReview["liveStudio"]> {
+  const value = recordValue(input) ?? {};
+  return {
+    ...(value.supported !== undefined ? { supported: booleanValue(value.supported) } : {}),
+    ...(value.synchronizationSupported !== undefined ? { synchronizationSupported: booleanValue(value.synchronizationSupported) } : {}),
+    ...(value.participantOrchestrationSupported !== undefined ? { participantOrchestrationSupported: booleanValue(value.participantOrchestrationSupported) } : {}),
+    ...(value.handoffSupported !== undefined ? { handoffSupported: booleanValue(value.handoffSupported) } : {}),
+    ...(value.activeSessionId === null ? { activeSessionId: null } : value.activeSessionId ? { activeSessionId: stringValue(value.activeSessionId) } : {}),
+    ...(value.stage ? { stage: stringValue(value.stage) } : {}),
+    ...(value.participantCount !== undefined ? { participantCount: finiteNonNegativeInteger(value.participantCount) } : {}),
+    ...(value.syncRevision !== undefined ? { syncRevision: finiteNonNegativeInteger(value.syncRevision) } : {}),
+    ...(value.handoffReady !== undefined ? { handoffReady: booleanValue(value.handoffReady) } : {}),
+  };
 }
 
 export interface AliceEvidenceCanvasSnapshot {
@@ -187,10 +214,21 @@ export interface AliceEvidenceGalleryReview {
   status: "partial";
   projectName?: string;
   galleryItemCount?: number;
-  reviewWorkflowSupported?: false;
+  reviewWorkflowSupported?: boolean;
   rubricRecordingSupported?: false;
-  liveStudioSupported: false;
+  liveStudioSupported: boolean;
   unsupportedLiveStudioReason?: string;
+  liveStudio?: {
+    supported?: boolean;
+    synchronizationSupported?: boolean;
+    participantOrchestrationSupported?: boolean;
+    handoffSupported?: boolean;
+    activeSessionId?: string | null;
+    stage?: string;
+    participantCount?: number;
+    syncRevision?: number;
+    handoffReady?: boolean;
+  };
   rubric?: readonly {
     id: string;
     label: string;
@@ -538,10 +576,11 @@ export function validateAliceEvidenceArtifact(value: unknown): AliceEvidenceVali
           expectEqual(galleryWalkRubric.status, "partial", "runtimeReview.galleryWalkRubric.status", errors);
           expectOptionalString(galleryWalkRubric.projectName, "runtimeReview.galleryWalkRubric.projectName", errors);
           expectOptionalNonNegativeInteger(galleryWalkRubric.galleryItemCount, "runtimeReview.galleryWalkRubric.galleryItemCount", errors);
-          expectOptionalLiteralFalse(galleryWalkRubric.reviewWorkflowSupported, "runtimeReview.galleryWalkRubric.reviewWorkflowSupported", errors);
+          expectOptionalBoolean(galleryWalkRubric.reviewWorkflowSupported, "runtimeReview.galleryWalkRubric.reviewWorkflowSupported", errors);
           expectOptionalLiteralFalse(galleryWalkRubric.rubricRecordingSupported, "runtimeReview.galleryWalkRubric.rubricRecordingSupported", errors);
-          expectLiteralFalse(galleryWalkRubric.liveStudioSupported, "runtimeReview.galleryWalkRubric.liveStudioSupported", errors);
+          expectRequiredBoolean(galleryWalkRubric.liveStudioSupported, "runtimeReview.galleryWalkRubric.liveStudioSupported", errors);
           expectOptionalString(galleryWalkRubric.unsupportedLiveStudioReason, "runtimeReview.galleryWalkRubric.unsupportedLiveStudioReason", errors);
+          validateLiveStudioEvidence(galleryWalkRubric.liveStudio, "runtimeReview.galleryWalkRubric.liveStudio", errors);
           expectMaxArrayLength(galleryWalkRubric.rubric, "runtimeReview.galleryWalkRubric.rubric", errors);
           validateRecordArray(galleryWalkRubric.rubric, "runtimeReview.galleryWalkRubric.rubric", errors, (item, label) => {
             expectOnlyKeys(item, RUBRIC_ITEM_KEYS, label, errors);
@@ -777,10 +816,11 @@ function sanitizeGalleryWalkRubricReview(input: unknown): AliceEvidenceGalleryRe
     status: "partial",
     ...(value.projectName ? { projectName: stringValue(value.projectName) } : {}),
     ...(value.galleryItemCount !== undefined ? { galleryItemCount: finiteNonNegativeInteger(value.galleryItemCount) } : {}),
-    ...(value.reviewWorkflowSupported !== undefined ? { reviewWorkflowSupported: false as const } : {}),
+    ...(value.reviewWorkflowSupported !== undefined ? { reviewWorkflowSupported: booleanValue(value.reviewWorkflowSupported) } : {}),
     ...(value.rubricRecordingSupported !== undefined ? { rubricRecordingSupported: false as const } : {}),
-    liveStudioSupported: false,
+    liveStudioSupported: booleanValue(value.liveStudioSupported),
     ...(value.unsupportedLiveStudioReason ? { unsupportedLiveStudioReason: stringValue(value.unsupportedLiveStudioReason) } : {}),
+    ...(value.liveStudio ? { liveStudio: sanitizeLiveStudioEvidence(value.liveStudio) } : {}),
     ...(Array.isArray(value.rubric) ? {
       rubric: value.rubric
         .slice(0, MAX_RUNTIME_REVIEW_ITEMS)
@@ -890,6 +930,10 @@ function finitePositiveInteger(value: unknown): number {
 
 function finiteNonNegativeInteger(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(value) : 0;
+}
+
+function booleanValue(value: unknown): boolean {
+  return value === true;
 }
 
 function recordValue(value: unknown): Record<string, unknown> | null {
@@ -1028,6 +1072,24 @@ function validateRecordArray(
     }
     validateItem(record, `${label}[${index}]`);
   });
+}
+
+function validateLiveStudioEvidence(value: unknown, label: string, errors: string[]): void {
+  if (value === undefined) return;
+  const liveStudio = nestedRecord(value, label, errors);
+  if (!liveStudio) return;
+  expectOnlyKeys(liveStudio, LIVE_STUDIO_KEYS, label, errors);
+  expectOptionalBoolean(liveStudio.supported, `${label}.supported`, errors);
+  expectOptionalBoolean(liveStudio.synchronizationSupported, `${label}.synchronizationSupported`, errors);
+  expectOptionalBoolean(liveStudio.participantOrchestrationSupported, `${label}.participantOrchestrationSupported`, errors);
+  expectOptionalBoolean(liveStudio.handoffSupported, `${label}.handoffSupported`, errors);
+  if (liveStudio.activeSessionId !== null) {
+    expectOptionalString(liveStudio.activeSessionId, `${label}.activeSessionId`, errors);
+  }
+  expectOptionalString(liveStudio.stage, `${label}.stage`, errors);
+  expectOptionalNonNegativeInteger(liveStudio.participantCount, `${label}.participantCount`, errors);
+  expectOptionalNonNegativeInteger(liveStudio.syncRevision, `${label}.syncRevision`, errors);
+  expectOptionalBoolean(liveStudio.handoffReady, `${label}.handoffReady`, errors);
 }
 
 function expectNonEmptyString(value: unknown, label: string, errors: string[]): void {
