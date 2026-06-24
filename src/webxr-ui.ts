@@ -108,7 +108,10 @@ export function renderWebXRStatus(root: HTMLElement, viewModel: WebXRStatusViewM
 
     const session = viewModel.cameraComfort.browserWebXrSession;
     if (session) {
-      const sessionText = `Browser WebXR session: ${session.sessionState}; reference space: ${session.referenceSpaceType}; input sources: ${session.inputSourceCount}; locomotion: ${session.locomotionMode}`;
+      const observationText = session.locomotionObserved
+        ? `; locomotion observed: ${session.locomotionResult}`
+        : "; locomotion observed: not-observed";
+      const sessionText = `Browser WebXR session: ${session.sessionState}; reference space: ${session.referenceSpaceType}; input sources: ${session.inputSourceCount}; locomotion: ${session.locomotionMode}${observationText}`;
       const sessionEvidence = appendTextElement(comfort, "div", sessionText);
       sessionEvidence.dataset.testid = "alice-browser-webxr-session-evidence";
     }

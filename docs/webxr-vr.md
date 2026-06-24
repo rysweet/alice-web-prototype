@@ -135,8 +135,9 @@ evidence. Evidence is also rendered into the UI and copied into
 That review now includes two nested boundaries:
 
 - `browserWebXrSession`: browser session state, reference-space type,
-  input-source count, locomotion mode, and locomotion evidence codes observed by
-  Alice web when a WebXR session is attempted or active.
+  input-source count, locomotion mode, locomotion result, movement delta, and
+  locomotion evidence codes observed by Alice web when a WebXR session is
+  attempted or when the bounded WebXR locomotion probe is explicitly run.
 - `playerComfortPlaytest`: an explicit unsupported boundary. Alice web records
   `truePlayerComfortPlaytestSupported: false`, `revisionLoopEvidence:
   "not-observed"`, and a reason until an observed headset/player session,
@@ -144,6 +145,15 @@ That review now includes two nested boundaries:
 
 This is real browser/WebXR evidence where the browser exposes it. It is not a
 native/headset VR parity claim.
+
+The local API also exposes `POST /api/vr/webxr-locomotion-evidence` for
+headset-free validation. The request supplies explicit controller-axis input
+such as `{ "axes": [0.5, -1], "deltaSeconds": 1 }`; Alice runs the same
+WebXR locomotion engine used by the browser runtime, stores the resulting
+movement delta in `browserWebXrSession`, and keeps
+`trueHeadsetVrSupported`, `nativeVrSupported`, `headsetSessionObserved`, and
+`nativeVrObserved` false. This closes browser WebXR locomotion evidence without
+pretending a headset or native runtime exists.
 
 ```typescript
 import { detectWebXRCapabilities } from 'alice-web';
@@ -535,6 +545,26 @@ Result types:
 | `WebXRLocomotionUpdateResult` | Reports movement delta, clamping, and evidence for continuous movement. |
 | `WebXRInteractionResult` | Reports `object-interaction`, `movement`, `invalid-target`, or `none`. |
 | `WebXRMovementHit` | Candidate target position and source surface. |
+
+### Local browser WebXR locomotion evidence API
+
+```http
+POST /api/vr/webxr-locomotion-evidence
+Content-Type: application/json
+
+{
+  "mode": "combined",
+  "axes": [0.5, -1],
+  "deltaSeconds": 1
+}
+```
+
+The response records `schema_version:
+"alice.browser-webxr-locomotion-evidence/v1"`, `status: "observed"`, a
+movement/no-movement result, finite movement delta, clamping status, and an
+explicit unsupported boundary for headset/native VR. A later
+`GET /api/vr/camera-comfort` includes the same observation under
+`browserWebXrSession`.
 
 ### UI rendering
 

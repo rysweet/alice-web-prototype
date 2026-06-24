@@ -1,7 +1,7 @@
-import { createWebXREvidence, type WebXREvidence } from "./webxr-capabilities";
-import type { WebXRInputState } from "./webxr-input";
+import { createWebXREvidence, type WebXREvidence } from "./webxr-capabilities.js";
+import type { WebXRInputState } from "./webxr-input.js";
 
-export type { WebXRInputState } from "./webxr-input";
+export type { WebXRInputState } from "./webxr-input.js";
 
 export type WebXRLocomotionMode =
   | "disabled"

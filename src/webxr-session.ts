@@ -1,7 +1,7 @@
-import { createWebXRInputTracker, normalizeWebXRInput, type WebXRInputState, type WebXRInputTracker } from "./webxr-input";
-import { createWebXREvidence, type WebXREvidence } from "./webxr-capabilities";
+import { createWebXRInputTracker, normalizeWebXRInput, type WebXRInputState, type WebXRInputTracker } from "./webxr-input.js";
+import { createWebXREvidence, type WebXREvidence } from "./webxr-capabilities.js";
 
-export type { WebXREvidenceCode } from "./webxr-capabilities";
+export type { WebXREvidenceCode } from "./webxr-capabilities.js";
 
 export type WebXRSessionState = "idle" | "unsupported" | "starting" | "active" | "ended" | "failed";
 

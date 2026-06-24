@@ -23,11 +23,11 @@ same value as `X-Alice-Local-Api-Token`.
 
 Read-only `GET /api/audio/formats` does not require launch or the local API
 token. `GET /api/audio/state` uses the same local API token as the camera state
-routes when the server is started with `--api-token`. Runtime parity read routes
-(`/api/vr/camera-comfort`, `/api/accessibility/rescue-camera-captions`,
-`/api/review/gallery-walk-rubric`, and `/api/review/runtime-parity`) always
-require `X-Alice-Local-Api-Token` and fail closed with `401` if no token is
-configured.
+routes when the server is started with `--api-token`. Runtime parity evidence
+routes (`/api/vr/camera-comfort`, `/api/vr/webxr-locomotion-evidence`,
+`/api/accessibility/rescue-camera-captions`, `/api/review/gallery-walk-rubric`,
+and `/api/review/runtime-parity`) always require `X-Alice-Local-Api-Token` and
+fail closed with `401` if no token is configured.
 
 ## Endpoint summary
 
@@ -83,6 +83,7 @@ implemented export/share routes. `/api/audio/*` exposes the audio workflow; see
 | `/api/camera/markers/:id/restore` | `POST` | Restore a camera marker |
 | `/api/camera/markers/:id` | `DELETE` | Delete a camera marker |
 | `/api/vr/camera-comfort` | `GET` | Read token-protected browser camera and bounded VR comfort evidence |
+| `/api/vr/webxr-locomotion-evidence` | `POST` | Record bounded browser WebXR locomotion evidence from explicit controller-axis input without claiming headset/native VR |
 | `/api/accessibility/rescue-camera-captions` | `GET` | Read token-protected accessibility caption evidence for the current scene |
 | `/api/review/gallery-walk-rubric` | `GET` | Read token-protected gallery review and rubric evidence |
 | `/api/review/runtime-parity` | `GET` | Read token-protected combined runtime parity evidence |

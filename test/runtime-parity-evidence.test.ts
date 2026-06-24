@@ -41,6 +41,12 @@ describe("runtime parity evidence", () => {
       inputSourceCount: "unknown",
       locomotionMode: "unknown",
       locomotionEvidenceCodes: [],
+      locomotionObserved: false,
+      locomotionResult: "not-observed",
+      locomotionDeltaMeters: null,
+      locomotionEvidenceSource: "not-observed",
+      headsetSessionObserved: false,
+      nativeVrObserved: false,
     });
     expect(evidence.playerComfortPlaytest).toMatchObject({
       truePlayerComfortPlaytestSupported: false,
@@ -75,6 +81,41 @@ describe("runtime parity evidence", () => {
       revisionLoopEvidence: "not-observed",
     });
     expect(evidence.playerComfortPlaytest.unsupportedReason).toContain("true headset player comfort playtesting");
+  });
+
+  it("records explicit browser WebXR locomotion observations without upgrading headset/native support", () => {
+    const evidence = createCameraVrComfortEvidence({
+      camera,
+      browserWebXRLocomotionObservation: {
+        observed: true,
+        evidenceSource: "browser-webxr-locomotion-api",
+        sessionState: "not-started",
+        referenceSpaceType: "unknown",
+        inputSourceCount: 1,
+        locomotionMode: "combined",
+        locomotionEvidenceCodes: [],
+        locomotionResult: "movement",
+        deltaMeters: { x: 0.5, y: 0, z: -1 },
+        clamped: false,
+        headsetSessionObserved: false,
+        nativeVrObserved: false,
+        unsupportedReason: "No headset/native VR session was observed.",
+      },
+    });
+
+    expect(evidence.trueHeadsetVrSupported).toBe(false);
+    expect(evidence.nativeVrSupported).toBe(false);
+    expect(evidence.browserWebXrSession).toMatchObject({
+      sessionState: "not-started",
+      inputSourceCount: 1,
+      locomotionMode: "combined",
+      locomotionObserved: true,
+      locomotionResult: "movement",
+      locomotionDeltaMeters: { x: 0.5, y: 0, z: -1 },
+      locomotionEvidenceSource: "browser-webxr-locomotion-api",
+      headsetSessionObserved: false,
+      nativeVrObserved: false,
+    });
   });
 
   it("creates accessibility rescue captions from camera and scene objects", () => {
