@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import path from "node:path";
 
-test("exports reusable Alice class behavior from one project and imports it into another", async ({ page }, testInfo) => {
+test("saves modified Alice class behavior from one project and imports it into another", async ({ page }, testInfo) => {
   const sourceProjectPath = path.resolve(process.cwd(), "test/fixtures/a3p/sanitized-scene.a3p");
   const targetProjectPath = path.resolve(process.cwd(), ".test-roundtrip/modified.a3p");
 
@@ -18,6 +18,7 @@ test("exports reusable Alice class behavior from one project and imports it into
   await openProject.setInputFiles(sourceProjectPath);
   await expect(status).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   await expect(classBehaviorSelect).toContainText("SanitizedBunny");
+  await expect(classBehaviorList).toContainText("custom type method survives");
   await classBehaviorSelect.selectOption("SanitizedBunny");
 
   const packageDownload = page.waitForEvent("download");
@@ -36,6 +37,7 @@ test("exports reusable Alice class behavior from one project and imports it into
   await expect(status).toContainText("Imported SanitizedBunny");
   await expect(classBehaviorList).toContainText("SanitizedBunny");
   await expect(classBehaviorList).toContainText("hop");
+  await expect(classBehaviorList).toContainText("custom type method survives");
   await expect(classBehaviorList).toContainText("nickname");
   await expect(classBehaviorList).toContainText("org.lgna.story.SBiped");
 
@@ -50,6 +52,7 @@ test("exports reusable Alice class behavior from one project and imports it into
   await expect(status).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   await expect(classBehaviorList).toContainText("SanitizedBunny");
   await expect(classBehaviorList).toContainText("hop");
+  await expect(classBehaviorList).toContainText("custom type method survives");
   await expect(classBehaviorList).toContainText("nickname");
   await expect(classBehaviorList).toContainText("org.lgna.story.SBiped");
 });

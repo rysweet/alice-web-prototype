@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { type AliceObject, type AliceProject } from "./a3p-parser";
+import { type AliceMethod, type AliceObject, type AliceProject, type AliceStatement } from "./a3p-parser";
 import {
   createAliceEvidenceArtifact,
   prepareAliceEvidenceShare,
@@ -414,7 +414,7 @@ function renderClassBehaviorControls(project: AliceProject): void {
 
     const item = document.createElement("li");
     const fields = (type.fields ?? []).map((field) => field.name).join(", ") || "no fields";
-    const methods = (type.methods ?? []).map((method) => method.name).join(", ") || "no methods";
+    const methods = (type.methods ?? []).map(describeClassBehaviorMethod).join(", ") || "no methods";
     const constructors = `${type.constructors?.length ?? 0} constructor${type.constructors?.length === 1 ? "" : "s"}`;
     item.textContent = `${type.name} extends ${type.superTypeName ?? "java.lang.Object"}; fields: ${fields}; methods: ${methods}; ${constructors}`;
     classBehaviorList.appendChild(item);
@@ -422,6 +422,43 @@ function renderClassBehaviorControls(project: AliceProject): void {
 
   classBehaviorSelect.disabled = types.length === 0;
   exportClassBehaviorButton.disabled = types.length === 0;
+}
+
+function describeClassBehaviorMethod(method: AliceMethod): string {
+  const behavior = collectStatementBehavior(method.statements).join("; ");
+  return behavior ? `${method.name} behavior: ${behavior}` : method.name;
+}
+
+function collectStatementBehavior(statements: readonly AliceStatement[]): string[] {
+  return statements.flatMap((statement) => {
+    const current = describeStatementBehavior(statement);
+    const nested = [
+      ...(statement.body ? collectStatementBehavior(statement.body) : []),
+      ...(statement.ifBody ? collectStatementBehavior(statement.ifBody) : []),
+      ...(statement.elseBody ? collectStatementBehavior(statement.elseBody) : []),
+      ...(statement.tryBody ? collectStatementBehavior(statement.tryBody) : []),
+      ...(statement.catchBody ? collectStatementBehavior(statement.catchBody) : []),
+      ...(statement.defaultCase ? collectStatementBehavior(statement.defaultCase) : []),
+      ...((statement.cases ?? []).flatMap((entry) => collectStatementBehavior(entry.body))),
+    ];
+    return current ? [current, ...nested] : nested;
+  });
+}
+
+function describeStatementBehavior(statement: AliceStatement): string | null {
+  if (statement.kind === "Comment" && statement.expression?.trim()) {
+    return statement.expression.trim();
+  }
+  if (statement.kind === "MethodCall" && statement.method) {
+    return `${statement.object ?? "this"}.${statement.method}(${(statement.arguments ?? []).join(", ")})`;
+  }
+  if (statement.kind === "ReturnStatement" && statement.expression?.trim()) {
+    return `returns ${statement.expression.trim()}`;
+  }
+  if (statement.kind === "VariableAssignment" && statement.name && statement.value) {
+    return `${statement.name} = ${statement.value}`;
+  }
+  return null;
 }
 
 function resizeRenderer(): void {
