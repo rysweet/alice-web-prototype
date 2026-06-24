@@ -40,10 +40,11 @@ test("completes first-lesson object, code, run, evidence, save, and reopen actio
   await page.getByTestId("alice-create-shape-button").click();
   await expect(page.locator("#status")).toHaveText(/Created box/);
   await expect(page.getByTestId("alice-scene-object-list")).toContainText("box");
+  const placedObjectListText = await page.getByTestId("alice-scene-object-list").innerText();
   completedActions.push({
     id: "place-object",
     trigger: "click alice-create-shape-button",
-    observable: "scene object list contains box",
+    observable: placedObjectListText,
   });
 
   await page.getByTestId("alice-move-selected-object-button").click();
@@ -53,10 +54,11 @@ test("completes first-lesson object, code, run, evidence, save, and reopen actio
   await page.getByTestId("alice-resize-selected-object-button").click();
   await expect(page.locator("#status")).toHaveText(/Resized box/);
   await expectSceneObjectTransform(page);
+  const adjustedObjectListText = await page.getByTestId("alice-scene-object-list").innerText();
   completedActions.push({
     id: "adjust-object",
     trigger: "click move, turn, and resize selected object buttons",
-    observable: "box transform is visible in the scene object list",
+    observable: adjustedObjectListText,
   });
 
   const sourceEditor = page.getByTestId("alice-workflow-source");
@@ -65,11 +67,13 @@ test("completes first-lesson object, code, run, evidence, save, and reopen actio
   completedActions.push({
     id: "edit-code",
     trigger: "fill alice-workflow-source",
-    observable: "workflow source contains first-lesson code",
+    observable: await sourceEditor.inputValue(),
   });
 
   await page.getByTestId("alice-run-workflow-button").click();
+  await expect(page.locator("#status")).toHaveText(/Alice workflow completed/);
   await expect.poll(async () => (await latestAliceRunResult(page))?.status ?? null).toBe("completed");
+  const runStatusText = await page.locator("#status").innerText();
   const runResult = await latestAliceRunResult(page);
   expect(runResult).toMatchObject({
     status: "completed",
@@ -81,26 +85,31 @@ test("completes first-lesson object, code, run, evidence, save, and reopen actio
   completedActions.push({
     id: "run-world",
     trigger: "click alice-run-workflow-button",
-    observable: "window.aliceWeb.latestRunResult completed with execution log",
+    observable: `${runStatusText}; execution_log=${runResult?.execution_log.length ?? 0}`,
   });
 
   await page.getByTestId("alice-evidence-capture-button").click();
   await expect(page.getByTestId("alice-evidence-status")).toContainText(/visible behavior captured/i);
   await expect(page.getByTestId("alice-evidence-summary")).toContainText(/1 object/i);
   const evidenceArtifactPath = await exportEvidenceArtifact(page, testInfo.outputPath("first-lesson-visible-evidence.json"));
-  await expectVisibleEvidenceArtifact(evidenceArtifactPath);
+  const evidenceSummary = await page.getByTestId("alice-evidence-summary").innerText();
+  const evidenceArtifact = await expectVisibleEvidenceArtifact(evidenceArtifactPath);
   completedActions.push({
     id: "capture-evidence",
     trigger: "click alice-evidence-capture-button and alice-evidence-export-button",
-    observable: "exported visible-behavior evidence JSON names Alice alice-web and one box object",
+    observable: `${evidenceSummary}; artifact=${JSON.stringify({
+      format: evidenceArtifact.format,
+      runtime: (evidenceArtifact.application as JsonRecord).runtime,
+      objectCount: ((evidenceArtifact.visibleBehavior as JsonRecord).objects as unknown[]).length,
+    })}`,
   });
 
   const savedProjectPath = await saveProject(page, testInfo.outputPath("first-lesson-ui-actions.a3p"));
-  await expectSavedProjectEvidence(savedProjectPath);
+  const savedXmlEvidence = await expectSavedProjectEvidence(savedProjectPath);
   completedActions.push({
     id: "save-project",
     trigger: "click alice-save-project-button",
-    observable: "downloaded .a3p contains box transform evidence",
+    observable: savedXmlEvidence,
   });
 
   await page.reload();
@@ -108,10 +117,11 @@ test("completes first-lesson object, code, run, evidence, save, and reopen actio
   await expect(page.locator("#status")).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
   await expect(page.getByTestId("alice-scene-object-list")).toContainText("box");
   await expectSceneObjectTransform(page);
+  const reopenedObjectListText = await page.getByTestId("alice-scene-object-list").innerText();
   completedActions.push({
     id: "reopen-project",
     trigger: "set alice-open-project-input to saved .a3p",
-    observable: "reopened project shows persisted box transform",
+    observable: reopenedObjectListText,
   });
 
   expect(completedActions.map((action) => action.id)).toEqual([
@@ -174,7 +184,7 @@ async function saveProject(page: Page, savedPath: string): Promise<string> {
   return savedPath;
 }
 
-async function expectVisibleEvidenceArtifact(artifactPath: string): Promise<void> {
+async function expectVisibleEvidenceArtifact(artifactPath: string): Promise<JsonRecord> {
   const artifact = JSON.parse(await readFile(artifactPath, "utf-8")) as JsonRecord;
   expect(artifact.format).toBe("alice-visible-behavior-evidence");
   expect(artifact.application).toMatchObject({ name: "Alice", runtime: "alice-web" });
@@ -187,9 +197,10 @@ async function expectVisibleEvidenceArtifact(artifactPath: string): Promise<void
     typeName: "org.lgna.story.SBox",
     visible: true,
   });
+  return artifact;
 }
 
-async function expectSavedProjectEvidence(projectPath: string): Promise<void> {
+async function expectSavedProjectEvidence(projectPath: string): Promise<string> {
   const { stdout: entriesOutput } = await execFileAsync("unzip", ["-Z1", projectPath], { encoding: "utf-8" });
   const programEntry = String(entriesOutput)
     .split(/\r?\n/u)
@@ -207,6 +218,7 @@ async function expectSavedProjectEvidence(projectPath: string): Promise<void> {
   ]) {
     expect(programXml).toContain(expected);
   }
+  return `${programEntry}: ${["box", "setPositionRelativeToVehicle", "setOrientationRelativeToVehicle", "setSize", "1.2"].join(", ")}`;
 }
 
 function expectRecord(value: unknown, label: string): JsonRecord {
