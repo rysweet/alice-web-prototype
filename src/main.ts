@@ -446,14 +446,17 @@ function collectStatementBehavior(statements: readonly AliceStatement[]): string
 }
 
 function describeStatementBehavior(statement: AliceStatement): string | null {
-  if (statement.kind === "Comment" && statement.expression?.trim()) {
+  if ((statement.kind === "Comment" || statement.kind === "comment") && statement.expression?.trim()) {
     return statement.expression.trim();
   }
-  if (statement.kind === "MethodCall" && statement.method) {
+  if ((statement.kind === "MethodCall" || statement.kind === "call") && statement.method) {
     return `${statement.object ?? "this"}.${statement.method}(${(statement.arguments ?? []).join(", ")})`;
   }
-  if (statement.kind === "ReturnStatement" && statement.expression?.trim()) {
+  if ((statement.kind === "ReturnStatement" || statement.kind === "return") && statement.expression?.trim()) {
     return `returns ${statement.expression.trim()}`;
+  }
+  if (statement.kind === "expression" && statement.expression?.trim()) {
+    return statement.expression.trim();
   }
   if (statement.kind === "VariableAssignment" && statement.name && statement.value) {
     return `${statement.name} = ${statement.value}`;
@@ -973,11 +976,20 @@ async function handleClassBehaviorImport(): Promise<void> {
       const archive = ensureArchive();
       const packageData = parseClassBehaviorPackage(await file.text());
       const result = importClassBehaviorPackage(archive.project, packageData);
+      const instanceName = importedClassInstanceName(result.importedName, archive.project.sceneObjects.map((object) => object.name));
+      archive.project.sceneObjects.push({
+        name: instanceName,
+        typeName: result.importedName,
+        resourceType: null,
+        position: { x: 0, y: 0, z: 0 },
+        orientation: null,
+        size: null,
+      });
       selectedClassBehaviorName = result.importedName;
       markProjectChanged();
       renderProject(archive.project);
       renderClassBehaviorControls(archive.project);
-      setStatusMessage(`Imported ${result.importedName}`);
+      setStatusMessage(`Imported ${result.importedName} and created ${instanceName}`);
     } catch (error) {
       console.error(error);
       setErrorMessage(error);
@@ -1404,6 +1416,18 @@ function classBehaviorFilename(typeName: string): string {
       .replace(/^-|-$/g, "")
       || "class-behavior";
     return `${safeBase}.alice-class-behavior.json`;
+}
+
+function importedClassInstanceName(typeName: string, existingNames: readonly string[]): string {
+    const base = `${typeName.charAt(0).toLowerCase()}${typeName.slice(1)}Instance`
+      .replace(/[^A-Za-z0-9_]/g, "") || "importedClassInstance";
+    let candidate = base;
+    let counter = 1;
+    while (existingNames.includes(candidate)) {
+      counter += 1;
+      candidate = `${base}${counter}`;
+    }
+    return candidate;
 }
 
 function describeLastProject(): string {
