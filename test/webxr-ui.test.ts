@@ -128,6 +128,12 @@ describe("renderWebXRStatus", () => {
           inputSourceCount: 2,
           locomotionMode: "combined",
           locomotionEvidenceCodes: [],
+          locomotionObserved: true,
+          locomotionResult: "movement",
+          locomotionDeltaMeters: { x: 0.25, y: 0, z: -0.5 },
+          locomotionEvidenceSource: "browser-webxr-locomotion-api",
+          headsetSessionObserved: false,
+          nativeVrObserved: false,
         },
         playerComfortPlaytest: {
           truePlayerComfortPlaytestSupported: false,
@@ -157,6 +163,8 @@ describe("renderWebXRStatus", () => {
       .toContain("true headset/native VR remains unsupported");
     expect(root.querySelector("[data-testid=\"alice-browser-webxr-session-evidence\"]")?.textContent)
       .toContain("Browser WebXR session: active");
+    expect(root.querySelector("[data-testid=\"alice-browser-webxr-session-evidence\"]")?.textContent)
+      .toContain("locomotion observed: movement");
     expect(root.querySelector("[data-testid=\"alice-player-comfort-playtest-boundary\"]")?.textContent)
       .toContain("not a true headset comfort playtest");
   });
@@ -190,6 +198,12 @@ describe("renderWebXRStatus", () => {
           inputSourceCount: "unknown",
           locomotionMode: "unknown",
           locomotionEvidenceCodes: [],
+          locomotionObserved: false,
+          locomotionResult: "not-observed",
+          locomotionDeltaMeters: null,
+          locomotionEvidenceSource: "not-observed",
+          headsetSessionObserved: false,
+          nativeVrObserved: false,
         },
         playerComfortPlaytest: {
           truePlayerComfortPlaytestSupported: false,

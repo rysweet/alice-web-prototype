@@ -263,6 +263,8 @@ describe("server API", () => {
         await request(unconfiguredApp).get(endpoint).expect(401);
         await localGet(app, endpoint).expect(200);
       }
+      await request(app).post("/api/vr/webxr-locomotion-evidence").send({ axes: [0, 1] }).expect(401);
+      await request(unconfiguredApp).post("/api/vr/webxr-locomotion-evidence").send({ axes: [0, 1] }).expect(401);
     });
 
     it("reports camera comfort evidence without claiming true headset VR", async () => {
@@ -281,6 +283,12 @@ describe("server API", () => {
         inputSourceCount: "unknown",
         locomotionMode: "unknown",
         locomotionEvidenceCodes: [],
+        locomotionObserved: false,
+        locomotionResult: "not-observed",
+        locomotionDeltaMeters: null,
+        locomotionEvidenceSource: "not-observed",
+        headsetSessionObserved: false,
+        nativeVrObserved: false,
       });
       expect(res.body.playerComfortPlaytest).toMatchObject({
         truePlayerComfortPlaytestSupported: false,
@@ -288,6 +296,42 @@ describe("server API", () => {
         revisionLoopEvidence: "not-observed",
       });
       expect(res.body.unsupportedReason).toContain("true headset/native VR remains unsupported");
+    });
+
+    it("records bounded browser WebXR locomotion evidence without claiming headset/native VR", async () => {
+      const probe = await localPost(app, "/api/vr/webxr-locomotion-evidence")
+        .send({ mode: "combined", axes: [0.5, -1], deltaSeconds: 1 })
+        .expect(200);
+
+      expect(probe.body.schema_version).toBe("alice.browser-webxr-locomotion-evidence/v1");
+      expect(probe.body.trueHeadsetVrSupported).toBe(false);
+      expect(probe.body.nativeVrSupported).toBe(false);
+      expect(probe.body.observation).toMatchObject({
+        observed: true,
+        evidenceSource: "browser-webxr-locomotion-api",
+        sessionState: "not-started",
+        inputSourceCount: 1,
+        locomotionMode: "combined",
+        locomotionResult: "movement",
+        headsetSessionObserved: false,
+        nativeVrObserved: false,
+      });
+      expect(probe.body.observation.deltaMeters.x).toBeCloseTo(0.75);
+      expect(probe.body.observation.deltaMeters.z).toBeCloseTo(-1.5);
+
+      const comfort = await localGet(app, "/api/vr/camera-comfort").expect(200);
+      expect(comfort.body.trueHeadsetVrSupported).toBe(false);
+      expect(comfort.body.nativeVrSupported).toBe(false);
+      expect(comfort.body.browserWebXrSession).toMatchObject({
+        sessionState: "not-started",
+        inputSourceCount: 1,
+        locomotionMode: "combined",
+        locomotionObserved: true,
+        locomotionResult: "movement",
+        locomotionEvidenceSource: "browser-webxr-locomotion-api",
+        headsetSessionObserved: false,
+        nativeVrObserved: false,
+      });
     });
 
     it("reports accessibility rescue camera captions for current scene review", async () => {

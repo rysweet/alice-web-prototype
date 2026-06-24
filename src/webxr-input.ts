@@ -1,4 +1,4 @@
-import { createWebXREvidence, type WebXREvidence } from "./webxr-capabilities";
+import { createWebXREvidence, type WebXREvidence } from "./webxr-capabilities.js";
 
 export interface WebXRPoseState {
   readonly matrix: readonly number[];

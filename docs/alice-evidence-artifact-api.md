@@ -93,6 +93,19 @@ Callers check `valid` before exporting or trusting metadata.
       "nativeVrSupported": false,
       "cameraMode": "orbit",
       "evidenceCodes": ["desktop-camera-fallback", "true-vr-unsupported"],
+      "browserWebXrSession": {
+        "sessionState": "not-started",
+        "referenceSpaceType": "unknown",
+        "inputSourceCount": 1,
+        "locomotionMode": "combined",
+        "locomotionEvidenceCodes": [],
+        "locomotionObserved": true,
+        "locomotionResult": "movement",
+        "locomotionDeltaMeters": { "x": 0.75, "y": 0, "z": -1.5 },
+        "locomotionEvidenceSource": "browser-webxr-locomotion-api",
+        "headsetSessionObserved": false,
+        "nativeVrObserved": false
+      },
       "comfortChecks": {
         "discreteMovementStep": true,
         "stableHorizon": true,
@@ -188,6 +201,19 @@ interface AliceCameraVrComfortEvidence {
   nativeVrSupported: false;
   cameraMode?: string;
   evidenceCodes?: string[];
+  browserWebXrSession?: {
+    sessionState?: "idle" | "unsupported" | "starting" | "active" | "ended" | "failed" | "not-started" | "unmeasured";
+    referenceSpaceType?: string | "unknown";
+    inputSourceCount?: number | "unknown";
+    locomotionMode?: string | "unknown";
+    locomotionEvidenceCodes?: string[];
+    locomotionObserved?: boolean;
+    locomotionResult?: "none" | "movement" | "not-observed";
+    locomotionDeltaMeters?: { x: number; y: number; z: number } | null;
+    locomotionEvidenceSource?: "browser-webxr-locomotion-api" | "not-observed";
+    headsetSessionObserved?: false;
+    nativeVrObserved?: false;
+  };
   comfortChecks?: {
     discreteMovementStep?: boolean;
     stableHorizon?: boolean;

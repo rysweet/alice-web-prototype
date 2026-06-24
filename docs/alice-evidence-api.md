@@ -87,7 +87,7 @@ serialized artifact before `export.share` is attached.
 | Run | ID is non-empty; capture time parses as a timestamp |
 | Visible behavior | Status, viewport, camera, and at least one object are required |
 | Objects | Name, type name, visibility, and finite position values are required |
-| Camera/VR comfort | Browser camera evidence is recorded; `trueHeadsetVrSupported` and `nativeVrSupported` are always `false` |
+| Camera/VR comfort | Browser camera and explicit browser WebXR locomotion probe evidence may be recorded; `trueHeadsetVrSupported` and `nativeVrSupported` are always `false` |
 | Accessibility/captions | ARIA, camera, and scene-object caption evidence is explicit |
 | Gallery/review | Gallery item, rubric, review status, and local live studio evidence are explicit |
 | Export | Method is `download` or `native-share`; filename is a safe `.json` name; MIME type is `application/json` |
@@ -99,11 +99,12 @@ URLs. Browser code renders summaries with text APIs.
 
 ## Runtime review HTTP APIs
 
-The local server also exposes bounded read-only review evidence:
+The local server also exposes bounded review evidence APIs:
 
 | Endpoint | Evidence |
 | --- | --- |
-| `GET /api/vr/camera-comfort` | Browser camera comfort evidence; true headset/native VR remains `false` |
+| `GET /api/vr/camera-comfort` | Browser camera comfort evidence plus the latest bounded WebXR locomotion probe; true headset/native VR remains `false` |
+| `POST /api/vr/webxr-locomotion-evidence` | Exercises the browser WebXR locomotion engine from explicit controller-axis input and records observable locomotion evidence without claiming a headset/native session |
 | `GET /api/accessibility/rescue-camera-captions` | ARIA/live, camera, and scene-object caption checks |
 | `GET /api/review/gallery-walk-rubric` | Gallery items, review prompts, rubric criteria, and `liveStudioSupported: true` with synchronized studio evidence |
 | `POST /api/workshops/live-studio/start` | Starts a server-authoritative facilitator live studio snapshot for the current project |

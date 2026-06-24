@@ -14,6 +14,7 @@ import {
   type CameraWorkflowState,
 } from "../camera-workflow.js";
 import type { AliceProjectArchive } from "../project-io.js";
+import type { BrowserWebXRLocomotionObservation } from "../runtime-parity-evidence.js";
 import {
   createDefaultProjectAudioState,
   createEmptyProjectAudioState,
@@ -76,6 +77,7 @@ export interface ServerState {
   templateLibrary: TemplateLibrary;
   jointState: JointStateStore;
   runWorldEvidenceArtifacts: string[];
+  browserWebXRLocomotionObservation: BrowserWebXRLocomotionObservation | null;
 }
 
 export const DEFAULT_POSITION: Position = { x: 0, y: 0, z: 0 };
@@ -103,6 +105,7 @@ export function createInitialServerState(): ServerState {
     templateLibrary: new TemplateLibrary(),
     jointState: new JointStateStore(),
     runWorldEvidenceArtifacts: [],
+    browserWebXRLocomotionObservation: null,
   };
 }
 

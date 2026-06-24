@@ -14,6 +14,22 @@ export type RuntimeParityMeasuredBoolean = boolean | "unknown";
 export type RuntimeParityMeasuredNumber = number | "unknown";
 export type WebXRSessionEvidenceState = WebXRSessionState | "not-started" | "unmeasured";
 
+export interface BrowserWebXRLocomotionObservation {
+  readonly observed: true;
+  readonly evidenceSource: "browser-webxr-locomotion-api";
+  readonly sessionState: WebXRSessionEvidenceState;
+  readonly referenceSpaceType: string | "unknown";
+  readonly inputSourceCount: number;
+  readonly locomotionMode: WebXRLocomotionMode;
+  readonly locomotionEvidenceCodes: readonly WebXREvidenceCode[];
+  readonly locomotionResult: "none" | "movement";
+  readonly deltaMeters: { readonly x: number; readonly y: number; readonly z: number };
+  readonly clamped: boolean;
+  readonly headsetSessionObserved: false;
+  readonly nativeVrObserved: false;
+  readonly unsupportedReason: string;
+}
+
 export interface CameraVrComfortEvidence {
   readonly schema_version: typeof CAMERA_VR_COMFORT_SCHEMA_VERSION;
   readonly status: RuntimeParityStatus;
@@ -31,6 +47,12 @@ export interface CameraVrComfortEvidence {
     readonly inputSourceCount: RuntimeParityMeasuredNumber;
     readonly locomotionMode: WebXRLocomotionMode | "unknown";
     readonly locomotionEvidenceCodes: readonly WebXREvidenceCode[];
+    readonly locomotionObserved: boolean;
+    readonly locomotionResult: "none" | "movement" | "not-observed";
+    readonly locomotionDeltaMeters: { readonly x: number; readonly y: number; readonly z: number } | null;
+    readonly locomotionEvidenceSource: BrowserWebXRLocomotionObservation["evidenceSource"] | "not-observed";
+    readonly headsetSessionObserved: false;
+    readonly nativeVrObserved: false;
   };
   readonly playerComfortPlaytest: {
     readonly truePlayerComfortPlaytestSupported: false;
@@ -100,10 +122,12 @@ export function createCameraVrComfortEvidence(input: {
   readonly webXRInputSourceCount?: number;
   readonly locomotionMode?: WebXRLocomotionMode;
   readonly locomotionEvidenceCodes?: readonly WebXREvidenceCode[];
+  readonly browserWebXRLocomotionObservation?: BrowserWebXRLocomotionObservation | null;
 }): CameraVrComfortEvidence {
   const webxrReport = input.webxrReport ?? null;
-  const sessionState = input.webXRSessionState ?? "unmeasured";
-  const suppliedInputSourceCount = input.webXRInputSourceCount;
+  const locomotionObservation = input.browserWebXRLocomotionObservation ?? null;
+  const sessionState = input.webXRSessionState ?? locomotionObservation?.sessionState ?? "unmeasured";
+  const suppliedInputSourceCount = input.webXRInputSourceCount ?? locomotionObservation?.inputSourceCount;
   const inputSourceCount: RuntimeParityMeasuredNumber = typeof suppliedInputSourceCount === "number"
     && Number.isInteger(suppliedInputSourceCount)
     && suppliedInputSourceCount >= 0
@@ -123,10 +147,16 @@ export function createCameraVrComfortEvidence(input: {
     evidenceCodes: webxrReport?.evidence.map((item) => item.code) ?? ["desktop-camera-fallback", "true-vr-unsupported"],
     browserWebXrSession: {
       sessionState,
-      referenceSpaceType: input.webXRReferenceSpaceType?.trim() || "unknown",
+      referenceSpaceType: input.webXRReferenceSpaceType?.trim() || locomotionObservation?.referenceSpaceType || "unknown",
       inputSourceCount,
-      locomotionMode: input.locomotionMode ?? "unknown",
-      locomotionEvidenceCodes,
+      locomotionMode: input.locomotionMode ?? locomotionObservation?.locomotionMode ?? "unknown",
+      locomotionEvidenceCodes: locomotionObservation?.locomotionEvidenceCodes ?? locomotionEvidenceCodes,
+      locomotionObserved: locomotionObservation?.observed ?? false,
+      locomotionResult: locomotionObservation?.locomotionResult ?? "not-observed",
+      locomotionDeltaMeters: locomotionObservation?.deltaMeters ?? null,
+      locomotionEvidenceSource: locomotionObservation?.evidenceSource ?? "not-observed",
+      headsetSessionObserved: false,
+      nativeVrObserved: false,
     },
     playerComfortPlaytest: {
       truePlayerComfortPlaytestSupported: false,
@@ -238,6 +268,7 @@ export function createRuntimeParityEvidence(input: {
   readonly webXRInputSourceCount?: number;
   readonly locomotionMode?: WebXRLocomotionMode;
   readonly locomotionEvidenceCodes?: readonly WebXREvidenceCode[];
+  readonly browserWebXRLocomotionObservation?: BrowserWebXRLocomotionObservation | null;
   readonly keyboardReviewAvailable?: boolean;
   readonly highContrastReviewAvailable?: boolean;
   readonly liveStudio?: LiveWorkshopStudioSession | null;
@@ -253,6 +284,7 @@ export function createRuntimeParityEvidence(input: {
       webXRInputSourceCount: input.webXRInputSourceCount,
       locomotionMode: input.locomotionMode,
       locomotionEvidenceCodes: input.locomotionEvidenceCodes,
+      browserWebXRLocomotionObservation: input.browserWebXRLocomotionObservation,
     }),
     accessibilityRescueCaptions: createAccessibilityRescueCaptionEvidence({
       camera: input.camera,
