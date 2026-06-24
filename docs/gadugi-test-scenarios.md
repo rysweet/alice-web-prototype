@@ -68,6 +68,7 @@ NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi
 | `gadugi/06-web-player-export-share-parity.yaml` | `Web Player Export Share Parity` | server flow | Export a web package, validate it, create share metadata, and reject bad package input |
 | `gadugi/07-alice-howto-parity-audit.yaml` | `Alice HowTo parity audit CLI` | CLI-only | Build the CLI, run the saved Alice.org HowTo parity audit, and assert identity, baseline, inventory count, coverage evidence, and wording rules |
 | `e2e/app-flow.spec.ts` | `Camera Workflow Parity` | browser E2E | Load the browser, move the camera, apply presets, save/restore/delete markers, switch first-person mode |
+| `e2e/first-lessons-real-ui-actions.spec.ts` | `First Lessons Real UI Actions` | browser E2E | Drive browser UI controls for object placement, code edit, run, visible evidence export, save, and reopen without claiming desktop Alice automation |
 
 The `gadugi/*.yaml` files are level 3 integration tests. Server flow scenarios
 exercise the built server process and REST API rather than importing TypeScript

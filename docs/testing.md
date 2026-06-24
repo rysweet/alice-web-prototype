@@ -47,7 +47,7 @@ Most tests live in `test/` and follow the same names as the source modules.
 | Story API and entities | `test/story-api-expanded.test.ts`, `test/entity-*.test.ts` | scene objects, properties, behaviors, collisions |
 | Rendering and scene model | `test/scene-*.test.ts`, `test/render-*.test.ts`, `test/camera-system.test.ts`, `test/camera-workflow.test.ts` | scene setup, render helpers, camera behavior |
 | Server and hooks | `test/server.test.ts`, `test/hooks.test.ts`, `test/evidence-writer.test.ts` | REST API responses and eatme-facing proofs |
-| Curriculum and integration | `test/curriculum.test.ts`, `test/*integration*.test.ts`, `test/advanced-e2e.test.ts`, `e2e/app-flow.spec.ts` | broader workflows that stitch subsystems together |
+| Curriculum and integration | `test/curriculum.test.ts`, `test/*integration*.test.ts`, `test/advanced-e2e.test.ts`, `e2e/app-flow.spec.ts`, `e2e/first-lessons-real-ui-actions.spec.ts` | broader workflows that stitch subsystems together |
 
 ## Local workflow
 
@@ -92,3 +92,13 @@ marker, restores it, deletes it, and toggles first-person mode. Tests assert
 visible Camera panel state and status text rather than WebGL pixels. See
 [Camera workflow usage](./camera-workflow-usage.md#browser-test-scenarios) for
 the stable selectors and scenario steps.
+
+First-lesson browser UI action coverage is isolated in:
+
+```bash
+NODE_OPTIONS=--max-old-space-size=32768 npm run test:e2e -- e2e/first-lessons-real-ui-actions.spec.ts
+```
+
+That scenario drives browser controls for object placement, object adjustment,
+code editing, workflow run, visible evidence export, project save, and reopen.
+It records browser UI evidence only; it does not claim desktop Alice automation.
