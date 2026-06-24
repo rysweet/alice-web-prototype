@@ -106,8 +106,8 @@ describe("project-io/class-behavior-package persistence", () => {
       "class-behavior-type-present",
       "class-behavior-supertype-preserved",
       "class-behavior-fields-preserved",
-      "class-behavior-methods-preserved",
     ]));
+    expect(packageData.evidence).not.toContain("class-behavior-methods-preserved");
 
     const importResult = importClassBehaviorPackage(
       targetArchive.project,
