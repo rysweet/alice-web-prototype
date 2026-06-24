@@ -19,6 +19,10 @@ export interface ProjectVersionInfo {
   unsupportedReason?: string | null;
 }
 
+export interface ProjectMigrationOptions {
+  hasArchiveResources?: boolean;
+}
+
 const CURRENT_ALICE_VERSION = "3.10.0.0";
 const RESOURCE_SUFFIX_PACKAGES = [
   "biped",
@@ -248,12 +252,16 @@ export function detectProjectVersion(
 export function migrateProjectXml(
   xmlText: string,
   versionInfo: ProjectVersionInfo,
+  options: ProjectMigrationOptions = {},
 ): { xmlText: string; versionInfo: ProjectVersionInfo } {
   const isAlice2Migration =
     isAlice2ProjectVersion(versionInfo.originalAliceVersion ?? "") ||
     isAlice2ProjectVersion(versionInfo.detectedAliceVersion) ||
     versionInfo.migrationSupport === "alice-2-guidance-only";
   if (isAlice2Migration) {
+    if (options.hasArchiveResources) {
+      return guidanceOnlyAlice2Migration(xmlText, versionInfo);
+    }
     const conversion = convertScopedAlice2WorldXml(xmlText);
     if (conversion) {
       return {
@@ -272,19 +280,7 @@ export function migrateProjectXml(
       };
     }
 
-    return {
-      xmlText,
-      versionInfo: {
-        ...versionInfo,
-        migrationSupport: "alice-2-guidance-only",
-        migrated: false,
-        migrationSteps: [
-          ...versionInfo.migrationSteps,
-          ALICE_2_UNSUPPORTED_REASON,
-        ],
-        unsupportedReason: versionInfo.unsupportedReason ?? ALICE_2_UNSUPPORTED_REASON,
-      },
-    };
+    return guidanceOnlyAlice2Migration(xmlText, versionInfo);
   }
 
   let migratedXml = xmlText;
@@ -334,6 +330,10 @@ export function synchronizeManifestVersion(
 
   const nextManifest = structuredClone(manifest);
   const targetVersion = versionInfo.detectedAliceVersion;
+  if (versionInfo.migrationSupport === "alice-2-scoped-conversion") {
+    synchronizeAllKnownManifestVersionFields(nextManifest, targetVersion);
+    return nextManifest;
+  }
 
   if (typeof nextManifest.aliceVersion === "string") {
     nextManifest.aliceVersion = targetVersion;
@@ -357,6 +357,42 @@ export function synchronizeManifestVersion(
   }
 
   return nextManifest;
+}
+
+function guidanceOnlyAlice2Migration(
+  xmlText: string,
+  versionInfo: ProjectVersionInfo,
+): { xmlText: string; versionInfo: ProjectVersionInfo } {
+  return {
+    xmlText,
+    versionInfo: {
+      ...versionInfo,
+      migrationSupport: "alice-2-guidance-only",
+      migrated: false,
+      migrationSteps: [
+        ...versionInfo.migrationSteps,
+        ALICE_2_UNSUPPORTED_REASON,
+      ],
+      unsupportedReason: versionInfo.unsupportedReason ?? ALICE_2_UNSUPPORTED_REASON,
+    },
+  };
+}
+
+function synchronizeAllKnownManifestVersionFields(manifest: Record<string, unknown>, targetVersion: string): void {
+  if (typeof manifest.aliceVersion === "string") {
+    manifest.aliceVersion = targetVersion;
+  }
+  if (typeof manifest.projectVersion === "string") {
+    manifest.projectVersion = targetVersion;
+  }
+  if (typeof manifest.version === "string" && isSupportedAliceVersion(manifest.version)) {
+    manifest.version = targetVersion;
+  }
+  const createdWith = manifest.createdWith;
+  if (isRecord(createdWith) && typeof createdWith.version === "string" && isSupportedAliceVersion(createdWith.version)) {
+    createdWith.version = targetVersion;
+    manifest.createdWith = createdWith;
+  }
 }
 
 export function classifyProjectResource(path: string): ProjectResourceKind {

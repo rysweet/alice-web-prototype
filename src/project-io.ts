@@ -79,7 +79,9 @@ export async function readProject(
   const xmlEntry = await readXmlEntry(zip, options);
   const versionText = await readZipText(zip, "version.txt");
   const thumbnail = await readProjectThumbnail(zip);
-  const migration = migrateProjectArchiveXml(xmlEntry.text, versionText, manifest);
+  const migration = migrateProjectArchiveXml(xmlEntry.text, versionText, manifest, {
+    hasArchiveResources: hasExternalArchiveResources(safeEntries.map((entry) => entry.path), xmlEntry.name),
+  });
   const nextManifest = synchronizeManifestVersion(manifest, migration.versionInfo);
 
   zip.file(xmlEntry.name, migration.xmlText);
@@ -90,6 +92,16 @@ export async function readProject(
   const aliceWorkflowMethods = readAliceWorkflowMethods(nextManifest);
   if (aliceWorkflowMethods) {
     project.methods = aliceWorkflowMethods;
+  }
+
+  function hasExternalArchiveResources(entryPaths: readonly string[], xmlEntryName: string): boolean {
+    const archiveMetadata = new Set([
+      xmlEntryName,
+      "manifest.json",
+      "version.txt",
+      "thumbnail.png",
+    ]);
+    return entryPaths.some((path) => !archiveMetadata.has(path));
   }
 
   const storedXmlBytes = encodeOriginalXml({

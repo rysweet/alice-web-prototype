@@ -108,6 +108,21 @@ describe("project-migration", () => {
     ]);
   });
 
+  it("keeps scoped Alice 2 worlds with archive resources as explicit guidance", () => {
+    const alice2Xml = `<?xml version="1.0" encoding="UTF-8"?><node version="2.4.3" name="Resource Bearing"><element class="edu.cmu.cs.stage3.alice.core.World"/></node>`;
+    const migration = migrateProjectXml(
+      alice2Xml,
+      detectProjectVersion("2.4.3", null, alice2Xml),
+      { hasArchiveResources: true },
+    );
+
+    expect(migration.xmlText).toBe(alice2Xml);
+    expect(migration.versionInfo.migrated).toBe(false);
+    expect(migration.versionInfo.detectedAliceVersion).toBe("2.4.3");
+    expect(migration.versionInfo.migrationSupport).toBe("alice-2-guidance-only");
+    expect(migration.versionInfo.unsupportedReason).toContain("resources");
+  });
+
   it("detects nested Alice 2 manifest metadata before applying scoped conversion", () => {
     const alice2Xml = `<?xml version="1.0" encoding="UTF-8"?><node><element class="edu.cmu.cs.stage3.alice.core.World"/></node>`;
     const versionInfo = detectProjectVersion(null, {
@@ -214,6 +229,34 @@ describe("project-migration", () => {
 
     expect(manifest).toEqual({
       projectName: "Legacy Project",
+      createdWith: { version: CURRENT_VERSION, product: "Alice" },
+    });
+  });
+
+  it("updates all known Alice 2 manifest metadata after scoped conversion", () => {
+    const manifest = synchronizeManifestVersion(
+      {
+        aliceVersion: "2.4.3",
+        projectVersion: "2.4.3",
+        version: "2.4.3",
+        createdWith: { version: "2.4.3", product: "Alice" },
+      },
+      {
+        originalAliceVersion: "2.4.3",
+        detectedAliceVersion: CURRENT_VERSION,
+        manifestVersion: "2.4.3",
+        xmlVersion: "2.4.3",
+        versionSource: "manifest",
+        migrated: true,
+        migrationSupport: "alice-2-scoped-conversion",
+        migrationSteps: [],
+      },
+    );
+
+    expect(manifest).toEqual({
+      aliceVersion: CURRENT_VERSION,
+      projectVersion: CURRENT_VERSION,
+      version: CURRENT_VERSION,
       createdWith: { version: CURRENT_VERSION, product: "Alice" },
     });
   });
