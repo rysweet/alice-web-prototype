@@ -13,9 +13,11 @@ export function migrateProjectArchiveXml(
   xmlText: string,
   versionText: string | null,
   manifest: Record<string, unknown> | null,
+  options: { hasArchiveResources?: boolean } = {},
 ): ProjectIoMigrationResult {
   return migrateProjectXml(
     xmlText,
     detectProjectVersion(versionText, manifest, xmlText),
+    options,
   );
 }

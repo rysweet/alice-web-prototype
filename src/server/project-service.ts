@@ -347,6 +347,7 @@ export const projectService: ProjectService = {
     state.projectPath = resolvedProjectFile;
     state.projectName = projectName;
     state.parsedProject = parsedProject;
+    state.runWorldEvidenceArtifacts = [];
     if (!resolvedProjectFile) {
       state.cameraWorkflow = createDefaultCameraWorkflowState();
     }
@@ -533,6 +534,7 @@ export const projectService: ProjectService = {
     };
 
     const runEvidencePath = await evidenceService.writeRunWorldResult(evidenceDir, runResult);
+    state.runWorldEvidenceArtifacts.push(runEvidencePath);
 
     return {
       ...runResult,

@@ -9,7 +9,8 @@ port.
 The completed scenario set verifies Java Alice parity and Alice web export flows
 from the outside in: project open and rendering, Tweedle world execution, scene
 entity manipulation, event handling, save/export round trips, TypeScript source
-handoff, and web player export/share/validation.
+handoff, web player export/share/validation, and design-process revision-loop
+evidence.
 
 The camera workflow coverage adds browser and REST checks for camera movement,
 presets, markers, and first-person mode. The Alice HowTo parity audit scenario
@@ -67,7 +68,9 @@ NODE_OPTIONS=--max-old-space-size=32768 gadugi-test run -d gadugi
 | `gadugi/06-typescript-source-export.yaml` | `TypeScript Source Export Handoff` | server flow | Create and edit a project, download source, and verify the archive contents |
 | `gadugi/06-web-player-export-share-parity.yaml` | `Web Player Export Share Parity` | server flow | Export a web package, validate it, create share metadata, and reject bad package input |
 | `gadugi/07-alice-howto-parity-audit.yaml` | `Alice HowTo parity audit CLI` | CLI-only | Build the CLI, run the saved Alice.org HowTo parity audit, and assert identity, baseline, inventory count, coverage evidence, and wording rules |
+| `gadugi/08-design-process-story-or-game.yaml` | `Design Process Story or Game Evidence` | server flow | Build a story-or-game prototype, run it, revise it, rerun it, and record bounded plan/build/playtest/revise/review evidence |
 | `e2e/app-flow.spec.ts` | `Camera Workflow Parity` | browser E2E | Load the browser, move the camera, apply presets, save/restore/delete markers, switch first-person mode |
+| `e2e/first-lessons-real-ui-actions.spec.ts` | `First Lessons Real UI Actions` | browser E2E | Drive browser UI controls for object placement, code edit, run, visible evidence export, save, and reopen without claiming desktop Alice automation |
 
 The `gadugi/*.yaml` files are level 3 integration tests. Server flow scenarios
 exercise the built server process and REST API rather than importing TypeScript
@@ -83,6 +86,11 @@ archive/source contents.
 `gadugi/06-web-player-export-share-parity.yaml` covers the web-package routes by
 exporting a package, checking player identity, validating the package, and
 creating share metadata linked to the package bytes.
+
+`gadugi/08-design-process-story-or-game.yaml` covers the design-process route by
+creating a prototype, recording two run-world playtests around a revision, and
+asserting the bounded evidence artifact includes plan, build, playtest, revise,
+and review phases without claiming creative assessment or desktop UI automation.
 
 ## Compatibility gate
 
@@ -163,7 +171,7 @@ CLI-only scenarios include:
 | Variable | Default | Used by | Description |
 | --- | --- | --- | --- |
 | `NODE_OPTIONS` | none | all scenarios | Use `--max-old-space-size=32768` for local and CI parity |
-| `PORT` | scenario-specific `3101`-`3106` | server flow scenarios | Local REST API port; each server flow scenario has a unique default so full-suite runs can execute in parallel |
+| `PORT` | scenario-specific `3101`-`3108` | server flow scenarios | Local REST API port; each server flow scenario has a unique default so full-suite runs can execute in parallel |
 | `EVIDENCE_DIR` | scenario-specific path under `./evidence/` with a shell PID suffix | server flow scenarios | Temporary response, log, and artifact directory |
 | `AUDIT_DIR` | `mktemp -d` | CLI-only audit scenario | Temporary audit evidence directory outside committed source |
 | `A3P_FILE` | `.test-roundtrip/modified.a3p` where applicable | scenarios 01 and 02 | Alice project file to open and execute |

@@ -67,8 +67,8 @@ describe("project-migration", () => {
     expect(migration.xmlText).toContain("org.lgna.story.SThing");
   });
 
-  it("keeps Alice 2 conversion bounded and explicit instead of pretending automatic migration", () => {
-    const alice2Xml = `<?xml version="1.0" encoding="UTF-8"?><node version="2.4.3"><element class="edu.cmu.cs.stage3.alice.core.World"/></node>`;
+  it("converts the scoped empty Alice 2 World subset to an Alice 3 scene", () => {
+    const alice2Xml = `<?xml version="1.0" encoding="UTF-8"?><node version="2.4.3" name="Legacy Intro"><element class="edu.cmu.cs.stage3.alice.core.World"/></node>`;
     const versionInfo = detectProjectVersion("2.4.3", null, alice2Xml);
     const migration = migrateProjectXml(alice2Xml, versionInfo);
 
@@ -77,17 +77,53 @@ describe("project-migration", () => {
       detectedAliceVersion: "2.4.3",
       versionSource: "version.txt",
       migrationSupport: "alice-2-guidance-only",
-      unsupportedReason: expect.stringContaining("automatic Alice 2 conversion is not supported"),
+      unsupportedReason: expect.stringContaining("scoped empty World subset"),
     });
-    expect(migration.xmlText).toBe(alice2Xml);
-    expect(migration.versionInfo.migrated).toBe(false);
-    expect(migration.versionInfo.detectedAliceVersion).toBe("2.4.3");
+    expect(migration.xmlText).not.toBe(alice2Xml);
+    expect(migration.xmlText).toContain("org.lgna.story.SProgram");
+    expect(migration.xmlText).toContain("org.lgna.story.SScene");
+    expect(migration.xmlText).toContain("Legacy Intro");
+    expect(migration.versionInfo.migrated).toBe(true);
+    expect(migration.versionInfo.detectedAliceVersion).toBe(CURRENT_VERSION);
+    expect(migration.versionInfo.migrationSupport).toBe("alice-2-scoped-conversion");
+    expect(migration.versionInfo.unsupportedReason).toBeNull();
     expect(migration.versionInfo.migrationSteps).toEqual([
-      expect.stringContaining("automatic Alice 2 conversion is not supported"),
+      `2.4.3 -> ${CURRENT_VERSION}: convert scoped Alice 2 empty World to Alice 3 empty scene`,
     ]);
   });
 
-  it("detects nested Alice 2 manifest metadata as guidance-only", () => {
+  it("keeps unsupported Alice 2 content as explicit guidance", () => {
+    const alice2Xml = `<?xml version="1.0" encoding="UTF-8"?><node version="2.4.3"><element class="edu.cmu.cs.stage3.alice.core.World"/><element class="edu.cmu.cs.stage3.alice.core.Camera"/></node>`;
+    const migration = migrateProjectXml(
+      alice2Xml,
+      detectProjectVersion("2.4.3", null, alice2Xml),
+    );
+
+    expect(migration.xmlText).toBe(alice2Xml);
+    expect(migration.versionInfo.migrated).toBe(false);
+    expect(migration.versionInfo.detectedAliceVersion).toBe("2.4.3");
+    expect(migration.versionInfo.migrationSupport).toBe("alice-2-guidance-only");
+    expect(migration.versionInfo.migrationSteps).toEqual([
+      expect.stringContaining("scoped empty World subset"),
+    ]);
+  });
+
+  it("keeps scoped Alice 2 worlds with archive resources as explicit guidance", () => {
+    const alice2Xml = `<?xml version="1.0" encoding="UTF-8"?><node version="2.4.3" name="Resource Bearing"><element class="edu.cmu.cs.stage3.alice.core.World"/></node>`;
+    const migration = migrateProjectXml(
+      alice2Xml,
+      detectProjectVersion("2.4.3", null, alice2Xml),
+      { hasArchiveResources: true },
+    );
+
+    expect(migration.xmlText).toBe(alice2Xml);
+    expect(migration.versionInfo.migrated).toBe(false);
+    expect(migration.versionInfo.detectedAliceVersion).toBe("2.4.3");
+    expect(migration.versionInfo.migrationSupport).toBe("alice-2-guidance-only");
+    expect(migration.versionInfo.unsupportedReason).toContain("resources");
+  });
+
+  it("detects nested Alice 2 manifest metadata before applying scoped conversion", () => {
     const alice2Xml = `<?xml version="1.0" encoding="UTF-8"?><node><element class="edu.cmu.cs.stage3.alice.core.World"/></node>`;
     const versionInfo = detectProjectVersion(null, {
       project: {
@@ -104,12 +140,55 @@ describe("project-migration", () => {
       versionSource: "manifest",
       migrationSupport: "alice-2-guidance-only",
     });
-    expect(migration.xmlText).toBe(alice2Xml);
+    expect(migration.xmlText).not.toBe(alice2Xml);
     expect(migration.versionInfo).toMatchObject({
-      detectedAliceVersion: "2.4.3",
-      migrated: false,
-      migrationSupport: "alice-2-guidance-only",
-      unsupportedReason: expect.stringContaining("automatic Alice 2 conversion is not supported"),
+      detectedAliceVersion: CURRENT_VERSION,
+      migrated: true,
+      migrationSupport: "alice-2-scoped-conversion",
+      unsupportedReason: null,
+    });
+  });
+
+  it("ignores unrelated nested dependency versions when project metadata is present", () => {
+    const alice3Xml = `<?xml version="1.0" encoding="UTF-8"?><node><element class="org.lgna.story.SScene"/></node>`;
+    const versionInfo = detectProjectVersion(null, {
+      dependencies: [
+        {
+          name: "External Tool",
+          version: "2.4.3",
+        },
+      ],
+      project: {
+        createdWith: {
+          version: "3.5.0.0",
+        },
+      },
+    }, alice3Xml);
+
+    expect(versionInfo).toMatchObject({
+      originalAliceVersion: "3.5.0.0",
+      detectedAliceVersion: "3.5.0.0",
+      versionSource: "manifest",
+      migrationSupport: "alice-3-reader-migration",
+    });
+  });
+
+  it("ignores unrelated nested dependency versions when no project metadata exists", () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><node></node>`;
+    const versionInfo = detectProjectVersion(null, {
+      dependencies: [
+        {
+          name: "External Tool",
+          version: "2.4.3",
+        },
+      ],
+    }, xml);
+
+    expect(versionInfo).toMatchObject({
+      originalAliceVersion: null,
+      detectedAliceVersion: CURRENT_VERSION,
+      versionSource: "default",
+      migrationSupport: "unknown-version",
     });
   });
 
@@ -170,7 +249,7 @@ describe("project-migration", () => {
     expect(migration.versionInfo.detectedAliceVersion).toBe("2.4.3");
     expect(migration.versionInfo.migrationSupport).toBe("alice-2-guidance-only");
     expect(migration.versionInfo.migrationSteps).toEqual([
-      expect.stringContaining("automatic Alice 2 conversion is not supported"),
+      expect.stringContaining("scoped empty World subset"),
     ]);
   });
 
@@ -194,6 +273,110 @@ describe("project-migration", () => {
     expect(manifest).toEqual({
       projectName: "Legacy Project",
       createdWith: { version: CURRENT_VERSION, product: "Alice" },
+    });
+  });
+
+  it("updates all known Alice 2 manifest metadata after scoped conversion", () => {
+    const manifest = synchronizeManifestVersion(
+      {
+        aliceVersion: "2.4.3",
+        projectVersion: "2.4.3",
+        version: "2.4.3",
+        createdWith: { version: "2.4.3", product: "Alice" },
+      },
+      {
+        originalAliceVersion: "2.4.3",
+        detectedAliceVersion: CURRENT_VERSION,
+        manifestVersion: "2.4.3",
+        xmlVersion: "2.4.3",
+        versionSource: "manifest",
+        migrated: true,
+        migrationSupport: "alice-2-scoped-conversion",
+        migrationSteps: [],
+      },
+    );
+
+    expect(manifest).toEqual({
+      aliceVersion: CURRENT_VERSION,
+      projectVersion: CURRENT_VERSION,
+      version: CURRENT_VERSION,
+      createdWith: { version: CURRENT_VERSION, product: "Alice" },
+    });
+  });
+
+  it("updates nested Alice 2 manifest metadata after scoped conversion", () => {
+    const manifest = synchronizeManifestVersion(
+      {
+        project: {
+          createdWith: {
+            version: "2.4.3",
+            product: "Alice",
+          },
+        },
+      },
+      {
+        originalAliceVersion: "2.4.3",
+        detectedAliceVersion: CURRENT_VERSION,
+        manifestVersion: "2.4.3",
+        xmlVersion: "2.4.3",
+        versionSource: "manifest",
+        migrated: true,
+        migrationSupport: "alice-2-scoped-conversion",
+        migrationSteps: [],
+      },
+    );
+
+    expect(manifest).toEqual({
+      project: {
+        createdWith: {
+          version: CURRENT_VERSION,
+          product: "Alice",
+        },
+      },
+    });
+  });
+
+  it("preserves unrelated nested manifest versions during scoped conversion", () => {
+    const manifest = synchronizeManifestVersion(
+      {
+        project: {
+          createdWith: {
+            version: "2.4.3",
+            product: "Alice",
+          },
+        },
+        dependencies: [
+          {
+            name: "External Tool",
+            version: "2.4.3",
+          },
+        ],
+      },
+      {
+        originalAliceVersion: "2.4.3",
+        detectedAliceVersion: CURRENT_VERSION,
+        manifestVersion: "2.4.3",
+        xmlVersion: "2.4.3",
+        versionSource: "manifest",
+        migrated: true,
+        migrationSupport: "alice-2-scoped-conversion",
+        migrationSteps: [],
+      },
+    );
+
+    expect(manifest).toEqual({
+      project: {
+        createdWith: {
+          version: CURRENT_VERSION,
+          product: "Alice",
+        },
+      },
+      dependencies: [
+        {
+          name: "External Tool",
+          version: "2.4.3",
+        },
+      ],
     });
   });
 

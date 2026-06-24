@@ -106,6 +106,19 @@ export function renderWebXRStatus(root: HTMLElement, viewModel: WebXRStatusViewM
     trueVr.id = "true-vr-unsupported";
     trueVr.dataset.testid = "alice-true-vr-unsupported";
 
+    const session = viewModel.cameraComfort.browserWebXrSession;
+    if (session) {
+      const sessionText = `Browser WebXR session: ${session.sessionState}; reference space: ${session.referenceSpaceType}; input sources: ${session.inputSourceCount}; locomotion: ${session.locomotionMode}`;
+      const sessionEvidence = appendTextElement(comfort, "div", sessionText);
+      sessionEvidence.dataset.testid = "alice-browser-webxr-session-evidence";
+    }
+
+    const playtest = viewModel.cameraComfort.playerComfortPlaytest;
+    if (playtest) {
+      const playtestBoundary = appendTextElement(comfort, "div", playtest.unsupportedReason);
+      playtestBoundary.dataset.testid = "alice-player-comfort-playtest-boundary";
+    }
+
     root.appendChild(comfort);
   }
 

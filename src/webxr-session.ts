@@ -43,6 +43,7 @@ export interface WebXRSessionStartResult {
   readonly status: "active" | "unsupported" | "failed";
   readonly session?: WebXRSessionLike;
   readonly referenceSpace?: unknown;
+  readonly referenceSpaceType?: string;
   readonly evidence: WebXREvidence[];
 }
 
@@ -51,6 +52,7 @@ export interface WebXRSessionController {
   readonly input: WebXRInputState;
   readonly session: WebXRSessionLike | null;
   readonly referenceSpace: unknown | null;
+  readonly referenceSpaceType: string | null;
   start(): Promise<WebXRSessionStartResult>;
   end(): Promise<void>;
   updateInput(frame: unknown): WebXRInputState;
@@ -67,6 +69,7 @@ export function createWebXRSessionController(options: WebXRSessionControllerOpti
   let state: WebXRSessionState = "idle";
   let activeSession: WebXRSessionLike | null = null;
   let activeReferenceSpace: unknown | null = null;
+  let activeReferenceSpaceType: string | null = null;
   let input: WebXRInputState = EMPTY_INPUT;
   const tracker: WebXRInputTracker = createWebXRInputTracker();
   const listeners = new Set<(state: WebXRSessionState) => void>();
@@ -113,7 +116,7 @@ export function createWebXRSessionController(options: WebXRSessionControllerOpti
     session: WebXRSessionLike,
     preference: readonly string[],
     evidence: WebXREvidence[],
-  ): Promise<unknown | null> {
+  ): Promise<{ readonly referenceSpace: unknown; readonly referenceSpaceType: string } | null> {
     let localFloorFailed = false;
     for (const referenceSpaceType of preference) {
       try {
@@ -125,7 +128,7 @@ export function createWebXRSessionController(options: WebXRSessionControllerOpti
             "local-floor is unavailable; Alice is using local reference space.",
           ));
         }
-        return referenceSpace;
+        return { referenceSpace, referenceSpaceType };
       } catch (error) {
         if (referenceSpaceType === "local-floor") {
           localFloorFailed = true;
@@ -151,6 +154,7 @@ export function createWebXRSessionController(options: WebXRSessionControllerOpti
     }
     activeSession = null;
     activeReferenceSpace = null;
+    activeReferenceSpaceType = null;
     input = EMPTY_INPUT;
     tracker.clear();
     await options.renderer.xr.setSession(null);
@@ -173,6 +177,9 @@ export function createWebXRSessionController(options: WebXRSessionControllerOpti
     },
     get referenceSpace(): unknown | null {
       return activeReferenceSpace;
+    },
+    get referenceSpaceType(): string | null {
+      return activeReferenceSpaceType;
     },
     onStateChange(listener: (state: WebXRSessionState) => void): () => void {
       listeners.add(listener);
@@ -203,8 +210,8 @@ export function createWebXRSessionController(options: WebXRSessionControllerOpti
       setState("starting");
       try {
         const session = await navigatorLike.xr.requestSession("immersive-vr");
-        const referenceSpace = await requestReferenceSpace(session, options.referenceSpacePreference ?? ["local-floor", "local"], evidence);
-        if (!referenceSpace) {
+        const referenceSpaceResult = await requestReferenceSpace(session, options.referenceSpacePreference ?? ["local-floor", "local"], evidence);
+        if (!referenceSpaceResult) {
           activeSession = session;
           await cleanupAfterEnd(true);
           setState("failed");
@@ -212,16 +219,23 @@ export function createWebXRSessionController(options: WebXRSessionControllerOpti
         }
 
         activeSession = session;
-        activeReferenceSpace = referenceSpace;
+        activeReferenceSpace = referenceSpaceResult.referenceSpace;
+        activeReferenceSpaceType = referenceSpaceResult.referenceSpaceType;
         addSessionListeners(session);
         options.renderer.xr.enabled = true;
         await options.renderer.xr.setSession(session);
         if (options.orbitControls) {
           options.orbitControls.enabled = false;
         }
-        input = normalizeWebXRInput(session, undefined, referenceSpace, tracker.snapshot());
+        input = normalizeWebXRInput(session, undefined, referenceSpaceResult.referenceSpace, tracker.snapshot());
         setState("active");
-        return { status: "active", session, referenceSpace, evidence };
+        return {
+          status: "active",
+          session,
+          referenceSpace: referenceSpaceResult.referenceSpace,
+          referenceSpaceType: referenceSpaceResult.referenceSpaceType,
+          evidence,
+        };
       } catch (error) {
         options.logger?.error?.(`Alice WebXR session startup failed: ${error instanceof Error ? error.message : String(error)}`);
         options.renderer.xr.enabled = false;

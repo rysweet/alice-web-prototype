@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { type AliceObject, type AliceProject } from "./a3p-parser";
+import { type AliceMethod, type AliceObject, type AliceProject, type AliceStatement } from "./a3p-parser";
 import {
   createAliceEvidenceArtifact,
   prepareAliceEvidenceShare,
@@ -54,6 +54,7 @@ import { detectWebXRCapabilities, type WebXREvidence } from "./webxr-capabilitie
 import {
   createCameraVrComfortEvidence,
   createRuntimeParityEvidence,
+  type WebXRSessionEvidenceState,
 } from "./runtime-parity-evidence";
 import type { LiveWorkshopStudioSession } from "./live-studio";
 import { type WebXRInputSourceState, type WebXRInputState } from "./webxr-input";
@@ -203,6 +204,22 @@ let jointState = new JointSystem.JointStateStore();
 const MOVE_SELECTED_OBJECT_DELTA = { x: 1, y: 0, z: 0 } as const;
 const TURN_SELECTED_OBJECT_RADIANS = Math.PI / 12;
 const RESIZE_SELECTED_OBJECT_SCALE = 1.2;
+
+function webXRSessionEvidenceInput(): {
+  webXRSessionState: WebXRSessionEvidenceState;
+  webXRReferenceSpaceType: string | null | undefined;
+  webXRInputSourceCount: number | undefined;
+  locomotionMode: WebXRLocomotionMode;
+  locomotionEvidenceCodes: readonly WebXREvidence["code"][];
+} {
+  return {
+    webXRSessionState: webXRController?.state ?? (currentScene ? "not-started" : "unmeasured"),
+    webXRReferenceSpaceType: webXRController?.referenceSpaceType,
+    webXRInputSourceCount: webXRController?.input.sources.length,
+    locomotionMode: locomotion.mode,
+    locomotionEvidenceCodes: webXREvidence.map((item) => item.code),
+  };
+}
 
 function createEmptyArchive(): AliceProjectArchive {
   const project: AliceProject = {
@@ -423,7 +440,7 @@ function renderClassBehaviorControls(project: AliceProject): void {
 
     const item = document.createElement("li");
     const fields = (type.fields ?? []).map((field) => field.name).join(", ") || "no fields";
-    const methods = (type.methods ?? []).map((method) => method.name).join(", ") || "no methods";
+    const methods = (type.methods ?? []).map(describeClassBehaviorMethod).join(", ") || "no methods";
     const constructors = `${type.constructors?.length ?? 0} constructor${type.constructors?.length === 1 ? "" : "s"}`;
     item.textContent = `${type.name} extends ${type.superTypeName ?? "java.lang.Object"}; fields: ${fields}; methods: ${methods}; ${constructors}`;
     classBehaviorList.appendChild(item);
@@ -431,6 +448,43 @@ function renderClassBehaviorControls(project: AliceProject): void {
 
   classBehaviorSelect.disabled = types.length === 0;
   exportClassBehaviorButton.disabled = types.length === 0;
+}
+
+function describeClassBehaviorMethod(method: AliceMethod): string {
+  const behavior = collectStatementBehavior(method.statements).join("; ");
+  return behavior ? `${method.name} behavior: ${behavior}` : method.name;
+}
+
+function collectStatementBehavior(statements: readonly AliceStatement[]): string[] {
+  return statements.flatMap((statement) => {
+    const current = describeStatementBehavior(statement);
+    const nested = [
+      ...(statement.body ? collectStatementBehavior(statement.body) : []),
+      ...(statement.ifBody ? collectStatementBehavior(statement.ifBody) : []),
+      ...(statement.elseBody ? collectStatementBehavior(statement.elseBody) : []),
+      ...(statement.tryBody ? collectStatementBehavior(statement.tryBody) : []),
+      ...(statement.catchBody ? collectStatementBehavior(statement.catchBody) : []),
+      ...(statement.defaultCase ? collectStatementBehavior(statement.defaultCase) : []),
+      ...((statement.cases ?? []).flatMap((entry) => collectStatementBehavior(entry.body))),
+    ];
+    return current ? [current, ...nested] : nested;
+  });
+}
+
+function describeStatementBehavior(statement: AliceStatement): string | null {
+  if ((statement.kind === "MethodCall" || statement.kind === "call") && statement.method) {
+    return `${statement.object ?? "this"}.${statement.method}(${(statement.arguments ?? []).join(", ")})`;
+  }
+  if ((statement.kind === "ReturnStatement" || statement.kind === "return") && statement.expression?.trim()) {
+    return `returns ${statement.expression.trim()}`;
+  }
+  if (statement.kind === "expression" && statement.expression?.trim()) {
+    return statement.expression.trim();
+  }
+  if (statement.kind === "VariableAssignment" && statement.name && statement.value) {
+    return `${statement.name} = ${statement.value}`;
+  }
+  return null;
 }
 
 function resizeRenderer(): void {
@@ -945,11 +999,25 @@ async function handleClassBehaviorImport(): Promise<void> {
       const archive = ensureArchive();
       const packageData = parseClassBehaviorPackage(await file.text());
       const result = importClassBehaviorPackage(archive.project, packageData);
+      const instanceName = importedClassInstanceName(result.importedName, archive.project.sceneObjects.map((object) => object.name));
+      archive.project.sceneObjects.push({
+        name: instanceName,
+        typeName: result.importedName,
+        resourceType: null,
+        position: { x: 0, y: 0, z: 0 },
+        orientation: null,
+        size: null,
+      });
+      const behaviorEvidence = describeImportedClassInstanceBehavior(archive.project, result.importedName, instanceName);
       selectedClassBehaviorName = result.importedName;
       markProjectChanged();
       renderProject(archive.project);
       renderClassBehaviorControls(archive.project);
-      setStatusMessage(`Imported ${result.importedName}`);
+      setStatusMessage(
+        behaviorEvidence
+          ? `Imported ${result.importedName}, created ${instanceName}, and displayed ${behaviorEvidence.methodName} behavior trace: ${behaviorEvidence.trace.join("; ")}`
+          : `Imported ${result.importedName} and created ${instanceName}`,
+      );
     } catch (error) {
       console.error(error);
       setErrorMessage(error);
@@ -1046,6 +1114,7 @@ function createEvidenceArtifactForCurrentScene(
       statusText: status.textContent?.trim() || describeProject(project),
       webxrReport: lastWebXRCapabilityReport,
       liveStudio: lastLiveStudioSession,
+      ...webXRSessionEvidenceInput(),
     }),
     export: {
       method,
@@ -1477,6 +1546,33 @@ function classBehaviorFilename(typeName: string): string {
     return `${safeBase}.alice-class-behavior.json`;
 }
 
+function importedClassInstanceName(typeName: string, existingNames: readonly string[]): string {
+    const base = `${typeName.charAt(0).toLowerCase()}${typeName.slice(1)}Instance`
+      .replace(/[^A-Za-z0-9_]/g, "") || "importedClassInstance";
+    let candidate = base;
+    let counter = 1;
+    while (existingNames.includes(candidate)) {
+      counter += 1;
+      candidate = `${base}${counter}`;
+    }
+    return candidate;
+}
+
+function describeImportedClassInstanceBehavior(
+  project: AliceProject,
+  typeName: string,
+  instanceName: string,
+): { methodName: string; trace: string[] } | null {
+    const type = (project.types ?? []).find((candidate) => candidate.name === typeName);
+    const method = (type?.methods ?? []).find((candidate) =>
+      candidate.statements.some((statement) => describeStatementBehavior(statement) !== null),
+    );
+    if (!method) return null;
+    const trace = collectStatementBehavior(method.statements)
+      .map((entry) => entry.replaceAll("this.", `${instanceName}.`));
+    return trace.length > 0 ? { methodName: method.name, trace } : null;
+}
+
 function describeLastProject(): string {
   if (!lastProject) {
     return "No project loaded";
@@ -1718,6 +1814,7 @@ function renderWebXRPanel(state: WebXRSessionState = webXRController?.state ?? "
     cameraComfort: createCameraVrComfortEvidence({
       camera: cameraWorkflow.camera,
       webxrReport: lastWebXRCapabilityReport,
+      ...webXRSessionEvidenceInput(),
     }),
   });
   elements.button.addEventListener("click", () => {

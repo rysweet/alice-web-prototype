@@ -96,6 +96,8 @@ describe("createWebXRSessionController", () => {
     expect(result.status).toBe("active");
     expect(controller.state).toBe("active");
     expect(result.referenceSpace).toEqual({ type: "local-floor" });
+    expect(result.referenceSpaceType).toBe("local-floor");
+    expect(controller.referenceSpaceType).toBe("local-floor");
     expect(options.renderer.xr.enabled).toBe(true);
     expect(options.renderer.xr.setSession).toHaveBeenCalledWith(session);
     expect(options.orbitControls.enabled).toBe(false);
@@ -110,6 +112,7 @@ describe("createWebXRSessionController", () => {
 
     expect(result.status).toBe("active");
     expect(result.referenceSpace).toEqual({ type: "local" });
+    expect(result.referenceSpaceType).toBe("local");
     expect(codes(result.evidence)).toContain("reference-space-local-fallback");
   });
 
@@ -149,6 +152,7 @@ describe("createWebXRSessionController", () => {
     expect(options.renderer.xr.enabled).toBe(false);
     expect(options.orbitControls.enabled).toBe(true);
     expect(controller.input.sources).toEqual([]);
+    expect(controller.referenceSpaceType).toBeNull();
     expect(controller.state).toBe("ended");
   });
 });

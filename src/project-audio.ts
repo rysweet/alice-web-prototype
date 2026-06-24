@@ -1,3 +1,6 @@
+import type { AudioContextLike, AudioResource, AudioRuntimeMode } from "./audio.js";
+import { WebAudioPlayer } from "./audio.js";
+
 export const SUPPORTED_AUDIO_FORMATS = ["mp3", "wav", "ogg", "m4a"] as const;
 export const SUPPORTED_AUDIO_EXTENSIONS = SUPPORTED_AUDIO_FORMATS.map((format) => `.${format}`);
 export const AUDIO_MANIFEST_KEY = "aliceAudio";
@@ -52,6 +55,12 @@ export interface ProjectAudioPlaybackBridgeOptions {
     asset: ProjectAudioAsset,
     role: "background" | "cue",
   ): ProjectAudioPlaybackOutput;
+}
+
+export interface ProjectAudioWebAudioOutputFactoryOptions {
+  resources: Map<string, AudioResource>;
+  audioContext?: AudioContextLike;
+  runtimeMode?: AudioRuntimeMode;
 }
 
 export interface ProjectAudioState {
@@ -445,6 +454,7 @@ export function createProjectAudioPlaybackBridge(
     if (!asset) {
       throw new ProjectAudioError(`audio asset not found: ${assetId}`);
     }
+
     return asset;
   }
 
@@ -532,6 +542,31 @@ export function createProjectAudioPlaybackBridge(
     getTriggeredCueIds(): string[] {
       return [...triggeredCueIds];
     },
+  };
+}
+
+export function createWebAudioProjectOutputFactory(
+  options: ProjectAudioWebAudioOutputFactoryOptions,
+): ProjectAudioPlaybackBridgeOptions["createOutput"] {
+  return (asset) => {
+    const resource = options.resources.get(asset.id) ?? options.resources.get(asset.resourcePath);
+    if (!resource) {
+      throw new ProjectAudioError(`decoded audio resource not found for asset: ${asset.id}`);
+    }
+    const player = new WebAudioPlayer({
+      audioContext: options.audioContext,
+      runtimeMode: options.runtimeMode ?? "web-audio",
+    });
+    player.load(resource);
+    return {
+      play(playOptions): void {
+        player.setVolume(playOptions.volume);
+        player.play({ loop: playOptions.loop });
+      },
+      stop(): void {
+        player.stop();
+      },
+    };
   };
 }
 

@@ -35,7 +35,46 @@ describe("runtime parity evidence", () => {
     expect(evidence.trueHeadsetVrSupported).toBe(false);
     expect(evidence.nativeVrSupported).toBe(false);
     expect(evidence.evidenceCodes).toContain("immersive-vr-unsupported");
+    expect(evidence.browserWebXrSession).toMatchObject({
+      sessionState: "unmeasured",
+      referenceSpaceType: "unknown",
+      inputSourceCount: "unknown",
+      locomotionMode: "unknown",
+      locomotionEvidenceCodes: [],
+    });
+    expect(evidence.playerComfortPlaytest).toMatchObject({
+      truePlayerComfortPlaytestSupported: false,
+      headsetSessionEvidence: "not-observed",
+      revisionLoopEvidence: "not-observed",
+    });
     expect(evidence.unsupportedReason).toContain("true headset/native VR remains unsupported");
+  });
+
+  it("records browser WebXR session and locomotion evidence without claiming true headset playtesting", () => {
+    const evidence = createCameraVrComfortEvidence({
+      camera,
+      webXRSessionState: "active",
+      webXRReferenceSpaceType: "local-floor",
+      webXRInputSourceCount: 2,
+      locomotionMode: "combined",
+      locomotionEvidenceCodes: ["invalid-movement-target"],
+    });
+
+    expect(evidence.trueHeadsetVrSupported).toBe(false);
+    expect(evidence.nativeVrSupported).toBe(false);
+    expect(evidence.browserWebXrSession).toMatchObject({
+      sessionState: "active",
+      referenceSpaceType: "local-floor",
+      inputSourceCount: 2,
+      locomotionMode: "combined",
+      locomotionEvidenceCodes: ["invalid-movement-target"],
+    });
+    expect(evidence.playerComfortPlaytest).toMatchObject({
+      truePlayerComfortPlaytestSupported: false,
+      headsetSessionEvidence: "browser-webxr-session-only",
+      revisionLoopEvidence: "not-observed",
+    });
+    expect(evidence.playerComfortPlaytest.unsupportedReason).toContain("true headset player comfort playtesting");
   });
 
   it("creates accessibility rescue captions from camera and scene objects", () => {

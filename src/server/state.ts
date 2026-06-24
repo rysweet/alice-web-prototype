@@ -60,6 +60,7 @@ export interface ServerState {
   eventSystem: EventSystem;
   templateLibrary: TemplateLibrary;
   jointState: JointStateStore;
+  runWorldEvidenceArtifacts: string[];
 }
 
 export const DEFAULT_POSITION: Position = { x: 0, y: 0, z: 0 };
@@ -86,6 +87,7 @@ export function createInitialServerState(): ServerState {
     }),
     templateLibrary: new TemplateLibrary(),
     jointState: new JointStateStore(),
+    runWorldEvidenceArtifacts: [],
   };
 }
 

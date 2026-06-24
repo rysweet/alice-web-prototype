@@ -55,6 +55,7 @@ export const templateService: TemplateService = {
     state.projectName = project.projectName;
     state.projectPath = newProjectPath;
     state.cameraWorkflow = createDefaultCameraWorkflowState();
+    state.runWorldEvidenceArtifacts = [];
     resetJointState(state);
     await removeJointStateSidecar(evidenceDir);
     state.sceneObjects.clear();

@@ -227,6 +227,11 @@ export interface AudioWorkflowEvidence {
 }
 
 export interface AudioWorkflowPlaybackEvidence {
+  mode?: "web-audio-output" | "simulated-output-bridge";
+  nativeAudioPlayback?: boolean;
+  outputRuntime?: string;
+  decodedResourceIds?: readonly string[];
+  startedOutputCount?: number;
   backgroundMusicStarted: boolean;
   triggeredCueIds: readonly string[];
   synchronizedAnimationIds: readonly string[];
@@ -240,13 +245,22 @@ export function writeAudioWorkflowEvidence(
   evidence: AudioWorkflowEvidence,
 ): string {
   validateEvidenceDir(evidenceDir);
+  const nativeAudioPlayback = evidence.playback?.nativeAudioPlayback ?? false;
+  const fullAuthoring =
+    evidence.assetCount > 0
+    && evidence.backgroundMusicConfigured
+    && evidence.cueCount > 0
+    && Boolean(evidence.savedProjectArtifact)
+    && evidence.reloaded;
   const content = JSON.stringify(
     {
       schema_version: AUDIO_WORKFLOW_SCHEMA,
       timestamp: Date.now(),
       source: "alice-web",
       status: "proved",
-      support_level: "metadata-and-playback-bridge",
+      support_level: nativeAudioPlayback && fullAuthoring
+        ? "native-audio-playback-and-authoring"
+        : "metadata-and-playback-bridge",
       supported_formats: evidence.supportedFormats,
       asset_count: evidence.assetCount,
       asset_names: evidence.assetNames,
@@ -255,20 +269,38 @@ export function writeAudioWorkflowEvidence(
       cue_ids: evidence.cueIds,
       saved_project_artifact: evidence.savedProjectArtifact ?? null,
       reloaded: evidence.reloaded,
+      authoring: {
+        mode: "project-audio-authoring-pipeline",
+        resource_imported: evidence.assetCount > 0,
+        background_music_configured: evidence.backgroundMusicConfigured,
+        cue_timeline_bindings: evidence.cueCount,
+        saved_and_reloaded: Boolean(evidence.savedProjectArtifact) && evidence.reloaded,
+        full_audio_authoring: fullAuthoring,
+      },
       playback: evidence.playback ? {
-        mode: "simulated-output-bridge",
-        native_audio_playback: false,
+        mode: evidence.playback.mode ?? (nativeAudioPlayback ? "web-audio-output" : "simulated-output-bridge"),
+        native_audio_playback: nativeAudioPlayback,
+        output_runtime: evidence.playback.outputRuntime ?? (nativeAudioPlayback ? "web-audio" : "simulation"),
+        decoded_resource_ids: evidence.playback.decodedResourceIds ?? [],
+        started_output_count: evidence.playback.startedOutputCount
+          ?? Number(evidence.playback.backgroundMusicStarted) + evidence.playback.triggeredCueIds.length,
         background_music_started: evidence.playback.backgroundMusicStarted,
         triggered_cue_ids: evidence.playback.triggeredCueIds,
         synchronized_animation_ids: evidence.playback.synchronizedAnimationIds,
       } : null,
-      doesNotClaim: [
-        "native audio playback",
-        "real speaker output in the browser or operating system",
-        "full audio authoring pipeline",
-        "native desktop audio stack coverage",
-        "visible rendering correctness",
-      ],
+      doesNotClaim: nativeAudioPlayback && fullAuthoring
+        ? [
+          "native desktop audio stack coverage",
+          "browser autoplay permission success without a user gesture",
+          "visible rendering correctness",
+        ]
+        : [
+          "native audio playback",
+          "real speaker output in the browser or operating system",
+          "full audio authoring pipeline",
+          "native desktop audio stack coverage",
+          "visible rendering correctness",
+        ],
     },
     null,
     2,

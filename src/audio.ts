@@ -449,6 +449,10 @@ export interface WebAudioPlayerOptions {
   runtimeMode?: AudioRuntimeMode;
 }
 
+export interface WebAudioPlayOptions {
+  loop?: boolean;
+}
+
 interface DecodeResult {
   buffer?: AudioBufferLike;
   status: AudioDecodeStatus;
@@ -585,7 +589,7 @@ export class WebAudioPlayer {
     this.load(resource);
   }
 
-  play(): void {
+  play(options: WebAudioPlayOptions = {}): void {
     if (this.player.state === "playing") {
       return;
     }
@@ -602,6 +606,7 @@ export class WebAudioPlayer {
       }
       const source = this.audioContext.createBufferSource();
       source.buffer = resource.decodedBuffer;
+      source.loop = options.loop ?? false;
       source.connect(this.gainNode);
       source.onended = () => {
         if (this.sourceNode !== source) {

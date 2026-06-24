@@ -20,6 +20,19 @@ const CONFLICT_STRATEGIES = new Set<ClassBehaviorConflictStrategy>([
   "merge",
   "reject",
 ]);
+const CONTAINER_STATEMENT_KINDS = new Set([
+  "CountLoop",
+  "DoInOrder",
+  "DoTogether",
+  "EachInArrayTogether",
+  "EachInIterableTogether",
+  "ForEachInArrayLoop",
+  "ForEachInIterableLoop",
+  "IfElse",
+  "Switch",
+  "TryCatch",
+  "WhileLoop",
+]);
 
 export type ClassBehaviorConflictStrategy = "rename" | "replace" | "merge" | "reject";
 
@@ -483,8 +496,36 @@ function buildPackageEvidence(type: AliceTypeDefinition): string[] {
     ...(type.superTypeName ? ["class-behavior-supertype-preserved"] : []),
     ...((type.fields?.length ?? 0) > 0 ? ["class-behavior-fields-preserved"] : []),
     ...((type.constructors?.length ?? 0) > 0 ? ["class-behavior-constructors-preserved"] : []),
-    ...((type.methods?.length ?? 0) > 0 ? ["class-behavior-methods-preserved"] : []),
+    ...((type.methods ?? []).some(hasExecutableStatements) ? ["class-behavior-methods-preserved"] : []),
   ];
+}
+
+function hasExecutableStatements(method: AliceMethod): boolean {
+  return method.statements.some(hasExecutableStatement);
+}
+
+function hasExecutableStatement(statement: AliceStatement): boolean {
+  if (["Comment", "comment"].includes(statement.kind)) {
+    return false;
+  }
+  return nestedStatementGroups(statement).some((statements) => statements.some(hasExecutableStatement))
+    || !isStatementContainer(statement);
+}
+
+function nestedStatementGroups(statement: AliceStatement): AliceStatement[][] {
+  return [
+    statement.body,
+    statement.ifBody,
+    statement.elseBody,
+    statement.tryBody,
+    statement.catchBody,
+    statement.defaultCase ?? undefined,
+    ...(statement.cases ?? []).map((caseBranch) => caseBranch.body),
+  ].filter((statements): statements is AliceStatement[] => Array.isArray(statements));
+}
+
+function isStatementContainer(statement: AliceStatement): boolean {
+  return CONTAINER_STATEMENT_KINDS.has(statement.kind) || nestedStatementGroups(statement).length > 0;
 }
 
 function cloneMethod(method: AliceMethod): AliceMethod {

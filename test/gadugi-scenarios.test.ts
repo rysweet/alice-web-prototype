@@ -145,6 +145,28 @@ const scenarioSpecs: ScenarioSpec[] = [
       "wording",
     ],
   },
+  {
+    file: "08-design-process-story-or-game.yaml",
+    name: "Design Process Story or Game Evidence",
+    flow: "server-flow",
+    flowTokens: [
+      "/api/launch",
+      "/api/scene/add-object",
+      "prototypeHero",
+      "/api/code/edit-procedure",
+      "prototypeHero.say(goal)",
+      "/api/world/run",
+      "prototypeHero.say(revision)",
+      "/api/design-process/story-or-game/evidence",
+      "lookingglass.design-process-story-or-game-evidence/v1",
+      "plan",
+      "build",
+      "playtest",
+      "revise",
+      "review",
+      "automated creative assessment",
+    ],
+  },
 ];
 
 const serverScenarioSpecs = scenarioSpecs.filter((spec) => spec.flow === "server-flow");
@@ -337,6 +359,9 @@ describe("Gadugi scenario runner contract", () => {
 
     expect(packageJson.scripts?.["test:gadugi"]).toContain(
       'gadugi-test run -d gadugi -s "Alice HowTo parity audit CLI"',
+    );
+    expect(packageJson.scripts?.["test:gadugi"]).toContain(
+      'gadugi-test run -d gadugi -s "Design Process Story or Game Evidence"',
     );
   });
 

@@ -183,6 +183,10 @@ function buildFactoryCases() {
         }),
       },
     )],
+    ["ProjectAudio.createWebAudioProjectOutputFactory", () => PublicApi.ProjectAudio.createWebAudioProjectOutputFactory({
+      resources: new Map(),
+      runtimeMode: "simulation",
+    })],
     ["ProjectTemplate.createEmptyWorldProject", () => PublicApi.ProjectTemplate.createEmptyWorldProject({ projectName: "FactoryWorld" })],
     ["ProjectTemplate.createProjectFromTemplate", () => contractArchive],
     ["RenderAnimation.createAnimationTransform", () => PublicApi.RenderAnimation.createAnimationTransform()],
@@ -395,6 +399,9 @@ function assertFactoryResult(key: string, value: unknown): void {
         "stopAll",
         "getTriggeredCueIds",
       ]);
+      return;
+    case "ProjectAudio.createWebAudioProjectOutputFactory":
+      expect(value).toBeTypeOf("function");
       return;
     case "ProjectTemplate.createEmptyWorldProject":
       expectKeys(value, ["projectName", "sceneObjects", "methods", "types"]);

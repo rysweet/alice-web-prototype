@@ -4,6 +4,7 @@ import { registerAssetRoutes } from "./server/routes/asset-routes.js";
 import { registerCodeRoutes } from "./server/routes/code-routes.js";
 import { registerCameraRoutes } from "./server/routes/camera-routes.js";
 import { registerEventRoutes } from "./server/routes/event-routes.js";
+import { registerDesignProcessRoutes } from "./server/routes/design-process-routes.js";
 import { registerHealthRoutes } from "./server/routes/health-routes.js";
 import { registerJointRoutes } from "./server/routes/joint-routes.js";
 import { registerLaunchRoutes } from "./server/routes/launch-routes.js";
@@ -92,6 +93,7 @@ export function createServer(options: ServerOptions): express.Express {
   registerCommunityRoutes(app, context);
   registerLiveStudioRoutes(app, context);
   registerRuntimeParityRoutes(app, context);
+  registerDesignProcessRoutes(app, context);
   registerWorldRoutes(app, context);
   registerScreenshotRoutes(app, context);
   registerEventRoutes(app, context);

@@ -122,6 +122,19 @@ describe("renderWebXRStatus", () => {
         nativeVrSupported: false,
         cameraMode: "orbit",
         evidenceCodes: ["desktop-camera-fallback", "true-vr-unsupported"],
+        browserWebXrSession: {
+          sessionState: "active",
+          referenceSpaceType: "local-floor",
+          inputSourceCount: 2,
+          locomotionMode: "combined",
+          locomotionEvidenceCodes: [],
+        },
+        playerComfortPlaytest: {
+          truePlayerComfortPlaytestSupported: false,
+          headsetSessionEvidence: "browser-webxr-session-only",
+          revisionLoopEvidence: "not-observed",
+          unsupportedReason: "Browser WebXR evidence is not a true headset comfort playtest without observed player notes and a revision loop.",
+        },
         comfortChecks: {
           discreteMovementStep: true,
           stableHorizon: true,
@@ -142,6 +155,10 @@ describe("renderWebXRStatus", () => {
       .toContain("true headset/native VR remains unsupported");
     expect(root.querySelector("#true-vr-unsupported")?.textContent)
       .toContain("true headset/native VR remains unsupported");
+    expect(root.querySelector("[data-testid=\"alice-browser-webxr-session-evidence\"]")?.textContent)
+      .toContain("Browser WebXR session: active");
+    expect(root.querySelector("[data-testid=\"alice-player-comfort-playtest-boundary\"]")?.textContent)
+      .toContain("not a true headset comfort playtest");
   });
 
   it("renders unknown reduced-motion evidence without claiming a measured pass", () => {
@@ -167,6 +184,19 @@ describe("renderWebXRStatus", () => {
         nativeVrSupported: false,
         cameraMode: "orbit",
         evidenceCodes: ["desktop-camera-fallback"],
+        browserWebXrSession: {
+          sessionState: "unmeasured",
+          referenceSpaceType: "unknown",
+          inputSourceCount: "unknown",
+          locomotionMode: "unknown",
+          locomotionEvidenceCodes: [],
+        },
+        playerComfortPlaytest: {
+          truePlayerComfortPlaytestSupported: false,
+          headsetSessionEvidence: "not-observed",
+          revisionLoopEvidence: "not-observed",
+          unsupportedReason: "Alice web can report browser WebXR session and locomotion evidence; true headset player comfort playtesting still requires observed headset sessions, player notes, and a revision loop.",
+        },
         comfortChecks: {
           discreteMovementStep: true,
           stableHorizon: true,

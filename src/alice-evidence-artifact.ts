@@ -9,6 +9,10 @@ const MAX_RUNTIME_REVIEW_STRING_LENGTH = 500;
 
 const CAMERA_MODES = new Set(["orbit", "first-person"]);
 const WEBXR_CAPABILITY_STATUSES = new Set(["supported", "degraded", "unsupported", "unknown"]);
+const WEBXR_SESSION_STATES = new Set(["idle", "unsupported", "starting", "active", "ended", "failed", "not-started", "unmeasured"]);
+const WEBXR_LOCOMOTION_MODES = new Set(["disabled", "controller-smooth", "point-click", "click-move", "combined", "unknown"]);
+const PLAYER_HEADSET_EVIDENCE_STATES: ReadonlySet<"not-observed" | "browser-webxr-session-only"> = new Set(["not-observed", "browser-webxr-session-only"]);
+const PLAYER_REVISION_EVIDENCE_STATES: ReadonlySet<"not-observed"> = new Set(["not-observed"]);
 const WEBXR_EVIDENCE_CODES = new Set([
   "secure-context-required",
   "webxr-unavailable",
@@ -46,7 +50,22 @@ const CAMERA_VR_COMFORT_KEYS = new Set([
   "nativeVrSupported",
   "cameraMode",
   "evidenceCodes",
+  "browserWebXrSession",
+  "playerComfortPlaytest",
   "comfortChecks",
+  "unsupportedReason",
+]);
+const BROWSER_WEBXR_SESSION_KEYS = new Set([
+  "sessionState",
+  "referenceSpaceType",
+  "inputSourceCount",
+  "locomotionMode",
+  "locomotionEvidenceCodes",
+]);
+const PLAYER_COMFORT_PLAYTEST_KEYS = new Set([
+  "truePlayerComfortPlaytestSupported",
+  "headsetSessionEvidence",
+  "revisionLoopEvidence",
   "unsupportedReason",
 ]);
 const COMFORT_CHECK_KEYS = new Set(["discreteMovementStep", "stableHorizon", "noForcedHeadset"]);
@@ -153,6 +172,19 @@ export interface AliceEvidenceCameraVrComfort {
   nativeVrSupported: false;
   cameraMode?: string;
   evidenceCodes?: readonly string[];
+  browserWebXrSession?: {
+    sessionState?: string;
+    referenceSpaceType?: string;
+    inputSourceCount?: number | "unknown";
+    locomotionMode?: string;
+    locomotionEvidenceCodes?: readonly string[];
+  };
+  playerComfortPlaytest?: {
+    truePlayerComfortPlaytestSupported: false;
+    headsetSessionEvidence?: "not-observed" | "browser-webxr-session-only";
+    revisionLoopEvidence?: "not-observed";
+    unsupportedReason?: string;
+  };
   comfortChecks?: {
     discreteMovementStep?: boolean;
     stableHorizon?: boolean;
@@ -481,6 +513,28 @@ export function validateAliceEvidenceArtifact(value: unknown): AliceEvidenceVali
           expectOptionalAllowedString(cameraVrComfort.cameraMode, CAMERA_MODES, "runtimeReview.cameraVrComfort.cameraMode", errors);
           expectMaxArrayLength(cameraVrComfort.evidenceCodes, "runtimeReview.cameraVrComfort.evidenceCodes", errors);
           expectOptionalAllowedStringArray(cameraVrComfort.evidenceCodes, WEBXR_EVIDENCE_CODES, "runtimeReview.cameraVrComfort.evidenceCodes", errors);
+          if (cameraVrComfort.browserWebXrSession !== undefined) {
+            const session = nestedRecord(cameraVrComfort.browserWebXrSession, "runtimeReview.cameraVrComfort.browserWebXrSession", errors);
+            if (session) {
+              expectOnlyKeys(session, BROWSER_WEBXR_SESSION_KEYS, "runtimeReview.cameraVrComfort.browserWebXrSession", errors);
+              expectOptionalAllowedString(session.sessionState, WEBXR_SESSION_STATES, "runtimeReview.cameraVrComfort.browserWebXrSession.sessionState", errors);
+              expectOptionalString(session.referenceSpaceType, "runtimeReview.cameraVrComfort.browserWebXrSession.referenceSpaceType", errors);
+              expectOptionalMeasuredNonNegativeInteger(session.inputSourceCount, "runtimeReview.cameraVrComfort.browserWebXrSession.inputSourceCount", errors);
+              expectOptionalAllowedString(session.locomotionMode, WEBXR_LOCOMOTION_MODES, "runtimeReview.cameraVrComfort.browserWebXrSession.locomotionMode", errors);
+              expectMaxArrayLength(session.locomotionEvidenceCodes, "runtimeReview.cameraVrComfort.browserWebXrSession.locomotionEvidenceCodes", errors);
+              expectOptionalAllowedStringArray(session.locomotionEvidenceCodes, WEBXR_EVIDENCE_CODES, "runtimeReview.cameraVrComfort.browserWebXrSession.locomotionEvidenceCodes", errors);
+            }
+          }
+          if (cameraVrComfort.playerComfortPlaytest !== undefined) {
+            const playtest = nestedRecord(cameraVrComfort.playerComfortPlaytest, "runtimeReview.cameraVrComfort.playerComfortPlaytest", errors);
+            if (playtest) {
+              expectOnlyKeys(playtest, PLAYER_COMFORT_PLAYTEST_KEYS, "runtimeReview.cameraVrComfort.playerComfortPlaytest", errors);
+              expectLiteralFalse(playtest.truePlayerComfortPlaytestSupported, "runtimeReview.cameraVrComfort.playerComfortPlaytest.truePlayerComfortPlaytestSupported", errors);
+              expectOptionalAllowedString(playtest.headsetSessionEvidence, PLAYER_HEADSET_EVIDENCE_STATES, "runtimeReview.cameraVrComfort.playerComfortPlaytest.headsetSessionEvidence", errors);
+              expectOptionalAllowedString(playtest.revisionLoopEvidence, PLAYER_REVISION_EVIDENCE_STATES, "runtimeReview.cameraVrComfort.playerComfortPlaytest.revisionLoopEvidence", errors);
+              expectOptionalString(playtest.unsupportedReason, "runtimeReview.cameraVrComfort.playerComfortPlaytest.unsupportedReason", errors);
+            }
+          }
           if (cameraVrComfort.comfortChecks !== undefined) {
             const comfortChecks = nestedRecord(cameraVrComfort.comfortChecks, "runtimeReview.cameraVrComfort.comfortChecks", errors);
             if (comfortChecks) {
@@ -646,6 +700,10 @@ function measuredBoolean(value: unknown): boolean | "unknown" {
   return "unknown";
 }
 
+function measuredNonNegativeInteger(value: unknown): number | "unknown" {
+  return Number.isInteger(value) && (value as number) >= 0 ? value as number : "unknown";
+}
+
 function optionalBoolean(value: unknown): boolean | undefined {
   return value === true || value === false ? value : undefined;
 }
@@ -656,6 +714,33 @@ function sanitizeComfortChecks(value: unknown): NonNullable<AliceEvidenceCameraV
     discreteMovementStep: optionalBoolean(checks.discreteMovementStep) ?? false,
     stableHorizon: optionalBoolean(checks.stableHorizon) ?? false,
     noForcedHeadset: optionalBoolean(checks.noForcedHeadset) ?? false,
+  };
+}
+
+function sanitizeBrowserWebXrSession(value: unknown): NonNullable<AliceEvidenceCameraVrComfort["browserWebXrSession"]> {
+  const session = recordValue(value) ?? {};
+  const sessionState = allowedString(session.sessionState, WEBXR_SESSION_STATES);
+  const locomotionMode = allowedString(session.locomotionMode, WEBXR_LOCOMOTION_MODES);
+  return {
+    ...(sessionState ? { sessionState } : {}),
+    ...(session.referenceSpaceType ? { referenceSpaceType: stringValue(session.referenceSpaceType) } : {}),
+    ...(session.inputSourceCount !== undefined ? { inputSourceCount: measuredNonNegativeInteger(session.inputSourceCount) } : {}),
+    ...(locomotionMode ? { locomotionMode } : {}),
+    ...(Array.isArray(session.locomotionEvidenceCodes)
+      ? { locomotionEvidenceCodes: boundedAllowedStrings(session.locomotionEvidenceCodes, WEBXR_EVIDENCE_CODES) }
+      : {}),
+  };
+}
+
+function sanitizePlayerComfortPlaytest(value: unknown): NonNullable<AliceEvidenceCameraVrComfort["playerComfortPlaytest"]> {
+  const playtest = recordValue(value) ?? {};
+  const headsetSessionEvidence = allowedString(playtest.headsetSessionEvidence, PLAYER_HEADSET_EVIDENCE_STATES);
+  const revisionLoopEvidence = allowedString(playtest.revisionLoopEvidence, PLAYER_REVISION_EVIDENCE_STATES);
+  return {
+    truePlayerComfortPlaytestSupported: false,
+    ...(headsetSessionEvidence ? { headsetSessionEvidence } : {}),
+    ...(revisionLoopEvidence ? { revisionLoopEvidence } : {}),
+    ...(playtest.unsupportedReason ? { unsupportedReason: stringValue(playtest.unsupportedReason) } : {}),
   };
 }
 
@@ -698,6 +783,8 @@ function sanitizeCameraVrComfortReview(input: unknown): AliceEvidenceCameraVrCom
     ...(Array.isArray(value.evidenceCodes)
       ? { evidenceCodes: boundedAllowedStrings(value.evidenceCodes, WEBXR_EVIDENCE_CODES) }
       : {}),
+    ...(value.browserWebXrSession ? { browserWebXrSession: sanitizeBrowserWebXrSession(value.browserWebXrSession) } : {}),
+    ...(value.playerComfortPlaytest ? { playerComfortPlaytest: sanitizePlayerComfortPlaytest(value.playerComfortPlaytest) } : {}),
     ...(value.comfortChecks ? { comfortChecks: sanitizeComfortChecks(value.comfortChecks) } : {}),
     ...(value.unsupportedReason ? { unsupportedReason: stringValue(value.unsupportedReason) } : {}),
   };
@@ -904,6 +991,12 @@ function expectRequiredBoolean(value: unknown, label: string, errors: string[]):
 function expectOptionalMeasuredBoolean(value: unknown, label: string, errors: string[]): void {
   if (value !== undefined && value !== true && value !== false && value !== "unknown") {
     errors.push(`${label} must be true, false, or unknown.`);
+  }
+}
+
+function expectOptionalMeasuredNonNegativeInteger(value: unknown, label: string, errors: string[]): void {
+  if (value !== undefined && value !== "unknown" && (!Number.isInteger(value) || (value as number) < 0)) {
+    errors.push(`${label} must be a non-negative integer or unknown.`);
   }
 }
 

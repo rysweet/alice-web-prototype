@@ -182,10 +182,14 @@ npm test -- src/project-io/class-behavior-package.persistence.test.ts
 
 ## Alice 2 migration boundary
 
-Project IO does not automatically convert Alice 2 worlds. Versions beginning
-with `2.` are detected as `alice-2-guidance-only`, XML is left unchanged, and
-the migration result records guidance that desktop Alice conversion is required
-before Alice web import.
+Project IO has one automatic Alice 2 conversion path: a scoped empty Alice 2
+`World` XML root is converted to an Alice 3 empty scene and reported as
+`alice-2-scoped-conversion`.
+
+All other Alice 2 projects remain guidance-only. Versions beginning with `2.`
+are detected as Alice 2 input, unsupported XML is left unchanged, and the
+migration result records that desktop Alice conversion is required before Alice
+web import.
 
 The runnable boundary test is:
 

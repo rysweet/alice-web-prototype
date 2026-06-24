@@ -1,0 +1,69 @@
+# Level 3: Design Process — Story or Game
+# Exercises the LookingGlass design-process evidence handoff against real REST actions.
+
+scenario:
+  name: "Design Process Story or Game Evidence"
+  description: |
+    Verifies the plan/build/playtest/revise/review journey for the Alice
+    story-or-game design process. The flow creates a web project, builds a
+    prototype, runs it, revises it, runs it again, and records bounded evidence.
+  type: cli
+  level: 3
+  metadata:
+    flow: server-flow
+
+  tags: [alice, integration, design-process, playtest, revision-loop, server-flow]
+
+  agents:
+    - name: cli
+      type: cli
+
+  prerequisites:
+    - "npm run build:server has been run"
+
+  steps:
+    - name: "Run design-process playtest and revision loop"
+      agent: cli
+      action: execute
+      target: >-
+        bash -lc 'set -euo pipefail;
+        PORT="${PORT:-3108}";
+        case "$PORT" in (*[!0-9]*|"") echo "PORT must be numeric" >&2; exit 2;; esac;
+        API_TOKEN="gadugi-local-api-token";
+        EVIDENCE_DIR="./evidence/08-design-process-story-or-game-$$";
+        case "$EVIDENCE_DIR" in (""|"/"|".") echo "unsafe EVIDENCE_DIR: $EVIDENCE_DIR" >&2; exit 2;; esac;
+        HEALTH_JSON="$EVIDENCE_DIR/health.json";
+        LAUNCH_JSON="$EVIDENCE_DIR/launch.json";
+        ADD_JSON="$EVIDENCE_DIR/add-object.json";
+        EDIT_V1_JSON="$EVIDENCE_DIR/edit-v1.json";
+        RUN_V1_JSON="$EVIDENCE_DIR/run-v1.json";
+        EDIT_V2_JSON="$EVIDENCE_DIR/edit-v2.json";
+        RUN_V2_JSON="$EVIDENCE_DIR/run-v2.json";
+        DESIGN_REQUEST="$EVIDENCE_DIR/design-request.json";
+        DESIGN_JSON="$EVIDENCE_DIR/design-evidence.json";
+        SERVER_LOG="$EVIDENCE_DIR/server.log";
+        SERVER_PID="";
+        rm -rf "$EVIDENCE_DIR";
+        mkdir -p "$EVIDENCE_DIR";
+        cleanup() { status=$?; if [ -n "${SERVER_PID:-}" ] && kill -0 "$SERVER_PID" 2>/dev/null; then kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true; fi; rm -rf "$EVIDENCE_DIR"; exit "$status"; };
+        trap cleanup EXIT;
+        node dist-server/cli.js serve --port "$PORT" --evidence-dir "$EVIDENCE_DIR" --api-token "$API_TOKEN" >"$SERVER_LOG" 2>&1 &
+        SERVER_PID=$!;
+        READY=0;
+        for attempt in $(seq 1 50); do if curl -fsS "http://127.0.0.1:$PORT/api/health" >"$HEALTH_JSON" 2>/dev/null; then READY=1; break; fi; sleep 0.2; done;
+        test "$READY" = 1;
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/launch" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{}" >"$LAUNCH_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/scene/add-object" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{\"className\":\"Biped\",\"name\":\"prototypeHero\"}" >"$ADD_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/code/edit-procedure" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{\"procedureSelector\":\"scene.myFirstMethod\",\"editSpec\":\"append-comment:prototypeHero.say(goal)\"}" >"$EDIT_V1_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/world/run" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{}" >"$RUN_V1_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/code/edit-procedure" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{\"procedureSelector\":\"scene.myFirstMethod\",\"editSpec\":\"append-comment:prototypeHero.say(revision)\"}" >"$EDIT_V2_JSON";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/world/run" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d "{}" >"$RUN_V2_JSON";
+        node -e "const fs=require(\"fs\"); fs.writeFileSync(process.argv[1], JSON.stringify({ scenario: \"design-process-story-or-game\", mode: \"game\", designBrief: \"Game: guide the hero from goal setup to win feedback.\", sceneSketches: [{ name: \"setup-state\", character: \"prototypeHero\", action: \"explains the win goal\" }, { name: \"win-state\", character: \"prototypeHero\", action: \"reports the successful revision\" }], bridgeMappings: [{ scene: \"setup-state\", aliceConcept: \"myFirstMethod\", controls: \"prototypeHero goal narration\" }, { scene: \"win-state\", aliceConcept: \"conditional\", controls: \"revised win feedback\" }], playtestObservation: \"First playtest showed the goal, but the win feedback was missing.\", revisionNote: \"Added a second narration line after playtest so the player sees the win feedback.\", reviewNote: \"Review confirms plan, build, playtest, revise, and review evidence are present.\", accessibilityChoice: \"Use narrated text instead of extra characters.\" }));" "$DESIGN_REQUEST";
+        curl -fsS -X POST "http://127.0.0.1:$PORT/api/design-process/story-or-game/evidence" -H "X-Alice-Local-Api-Token: $API_TOKEN" -H "Content-Type: application/json" -d @"$DESIGN_REQUEST" >"$DESIGN_JSON";
+        node -e "const fs=require(\"fs\"); const d=JSON.parse(fs.readFileSync(process.argv[1], \"utf8\")); if (d.schema_version !== \"lookingglass.design-process-story-or-game-evidence/v1\") throw new Error(\"unexpected schema\"); if (d.status !== \"evidence-recorded\") throw new Error(\"evidence not recorded\"); for (const phase of [\"plan\",\"build\",\"playtest\",\"revise\",\"review\"]) { if (!d.phases.includes(phase)) throw new Error(\"missing phase \" + phase); } if (d.journeyEvidence.playtest.runCount < 2) throw new Error(\"revision loop did not run twice\"); if (!d.journeyEvidence.build.authoredObjectNames.includes(\"prototypeHero\")) throw new Error(\"build object missing\"); if (!d.journeyEvidence.revise.revisionNote.includes(\"second narration\")) throw new Error(\"revision note missing\"); if (!d.doesNotClaim.includes(\"automated creative assessment\")) throw new Error(\"boundary missing\");" "$DESIGN_JSON";
+        kill "$SERVER_PID";
+        wait "$SERVER_PID" 2>/dev/null || true;
+        SERVER_PID="";
+        grep -q "shutting down" "$SERVER_LOG"'
+      timeout: 60000
+      expected: ""

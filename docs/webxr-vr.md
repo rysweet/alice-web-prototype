@@ -1,7 +1,7 @@
 ---
 title: Alice WebXR and camera comfort evidence
 description: Reference for browser-facing WebXR capability evidence, camera comfort fallback, UI evidence, and public APIs in alice-web.
-last_updated: 2026-06-21
+last_updated: 2026-06-24
 review_schedule: quarterly
 doc_type: reference
 ---
@@ -132,6 +132,18 @@ UI diagnostics and tests.
 Capability detection returns a report with a status and machine-readable
 evidence. Evidence is also rendered into the UI and copied into
 `runtimeReview.cameraVrComfort` when the user captures Alice evidence.
+That review now includes two nested boundaries:
+
+- `browserWebXrSession`: browser session state, reference-space type,
+  input-source count, locomotion mode, and locomotion evidence codes observed by
+  Alice web when a WebXR session is attempted or active.
+- `playerComfortPlaytest`: an explicit unsupported boundary. Alice web records
+  `truePlayerComfortPlaytestSupported: false`, `revisionLoopEvidence:
+  "not-observed"`, and a reason until an observed headset/player session,
+  player comfort notes, and revision loop exist.
+
+This is real browser/WebXR evidence where the browser exposes it. It is not a
+native/headset VR parity claim.
 
 ```typescript
 import { detectWebXRCapabilities } from 'alice-web';

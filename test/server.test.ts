@@ -275,6 +275,18 @@ describe("server API", () => {
       expect(res.body.reducedMotionRespected).toBe("unknown");
       expect(res.body.trueHeadsetVrSupported).toBe(false);
       expect(res.body.nativeVrSupported).toBe(false);
+      expect(res.body.browserWebXrSession).toMatchObject({
+        sessionState: "unmeasured",
+        referenceSpaceType: "unknown",
+        inputSourceCount: "unknown",
+        locomotionMode: "unknown",
+        locomotionEvidenceCodes: [],
+      });
+      expect(res.body.playerComfortPlaytest).toMatchObject({
+        truePlayerComfortPlaytestSupported: false,
+        headsetSessionEvidence: "not-observed",
+        revisionLoopEvidence: "not-observed",
+      });
       expect(res.body.unsupportedReason).toContain("true headset/native VR remains unsupported");
     });
 

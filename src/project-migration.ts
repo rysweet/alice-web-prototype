@@ -3,6 +3,7 @@ export type ProjectVersionSource = "version.txt" | "manifest" | "xml" | "default
 export type ProjectResourceKind = "image" | "audio" | "model" | "other";
 export type ProjectMigrationSupport =
   | "alice-3-reader-migration"
+  | "alice-2-scoped-conversion"
   | "alice-2-guidance-only"
   | "unknown-version";
 
@@ -16,6 +17,10 @@ export interface ProjectVersionInfo {
   migrationSteps: string[];
   migrationSupport?: ProjectMigrationSupport;
   unsupportedReason?: string | null;
+}
+
+export interface ProjectMigrationOptions {
+  hasArchiveResources?: boolean;
 }
 
 const CURRENT_ALICE_VERSION = "3.10.0.0";
@@ -32,7 +37,9 @@ const RESOURCE_SUFFIX_PACKAGES = [
   "vehicle",
 ] as const;
 const ALICE_2_UNSUPPORTED_REASON =
-  "Alice 2 projects require desktop Alice conversion before Alice web import; automatic Alice 2 conversion is not supported.";
+  "Automatic Alice 2 conversion is limited to the scoped empty World subset; use desktop Alice conversion for Alice 2 projects with objects, methods, events, or resources.";
+const ALICE_2_SCOPED_CONVERSION_STEP =
+  "convert scoped Alice 2 empty World to Alice 3 empty scene";
 
 interface MigrationRule {
   readonly toVersion: string;
@@ -115,7 +122,7 @@ export function detectProjectVersion(
     : null;
   const nestedManifestVersion = supportedExplicitManifestVersion
     ?? supportedGenericManifestVersion
-    ?? findNestedAliceVersion(manifest);
+    ?? extractProjectManifestVersion(manifest);
   const manifestVersion = supportedExplicitManifestVersion
     ?? supportedGenericManifestVersion
     ?? nestedManifestVersion
@@ -245,25 +252,35 @@ export function detectProjectVersion(
 export function migrateProjectXml(
   xmlText: string,
   versionInfo: ProjectVersionInfo,
+  options: ProjectMigrationOptions = {},
 ): { xmlText: string; versionInfo: ProjectVersionInfo } {
-  if (
-    versionInfo.migrationSupport === "alice-2-guidance-only" ||
+  const isAlice2Migration =
     isAlice2ProjectVersion(versionInfo.originalAliceVersion ?? "") ||
-    isAlice2ProjectVersion(versionInfo.detectedAliceVersion)
-  ) {
-    return {
-      xmlText,
-      versionInfo: {
-        ...versionInfo,
-        migrationSupport: "alice-2-guidance-only",
-        migrated: false,
-        migrationSteps: [
-          ...versionInfo.migrationSteps,
-          ALICE_2_UNSUPPORTED_REASON,
-        ],
-        unsupportedReason: versionInfo.unsupportedReason ?? ALICE_2_UNSUPPORTED_REASON,
-      },
-    };
+    isAlice2ProjectVersion(versionInfo.detectedAliceVersion) ||
+    versionInfo.migrationSupport === "alice-2-guidance-only";
+  if (isAlice2Migration) {
+    if (options.hasArchiveResources) {
+      return guidanceOnlyAlice2Migration(xmlText, versionInfo);
+    }
+    const conversion = convertScopedAlice2WorldXml(xmlText);
+    if (conversion) {
+      return {
+        xmlText: conversion,
+        versionInfo: {
+          ...versionInfo,
+          detectedAliceVersion: CURRENT_ALICE_VERSION,
+          migrationSupport: "alice-2-scoped-conversion",
+          migrated: true,
+          migrationSteps: [
+            ...versionInfo.migrationSteps,
+            `${versionInfo.detectedAliceVersion} -> ${CURRENT_ALICE_VERSION}: ${ALICE_2_SCOPED_CONVERSION_STEP}`,
+          ],
+          unsupportedReason: null,
+        },
+      };
+    }
+
+    return guidanceOnlyAlice2Migration(xmlText, versionInfo);
   }
 
   let migratedXml = xmlText;
@@ -313,6 +330,10 @@ export function synchronizeManifestVersion(
 
   const nextManifest = structuredClone(manifest);
   const targetVersion = versionInfo.detectedAliceVersion;
+  if (versionInfo.migrationSupport === "alice-2-scoped-conversion") {
+    synchronizeAllKnownManifestVersionFields(nextManifest, targetVersion);
+    return nextManifest;
+  }
 
   if (typeof nextManifest.aliceVersion === "string") {
     nextManifest.aliceVersion = targetVersion;
@@ -336,6 +357,59 @@ export function synchronizeManifestVersion(
   }
 
   return nextManifest;
+}
+
+function guidanceOnlyAlice2Migration(
+  xmlText: string,
+  versionInfo: ProjectVersionInfo,
+): { xmlText: string; versionInfo: ProjectVersionInfo } {
+  return {
+    xmlText,
+    versionInfo: {
+      ...versionInfo,
+      migrationSupport: "alice-2-guidance-only",
+      migrated: false,
+      migrationSteps: [
+        ...versionInfo.migrationSteps,
+        ALICE_2_UNSUPPORTED_REASON,
+      ],
+      unsupportedReason: versionInfo.unsupportedReason ?? ALICE_2_UNSUPPORTED_REASON,
+    },
+  };
+}
+
+function synchronizeAllKnownManifestVersionFields(manifest: Record<string, unknown>, targetVersion: string): void {
+  synchronizeManifestVersionFields(manifest, targetVersion);
+}
+
+function synchronizeManifestVersionFields(manifest: Record<string, unknown>, targetVersion: string): void {
+  if (typeof manifest.aliceVersion === "string") {
+    manifest.aliceVersion = targetVersion;
+  }
+  if (typeof manifest.projectVersion === "string") {
+    manifest.projectVersion = targetVersion;
+  }
+  if (typeof manifest.version === "string" && isSupportedAliceVersion(manifest.version)) {
+    manifest.version = targetVersion;
+  }
+  const createdWith = manifest.createdWith;
+  if (isRecord(createdWith) && typeof createdWith.version === "string" && isSupportedAliceVersion(createdWith.version)) {
+    createdWith.version = targetVersion;
+    manifest.createdWith = createdWith;
+  }
+  const project = manifest.project;
+  if (isRecord(project)) {
+    const projectCreatedWith = project.createdWith;
+    if (
+      isRecord(projectCreatedWith)
+      && typeof projectCreatedWith.version === "string"
+      && isSupportedAliceVersion(projectCreatedWith.version)
+    ) {
+      projectCreatedWith.version = targetVersion;
+      project.createdWith = projectCreatedWith;
+      manifest.project = project;
+    }
+  }
 }
 
 export function classifyProjectResource(path: string): ProjectResourceKind {
@@ -385,6 +459,9 @@ function extractExplicitManifestVersion(manifest: Record<string, unknown> | null
     manifest.aliceVersion,
     manifest.projectVersion,
     isRecord(manifest.createdWith) ? manifest.createdWith.version : undefined,
+    isRecord(manifest.project) && isRecord(manifest.project.createdWith)
+      ? manifest.project.createdWith.version
+      : undefined,
   ];
 
   for (const candidate of directCandidates) {
@@ -401,32 +478,14 @@ function extractGenericManifestVersion(manifest: Record<string, unknown> | null)
   return normalizeCandidate(typeof manifest?.version === "string" ? manifest.version : null);
 }
 
-function findNestedAliceVersion(value: unknown, depth = 0): string | null {
-  if (depth > 4) {
-    return null;
-  }
-  if (typeof value === "string") {
-    return isSupportedAliceVersion(value) ? value.trim() : null;
-  }
-  if (Array.isArray(value)) {
-    for (const entry of value) {
-      const nested = findNestedAliceVersion(entry, depth + 1);
-      if (nested) {
-        return nested;
-      }
-    }
-    return null;
-  }
-  if (!isRecord(value)) {
-    return null;
-  }
-  for (const nestedValue of Object.values(value)) {
-    const nested = findNestedAliceVersion(nestedValue, depth + 1);
-    if (nested) {
-      return nested;
-    }
-  }
-  return null;
+function extractProjectManifestVersion(manifest: Record<string, unknown> | null): string | null {
+  if (!manifest) return null;
+  const project = manifest.project;
+  if (!isRecord(project)) return null;
+  const createdWith = project.createdWith;
+  if (!isRecord(createdWith)) return null;
+  const version = normalizeCandidate(typeof createdWith.version === "string" ? createdWith.version : null);
+  return version && isSupportedAliceVersion(version) ? version : null;
 }
 
 function isAliceProjectVersion(value: string): boolean {
@@ -439,6 +498,64 @@ function isAlice2ProjectVersion(value: string): boolean {
 
 function isSupportedAliceVersion(value: string): boolean {
   return isAliceProjectVersion(value) || isAlice2ProjectVersion(value);
+}
+
+function convertScopedAlice2WorldXml(xmlText: string): string | null {
+  const root = matchScopedAlice2WorldRoot(xmlText);
+  if (!root) {
+    return null;
+  }
+
+  const projectName = extractXmlAttribute(root.attributes, "name")
+    ?? extractXmlAttribute(root.attributes, "projectName")
+    ?? "Alice 2 Converted World";
+  return buildMinimalAlice3ProjectXml(projectName);
+}
+
+function matchScopedAlice2WorldRoot(xmlText: string): { attributes: string } | null {
+  const body = xmlText
+    .replace(/^\s*<\?xml[^>]*\?>\s*/u, "")
+    .trim();
+  const worldElement = String.raw`<element\b(?=[^>]*\bclass="edu\.cmu\.cs\.stage3\.alice\.core\.World")[^>]*(?:\/>|\s*>\s*<\/element>)`;
+  const match = body.match(new RegExp(String.raw`^<node\b([^>]*)>\s*${worldElement}\s*<\/node>$`, "u"));
+  return match ? { attributes: match[1] } : null;
+}
+
+function extractXmlAttribute(attributes: string, name: string): string | null {
+  const match = attributes.match(new RegExp(String.raw`\b${name}="([^"]*)"`, "u"));
+  if (!match) {
+    return null;
+  }
+  const value = unescapeXmlText(match[1]).trim();
+  return value.length > 0 ? value : null;
+}
+
+function buildMinimalAlice3ProjectXml(projectName: string): string {
+  const name = escapeXmlText(projectName);
+  return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<node key="1" type="org.lgna.project.ast.NamedUserType" uuid="alice2-converted-program" version="3.10062">
+  <property name="name"><value type="java.lang.String">${name}</value></property>
+  <property name="superType"><node key="2" type="org.lgna.project.ast.JavaType" uuid="alice2-converted-program-super"><type name="org.lgna.story.SProgram"/></node></property>
+  <property name="fields"><collection type="java.util.ArrayList"><node key="scene-field" type="org.lgna.project.ast.UserField" uuid="alice2-converted-scene-field"><property name="name"><value type="java.lang.String">myScene</value></property><property name="valueType"><node key="scene-type" type="org.lgna.project.ast.NamedUserType" uuid="alice2-converted-scene-type"><property name="name"><value type="java.lang.String">Scene</value></property><property name="superType"><node key="scene-super" type="org.lgna.project.ast.JavaType" uuid="alice2-converted-scene-super"><type name="org.lgna.story.SScene"/></node></property><property name="fields"><collection type="java.util.ArrayList"/></property><property name="methods"><collection type="java.util.ArrayList"/></property><property name="constructors"><collection type="java.util.ArrayList"/></property></node></property></node></collection></property>
+  <property name="methods"><collection type="java.util.ArrayList"/></property>
+  <property name="constructors"><collection type="java.util.ArrayList"/></property>
+</node>`;
+}
+
+function escapeXmlText(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function unescapeXmlText(value: string): string {
+  return value
+    .replaceAll("&quot;", '"')
+    .replaceAll("&gt;", ">")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&amp;", "&");
 }
 
 function buildVersionInfo(options: Omit<ProjectVersionInfo, "migrated" | "migrationSteps"> & {
