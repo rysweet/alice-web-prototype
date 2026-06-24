@@ -137,6 +137,24 @@ function buildFactoryCases() {
     ["RuntimeParityEvidence.createCameraVrComfortEvidence", () => PublicApi.RuntimeParityEvidence.createCameraVrComfortEvidence({
       camera: PublicApi.CameraWorkflow.createDefaultCameraWorkflowState().camera,
     })],
+    ["RuntimeParityEvidence.createPlayerComfortSessionEvidence", () => PublicApi.RuntimeParityEvidence.createPlayerComfortSessionEvidence({
+      mode: "headset",
+      sessionLabel: "Contract headset session",
+      playerAlias: "student player",
+      observerAlias: "teacher observer",
+      headsetEvidenceArtifact: "recordings/contract-session.mp4",
+      comfort: {
+        orientationObservation: "Player found the intended path from the arrow cue.",
+        locomotionComfort: "Player preferred point-click movement over smooth turning.",
+        discoverabilityCue: "Player noticed the highlighted gate without verbal help.",
+        stopOrContinueDecision: "Observer stopped after one discomfort note.",
+      },
+      revisionLoop: {
+        beforeObservation: "Before revision, the player missed the highlighted gate.",
+        revisionChange: "Author brightened the gate cue and slowed camera motion.",
+        afterObservation: "After revision, the player found the gate without prompt.",
+      },
+    })],
     ["RuntimeParityEvidence.createAccessibilityRescueCaptionEvidence", () => PublicApi.RuntimeParityEvidence.createAccessibilityRescueCaptionEvidence({
       camera: PublicApi.CameraWorkflow.createDefaultCameraWorkflowState().camera,
       project: contractProject,
@@ -437,6 +455,14 @@ function assertFactoryResult(key: string, value: unknown): void {
         trueHeadsetVrSupported: false,
         nativeVrSupported: false,
       });
+      return;
+    case "RuntimeParityEvidence.createPlayerComfortSessionEvidence":
+      expect(value).toMatchObject({
+        schema_version: "alice.player-comfort-session-evidence/v1",
+        status: "evidence-recorded",
+        mode: "headset",
+      });
+      expectKeys(value, ["comfort", "revisionLoop", "evidenceBoundary"]);
       return;
     case "RuntimeParityEvidence.createAccessibilityRescueCaptionEvidence":
       expectKeys(value, ["schema_version", "ariaLiveCaption", "cameraCaption", "objectCaption", "captionChecks"]);

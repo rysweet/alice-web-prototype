@@ -290,6 +290,67 @@ describe("server API", () => {
       expect(res.body.unsupportedReason).toContain("true headset/native VR remains unsupported");
     });
 
+    it("records submitted headset player comfort sessions with revision-loop evidence", async () => {
+      const res = await localPost(app, "/api/vr/player-comfort-session")
+        .send({
+          mode: "headset",
+          sessionLabel: "Quest browser classroom run",
+          playerAlias: "student player",
+          observerAlias: "teacher observer",
+          headsetEvidenceArtifact: "recordings/quest-classroom-run.mp4",
+          comfort: {
+            orientationObservation: "Player faced the intended path after seeing the arrow cue.",
+            locomotionComfort: "Player preferred point-click movement and avoided smooth turn motion.",
+            discoverabilityCue: "Player noticed the highlighted gate without verbal help.",
+            stopOrContinueDecision: "Observer stopped after one discomfort note and logged the trigger.",
+          },
+          revisionLoop: {
+            beforeObservation: "Before revision, the player missed the gate and turned too quickly.",
+            revisionChange: "Author brightened the gate cue and slowed the camera turn.",
+            afterObservation: "After revision, the player found the gate and completed the path.",
+          },
+        })
+        .expect(201);
+
+      expect(res.body.schema_version).toBe("alice.player-comfort-session-runtime-parity/v1");
+      expect(res.body.playerComfortSession.status).toBe("evidence-recorded");
+      expect(res.body.cameraVrComfort.playerComfortPlaytest).toMatchObject({
+        truePlayerComfortPlaytestSupported: true,
+        headsetSessionEvidence: "observed-headset-player-session",
+        revisionLoopEvidence: "observed-before-after-revision",
+      });
+      expect(res.body.cameraVrComfort.nativeVrSupported).toBe(false);
+
+      const artifactPath = path.join(evidenceDir, "vr-player-comfort-session-evidence.json");
+      expect(fs.existsSync(artifactPath)).toBe(true);
+      const artifact = JSON.parse(fs.readFileSync(artifactPath, "utf8"));
+      expect(artifact.playerComfortSession.revisionLoop.revisionChange).toContain("brightened");
+    });
+
+    it("rejects player comfort claims without concrete headset evidence and revision notes", async () => {
+      const res = await localPost(app, "/api/vr/player-comfort-session")
+        .send({
+          mode: "headset",
+          sessionLabel: "too thin",
+          playerAlias: "player",
+          observerAlias: "observer",
+          comfort: {
+            orientationObservation: "Observed",
+            locomotionComfort: "Observed",
+            discoverabilityCue: "Observed",
+            stopOrContinueDecision: "Observed",
+          },
+          revisionLoop: {
+            beforeObservation: "Observed",
+            revisionChange: "Changed",
+            afterObservation: "Observed",
+          },
+        })
+        .expect(400);
+
+      expect(res.body.error).toContain("headsetEvidenceArtifact");
+    });
+
     it("reports accessibility rescue camera captions for current scene review", async () => {
       await localPost(app, "/api/scene/add-object")
         .send({ className: "org.lgna.story.SBiped", name: "guide" })

@@ -6,6 +6,7 @@ import type { WebXRLocomotionMode } from "./webxr-locomotion.js";
 import type { WebXRSessionState } from "./webxr-session.js";
 
 export const CAMERA_VR_COMFORT_SCHEMA_VERSION = "alice.camera-vr-comfort-evidence/v1" as const;
+export const PLAYER_COMFORT_SESSION_SCHEMA_VERSION = "alice.player-comfort-session-evidence/v1" as const;
 export const ACCESSIBILITY_RESCUE_CAPTIONS_SCHEMA_VERSION = "alice.accessibility-rescue-camera-captions/v1" as const;
 export const GALLERY_WALK_RUBRIC_SCHEMA_VERSION = "alice.gallery-walk-rubric-evidence/v1" as const;
 
@@ -13,6 +14,35 @@ export type RuntimeParityStatus = "partial";
 export type RuntimeParityMeasuredBoolean = boolean | "unknown";
 export type RuntimeParityMeasuredNumber = number | "unknown";
 export type WebXRSessionEvidenceState = WebXRSessionState | "not-started" | "unmeasured";
+export type PlayerComfortSessionMode = "headset" | "desktop-fallback";
+export type PlayerComfortHeadsetSessionEvidence =
+  | "not-observed"
+  | "browser-webxr-session-only"
+  | "desktop-fallback-observed"
+  | "observed-headset-player-session";
+export type PlayerComfortRevisionLoopEvidence = "not-observed" | "observed-before-after-revision";
+
+export interface PlayerComfortSessionEvidence {
+  readonly schema_version: typeof PLAYER_COMFORT_SESSION_SCHEMA_VERSION;
+  readonly status: "evidence-recorded";
+  readonly mode: PlayerComfortSessionMode;
+  readonly sessionLabel: string;
+  readonly playerAlias: string;
+  readonly observerAlias: string;
+  readonly headsetEvidenceArtifact: string | null;
+  readonly comfort: {
+    readonly orientationObservation: string;
+    readonly locomotionComfort: string;
+    readonly discoverabilityCue: string;
+    readonly stopOrContinueDecision: string;
+  };
+  readonly revisionLoop: {
+    readonly beforeObservation: string;
+    readonly revisionChange: string;
+    readonly afterObservation: string;
+  };
+  readonly evidenceBoundary: string;
+}
 
 export interface CameraVrComfortEvidence {
   readonly schema_version: typeof CAMERA_VR_COMFORT_SCHEMA_VERSION;
@@ -33,10 +63,11 @@ export interface CameraVrComfortEvidence {
     readonly locomotionEvidenceCodes: readonly WebXREvidenceCode[];
   };
   readonly playerComfortPlaytest: {
-    readonly truePlayerComfortPlaytestSupported: false;
-    readonly headsetSessionEvidence: "not-observed" | "browser-webxr-session-only";
-    readonly revisionLoopEvidence: "not-observed";
+    readonly truePlayerComfortPlaytestSupported: boolean;
+    readonly headsetSessionEvidence: PlayerComfortHeadsetSessionEvidence;
+    readonly revisionLoopEvidence: PlayerComfortRevisionLoopEvidence;
     readonly unsupportedReason: string;
+    readonly observedSession?: PlayerComfortSessionEvidence;
   };
   readonly comfortChecks: {
     readonly discreteMovementStep: boolean;
@@ -100,6 +131,7 @@ export function createCameraVrComfortEvidence(input: {
   readonly webXRInputSourceCount?: number;
   readonly locomotionMode?: WebXRLocomotionMode;
   readonly locomotionEvidenceCodes?: readonly WebXREvidenceCode[];
+  readonly playerComfortSession?: PlayerComfortSessionEvidence | null;
 }): CameraVrComfortEvidence {
   const webxrReport = input.webxrReport ?? null;
   const sessionState = input.webXRSessionState ?? "unmeasured";
@@ -110,6 +142,7 @@ export function createCameraVrComfortEvidence(input: {
     ? suppliedInputSourceCount
     : "unknown";
   const locomotionEvidenceCodes = input.locomotionEvidenceCodes ?? [];
+  const playerComfortPlaytest = createPlayerComfortPlaytestEvidence(input.playerComfortSession ?? null, sessionState);
   return {
     schema_version: CAMERA_VR_COMFORT_SCHEMA_VERSION,
     status: "partial",
@@ -128,18 +161,84 @@ export function createCameraVrComfortEvidence(input: {
       locomotionMode: input.locomotionMode ?? "unknown",
       locomotionEvidenceCodes,
     },
-    playerComfortPlaytest: {
-      truePlayerComfortPlaytestSupported: false,
-      headsetSessionEvidence: sessionState === "active" ? "browser-webxr-session-only" : "not-observed",
-      revisionLoopEvidence: "not-observed",
-      unsupportedReason: "Alice web can report browser WebXR session and locomotion evidence; true headset player comfort playtesting still requires observed headset sessions, player notes, and a revision loop.",
-    },
+    playerComfortPlaytest,
     comfortChecks: {
       discreteMovementStep: true,
       stableHorizon: true,
       noForcedHeadset: true,
     },
     unsupportedReason: "Alice web records browser WebXR and desktop camera comfort evidence only; true headset/native VR remains unsupported.",
+  };
+}
+
+export function createPlayerComfortSessionEvidence(input: unknown): PlayerComfortSessionEvidence {
+  const value = recordValue(input);
+  if (!value) {
+    throw new Error("player comfort session evidence must be an object");
+  }
+  const mode = requireMode(value.mode);
+  const headsetEvidenceArtifact = optionalText(value.headsetEvidenceArtifact, "headsetEvidenceArtifact");
+  if (mode === "headset" && !headsetEvidenceArtifact) {
+    throw new Error("headset mode requires headsetEvidenceArtifact");
+  }
+
+  const comfort = recordValue(value.comfort);
+  if (!comfort) {
+    throw new Error("comfort observations are required");
+  }
+  const revisionLoop = recordValue(value.revisionLoop);
+  if (!revisionLoop) {
+    throw new Error("revisionLoop evidence is required");
+  }
+
+  return {
+    schema_version: PLAYER_COMFORT_SESSION_SCHEMA_VERSION,
+    status: "evidence-recorded",
+    mode,
+    sessionLabel: requireText(value.sessionLabel, "sessionLabel"),
+    playerAlias: requireText(value.playerAlias, "playerAlias"),
+    observerAlias: requireText(value.observerAlias, "observerAlias"),
+    headsetEvidenceArtifact,
+    comfort: {
+      orientationObservation: requireText(comfort.orientationObservation, "comfort.orientationObservation"),
+      locomotionComfort: requireText(comfort.locomotionComfort, "comfort.locomotionComfort"),
+      discoverabilityCue: requireText(comfort.discoverabilityCue, "comfort.discoverabilityCue"),
+      stopOrContinueDecision: requireText(comfort.stopOrContinueDecision, "comfort.stopOrContinueDecision"),
+    },
+    revisionLoop: {
+      beforeObservation: requireText(revisionLoop.beforeObservation, "revisionLoop.beforeObservation"),
+      revisionChange: requireText(revisionLoop.revisionChange, "revisionLoop.revisionChange"),
+      afterObservation: requireText(revisionLoop.afterObservation, "revisionLoop.afterObservation"),
+    },
+    evidenceBoundary: mode === "headset"
+      ? "Observed headset/player comfort and before-after revision-loop notes are recorded from a submitted session; native Alice desktop VR support is not implied."
+      : "Observed desktop fallback comfort and before-after revision-loop notes are recorded; true headset player comfort remains unobserved.",
+  };
+}
+
+function createPlayerComfortPlaytestEvidence(
+  session: PlayerComfortSessionEvidence | null,
+  webXRSessionState: WebXRSessionEvidenceState,
+): CameraVrComfortEvidence["playerComfortPlaytest"] {
+  if (session) {
+    const headsetSessionEvidence: PlayerComfortHeadsetSessionEvidence = session.mode === "headset"
+      ? "observed-headset-player-session"
+      : "desktop-fallback-observed";
+    return {
+      truePlayerComfortPlaytestSupported: session.mode === "headset",
+      headsetSessionEvidence,
+      revisionLoopEvidence: "observed-before-after-revision",
+      unsupportedReason: session.mode === "headset"
+        ? "Observed headset/player comfort and revision-loop evidence was submitted; native Alice desktop VR support remains unsupported."
+        : "Observed desktop fallback comfort and revision-loop evidence was submitted; true headset player comfort evidence is still missing.",
+      observedSession: session,
+    };
+  }
+  return {
+    truePlayerComfortPlaytestSupported: false,
+    headsetSessionEvidence: webXRSessionState === "active" ? "browser-webxr-session-only" : "not-observed",
+    revisionLoopEvidence: "not-observed",
+    unsupportedReason: "Alice web can report browser WebXR session and locomotion evidence; true headset player comfort playtesting still requires observed headset sessions, player notes, and a revision loop.",
   };
 }
 
@@ -270,4 +369,39 @@ export function createRuntimeParityEvidence(input: {
 
 function formatNumber(value: number): string {
   return Number.isFinite(value) ? value.toFixed(2) : "0.00";
+}
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function requireMode(value: unknown): PlayerComfortSessionMode {
+  if (value === "headset" || value === "desktop-fallback") {
+    return value;
+  }
+  throw new Error("mode must be headset or desktop-fallback");
+}
+
+function requireText(value: unknown, field: string): string {
+  const text = optionalText(value, field);
+  if (!text || text.length < 8) {
+    throw new Error(`${field} must be at least 8 characters`);
+  }
+  return text;
+}
+
+function optionalText(value: unknown, field: string): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new Error(`${field} must be a string`);
+  }
+  const text = value.trim();
+  if (!text) {
+    return null;
+  }
+  return text.slice(0, 500);
 }

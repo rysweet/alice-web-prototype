@@ -137,10 +137,15 @@ That review now includes two nested boundaries:
 - `browserWebXrSession`: browser session state, reference-space type,
   input-source count, locomotion mode, and locomotion evidence codes observed by
   Alice web when a WebXR session is attempted or active.
-- `playerComfortPlaytest`: an explicit unsupported boundary. Alice web records
-  `truePlayerComfortPlaytestSupported: false`, `revisionLoopEvidence:
-  "not-observed"`, and a reason until an observed headset/player session,
-  player comfort notes, and revision loop exist.
+- `playerComfortPlaytest`: an explicit unsupported boundary on the default
+  camera-comfort read. Alice web records `truePlayerComfortPlaytestSupported:
+  false`, `revisionLoopEvidence: "not-observed"`, and a reason until an
+  observed headset/player session, player comfort notes, and revision loop are
+  submitted.
+- `POST /api/vr/player-comfort-session`: records submitted observer evidence for
+  a headset or desktop-fallback player comfort session. Headset mode requires a
+  headset evidence artifact plus concrete orientation, locomotion comfort,
+  discoverability, stop/continue, and before/change/after revision-loop notes.
 
 This is real browser/WebXR evidence where the browser exposes it. It is not a
 native/headset VR parity claim.

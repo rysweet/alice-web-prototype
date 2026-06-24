@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createAccessibilityRescueCaptionEvidence,
   createCameraVrComfortEvidence,
+  createPlayerComfortSessionEvidence,
   createGalleryWalkRubricEvidence,
   createRuntimeParityEvidence,
 } from "../src/runtime-parity-evidence";
@@ -75,6 +76,39 @@ describe("runtime parity evidence", () => {
       revisionLoopEvidence: "not-observed",
     });
     expect(evidence.playerComfortPlaytest.unsupportedReason).toContain("true headset player comfort playtesting");
+  });
+
+  it("records submitted headset player comfort and revision-loop evidence", () => {
+    const playerComfortSession = createPlayerComfortSessionEvidence({
+      mode: "headset",
+      sessionLabel: "Quest browser session A",
+      playerAlias: "student player",
+      observerAlias: "studio observer",
+      headsetEvidenceArtifact: "recordings/quest-session-a.mp4",
+      comfort: {
+        orientationObservation: "Player found the start direction after the visible arrow cue.",
+        locomotionComfort: "Player tolerated point-click movement and stopped before smooth turning.",
+        discoverabilityCue: "Player used the glowing doorway cue to decide where to move next.",
+        stopOrContinueDecision: "Observer stopped the run after one mild discomfort report.",
+      },
+      revisionLoop: {
+        beforeObservation: "Before revision, the doorway cue was missed twice by the player.",
+        revisionChange: "Author increased the doorway glow and added a slower camera turn.",
+        afterObservation: "After revision, the player found the doorway without a verbal prompt.",
+      },
+    });
+    const evidence = createCameraVrComfortEvidence({ camera, playerComfortSession });
+
+    expect(evidence.status).toBe("partial");
+    expect(evidence.nativeVrSupported).toBe(false);
+    expect(evidence.playerComfortPlaytest).toMatchObject({
+      truePlayerComfortPlaytestSupported: true,
+      headsetSessionEvidence: "observed-headset-player-session",
+      revisionLoopEvidence: "observed-before-after-revision",
+    });
+    expect(evidence.playerComfortPlaytest.observedSession?.revisionLoop.revisionChange)
+      .toContain("doorway glow");
+    expect(evidence.playerComfortPlaytest.unsupportedReason).toContain("native Alice desktop VR support remains unsupported");
   });
 
   it("creates accessibility rescue captions from camera and scene objects", () => {

@@ -11,8 +11,18 @@ const CAMERA_MODES = new Set(["orbit", "first-person"]);
 const WEBXR_CAPABILITY_STATUSES = new Set(["supported", "degraded", "unsupported", "unknown"]);
 const WEBXR_SESSION_STATES = new Set(["idle", "unsupported", "starting", "active", "ended", "failed", "not-started", "unmeasured"]);
 const WEBXR_LOCOMOTION_MODES = new Set(["disabled", "controller-smooth", "point-click", "click-move", "combined", "unknown"]);
-const PLAYER_HEADSET_EVIDENCE_STATES: ReadonlySet<"not-observed" | "browser-webxr-session-only"> = new Set(["not-observed", "browser-webxr-session-only"]);
-const PLAYER_REVISION_EVIDENCE_STATES: ReadonlySet<"not-observed"> = new Set(["not-observed"]);
+const PLAYER_HEADSET_EVIDENCE_STATES: ReadonlySet<
+  "not-observed" | "browser-webxr-session-only" | "desktop-fallback-observed" | "observed-headset-player-session"
+> = new Set([
+  "not-observed",
+  "browser-webxr-session-only",
+  "desktop-fallback-observed",
+  "observed-headset-player-session",
+]);
+const PLAYER_REVISION_EVIDENCE_STATES: ReadonlySet<"not-observed" | "observed-before-after-revision"> = new Set([
+  "not-observed",
+  "observed-before-after-revision",
+]);
 const WEBXR_EVIDENCE_CODES = new Set([
   "secure-context-required",
   "webxr-unavailable",
@@ -67,6 +77,7 @@ const PLAYER_COMFORT_PLAYTEST_KEYS = new Set([
   "headsetSessionEvidence",
   "revisionLoopEvidence",
   "unsupportedReason",
+  "observedSession",
 ]);
 const COMFORT_CHECK_KEYS = new Set(["discreteMovementStep", "stableHorizon", "noForcedHeadset"]);
 const ACCESSIBILITY_CAPTION_KEYS = new Set([
@@ -180,10 +191,11 @@ export interface AliceEvidenceCameraVrComfort {
     locomotionEvidenceCodes?: readonly string[];
   };
   playerComfortPlaytest?: {
-    truePlayerComfortPlaytestSupported: false;
-    headsetSessionEvidence?: "not-observed" | "browser-webxr-session-only";
-    revisionLoopEvidence?: "not-observed";
+    truePlayerComfortPlaytestSupported: boolean;
+    headsetSessionEvidence?: "not-observed" | "browser-webxr-session-only" | "desktop-fallback-observed" | "observed-headset-player-session";
+    revisionLoopEvidence?: "not-observed" | "observed-before-after-revision";
     unsupportedReason?: string;
+    observedSession?: unknown;
   };
   comfortChecks?: {
     discreteMovementStep?: boolean;
@@ -529,7 +541,7 @@ export function validateAliceEvidenceArtifact(value: unknown): AliceEvidenceVali
             const playtest = nestedRecord(cameraVrComfort.playerComfortPlaytest, "runtimeReview.cameraVrComfort.playerComfortPlaytest", errors);
             if (playtest) {
               expectOnlyKeys(playtest, PLAYER_COMFORT_PLAYTEST_KEYS, "runtimeReview.cameraVrComfort.playerComfortPlaytest", errors);
-              expectLiteralFalse(playtest.truePlayerComfortPlaytestSupported, "runtimeReview.cameraVrComfort.playerComfortPlaytest.truePlayerComfortPlaytestSupported", errors);
+              expectOptionalBoolean(playtest.truePlayerComfortPlaytestSupported, "runtimeReview.cameraVrComfort.playerComfortPlaytest.truePlayerComfortPlaytestSupported", errors);
               expectOptionalAllowedString(playtest.headsetSessionEvidence, PLAYER_HEADSET_EVIDENCE_STATES, "runtimeReview.cameraVrComfort.playerComfortPlaytest.headsetSessionEvidence", errors);
               expectOptionalAllowedString(playtest.revisionLoopEvidence, PLAYER_REVISION_EVIDENCE_STATES, "runtimeReview.cameraVrComfort.playerComfortPlaytest.revisionLoopEvidence", errors);
               expectOptionalString(playtest.unsupportedReason, "runtimeReview.cameraVrComfort.playerComfortPlaytest.unsupportedReason", errors);
@@ -737,10 +749,11 @@ function sanitizePlayerComfortPlaytest(value: unknown): NonNullable<AliceEvidenc
   const headsetSessionEvidence = allowedString(playtest.headsetSessionEvidence, PLAYER_HEADSET_EVIDENCE_STATES);
   const revisionLoopEvidence = allowedString(playtest.revisionLoopEvidence, PLAYER_REVISION_EVIDENCE_STATES);
   return {
-    truePlayerComfortPlaytestSupported: false,
+    truePlayerComfortPlaytestSupported: booleanValue(playtest.truePlayerComfortPlaytestSupported),
     ...(headsetSessionEvidence ? { headsetSessionEvidence } : {}),
     ...(revisionLoopEvidence ? { revisionLoopEvidence } : {}),
     ...(playtest.unsupportedReason ? { unsupportedReason: stringValue(playtest.unsupportedReason) } : {}),
+    ...(recordValue(playtest.observedSession) ? { observedSession: recordValue(playtest.observedSession)! } : {}),
   };
 }
 
